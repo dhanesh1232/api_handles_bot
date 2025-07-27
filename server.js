@@ -18,7 +18,7 @@ app.use(
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000", // Or your frontend URL
+    origin: process.env.CLIENT_ORIGIN || "https://app.ecodrix.com",
     methods: ["GET", "POST"],
   },
 });
