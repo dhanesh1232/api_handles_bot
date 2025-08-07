@@ -36,6 +36,10 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Hello from server");
+});
+
 server.listen(PORT, () => {
   console.log(`Socket server running at http://localhost:${PORT}`);
 });
