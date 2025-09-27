@@ -5,7 +5,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-
+import { predefinedReplies } from "./lib/pre-defined.js";
 import { dbConnect } from "./lib/config.js";
 
 const PORT = process.env.PORT || 4000;
@@ -28,26 +28,6 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
-
-// Predefined replies dictionary
-const predefinedReplies = [
-  {
-    keywords: ["hello", "hi", "hey"],
-    reply: "Hello! How can I assist you today?",
-    quickReplies: ["Help me", "Pricing", "Contact support"],
-  },
-  {
-    keywords: ["help", "support"],
-    reply: "Sure! What do you need help with?",
-    quickReplies: ["Account", "Billing", "Technical issue"],
-  },
-  {
-    keywords: ["pricing", "cost", "price"],
-    reply:
-      "Our pricing plans start at $10/month. Would you like to see details?",
-    quickReplies: ["Yes, show me", "No, thanks"],
-  },
-];
 
 // Socket events
 io.on("connection", (socket) => {
