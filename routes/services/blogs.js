@@ -4,11 +4,12 @@ import { Blog } from "../../model/services/blog.js";
 const router = express.Router();
 
 // Get All Blogs
-router.get("/blogs", async (req, res) => {
+router.get("/services/blogs", async (req, res) => {
   await dbConnect("services");
 
   try {
     const blogs = await Blog.find({});
+    console.log(blogs);
     res.status(200).json({
       message: "Blogs fetched successfully",
       data: blogs,
