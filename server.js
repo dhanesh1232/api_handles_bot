@@ -13,11 +13,27 @@ const app = express();
 const server = http.createServer(app);
 
 // Middleware
-app.use(
-  cors({
-    origin: "*",
-  })
-);
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://services.ecodrix.com",
+  "https://www.ecodrix.com",
+  "https://app.ecodrix.com",
+  "https://ecodrix.com",
+  // Add other client origins as needed
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 const io = new Server(server, {
   cors: {
