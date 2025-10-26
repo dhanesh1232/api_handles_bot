@@ -6,7 +6,7 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import { predefinedReplies } from "./lib/pre-defined.js";
-import { dbConnect } from "./lib/config.js";
+import blogsRouter from "./routes/services/blogs.js";
 
 const PORT = process.env.PORT || 4000;
 const app = express();
@@ -18,9 +18,6 @@ app.use(
     origin: "*",
   })
 );
-
-// Connect DB
-dbConnect();
 
 const io = new Server(server, {
   cors: {
@@ -84,6 +81,8 @@ io.on("connection", (socket) => {
 app.get("/", (req, res) => {
   res.send("Hello from server");
 });
+
+app.use("/api", blogsRouter);
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
