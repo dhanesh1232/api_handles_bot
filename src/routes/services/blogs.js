@@ -9,7 +9,7 @@ router.get("/services/blogs", async (req, res) => {
 
   try {
     const blogs = await Blog.find({});
-    console.log(blogs);
+
     res.status(200).json({
       message: "Blogs fetched successfully",
       data: blogs,

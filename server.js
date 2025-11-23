@@ -5,8 +5,17 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import { predefinedReplies } from "./lib/pre-defined.js";
-import blogsRouter from "./routes/services/blogs.js";
+import { predefinedReplies } from "./src/lib/pre-defined.js";
+import blogsRouter from "./src/routes/services/blogs.js";
+import cron from "node-cron";
+import {
+  firstContactJob,
+  followUpJob,
+  researchJob,
+  remindersJob,
+  autoCloseJob,
+  followUpLimitJob,
+} from "./src/jobs/index.js";
 
 const PORT = process.env.PORT || 4000;
 const app = express();
@@ -19,6 +28,7 @@ const allowedOrigins = [
   "https://www.ecodrix.com",
   "https://app.ecodrix.com",
   "https://ecodrix.com",
+  "https://admin.ecodrix.com",
   // Add other client origins as needed
 ];
 
@@ -99,6 +109,24 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", blogsRouter);
+
+/**
+ * @borrows Cron Jobs for leads
+ */
+
+// Every 5 mins — small tasks
+cron.schedule("*/5 * * * *", () => {
+  firstContactJob();
+  followUpJob();
+});
+
+// Every midnight — heavy tasks
+cron.schedule("0 0 * * *", () => {
+  researchJob();
+  remindersJob();
+  autoCloseJob();
+  followUpLimitJob();
+});
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
