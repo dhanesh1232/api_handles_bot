@@ -9,7 +9,6 @@ router.get("/services/blogs", async (req, res) => {
 
   try {
     const blogs = await Blog.find({});
-
     res.status(200).json({
       message: "Blogs fetched successfully",
       data: blogs,
@@ -18,6 +17,12 @@ router.get("/services/blogs", async (req, res) => {
     });
   } catch (er) {
     console.log(er.message);
+    await res.status(500).json({
+      message: "Internal server error",
+      data: [],
+      count: 0,
+      success: false,
+    });
   }
 });
 
