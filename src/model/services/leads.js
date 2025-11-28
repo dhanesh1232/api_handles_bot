@@ -13,6 +13,7 @@ const statuses = [
   "no-response",
   "not-interested",
 ];
+
 import mongoose from "mongoose";
 
 const FollowUpSchema = new mongoose.Schema(
@@ -20,18 +21,20 @@ const FollowUpSchema = new mongoose.Schema(
     message: { type: String, required: true },
     method: {
       type: String,
-      enum: ["call", "whatsapp", "email", "sms"],
+      enum: ["call", "whatsapp", "email", "sms", "in-person", "other"],
       required: true,
     },
     outcome: {
       type: String,
       enum: [
         "connected",
-        "no-answer",
+        "no-answered",
         "interested",
+        "busy",
         "not-interested",
-        "follow-up-needed",
+        "follow-up-scheduled",
         "wrong-number",
+        "converted",
       ],
       default: null,
     },
@@ -89,8 +92,28 @@ const ActivitySchema = new mongoose.Schema(
   { _id: true }
 );
 
+const NoteSchema = new mongoose.Schema(
+  {
+    text: { type: String, required: true },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    visibility: {
+      type: String,
+      enum: ["internal", "public"],
+      default: "internal",
+    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: null },
+  },
+  { _id: true }
+);
+
 const initialData = {
   title: { type: String, required: true },
+  name: { type: String, default: null },
   totalScore: { type: Number, default: null },
   reviewsCount: { type: Number, default: null },
 
@@ -99,7 +122,7 @@ const initialData = {
   state: { type: String, default: null },
   countryCode: { type: String, default: null },
   website: { type: String, default: null },
-
+  email: { type: String, default: null },
   phone: { type: String, default: null },
   categoryName: { type: String, default: null },
   url: { type: String, default: null },
@@ -145,6 +168,7 @@ const LeadSchema = new mongoose.Schema(
     research: {
       status: { type: Boolean, default: false },
       notes: { type: String, default: null },
+      done: { type: Boolean, default: null },
     },
 
     lostReason: {
@@ -179,8 +203,7 @@ const LeadSchema = new mongoose.Schema(
     reminderDate: { type: Date, default: null },
     callBackDate: { type: Date, default: null },
 
-    note: { type: String, default: "" },
-    lastNoteAt: { type: Date, default: null },
+    notes: [NoteSchema],
 
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
@@ -190,12 +213,21 @@ const LeadSchema = new mongoose.Schema(
 
     source: {
       type: String,
-      enum: ["apify", "manual", "referral", "import", "website"],
+      enum: [
+        "apify",
+        "manual",
+        "referral",
+        "import",
+        "website",
+        "google-map",
+        "other",
+      ],
       default: "apify",
     },
 
+    timeline: { type: String, default: null },
     activity: [ActivitySchema],
-
+    purpose: { type: String, default: null },
     leadScore: { type: Number, default: 0 },
 
     tags: [{ type: String }],

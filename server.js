@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import { predefinedReplies } from "./src/lib/pre-defined.js";
 import blogsRouter from "./src/routes/services/blogs.js";
+import leadsRouter from "./src/routes/services/leads.js";
 import cron from "node-cron";
 import {
   firstContactJob,
@@ -42,8 +43,9 @@ const corsOptions = {
   },
   credentials: true,
 };
-
+app.use(express.json());
 app.use(cors(corsOptions));
+app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
@@ -109,6 +111,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", blogsRouter);
+app.use("/api", leadsRouter);
 
 /**
  * @borrows Cron Jobs for leads
