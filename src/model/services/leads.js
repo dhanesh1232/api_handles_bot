@@ -114,8 +114,9 @@ const NoteSchema = new mongoose.Schema(
 const initialData = {
   title: { type: String, required: true },
   name: { type: String, default: null },
-  totalScore: { type: Number, default: null },
-  reviewsCount: { type: Number, default: null },
+  leadScore: { type: Number, default: 0 },
+  rating: { type: Number, default: 0 },
+  reviewsCount: { type: Number, default: 0 },
 
   street: { type: String, default: null },
   city: { type: String, default: null },
@@ -225,10 +226,9 @@ const LeadSchema = new mongoose.Schema(
       default: "apify",
     },
 
-    timeline: { type: String, default: null },
     activity: [ActivitySchema],
+    timeline: { type: String, default: null },
     purpose: { type: String, default: null },
-    leadScore: { type: Number, default: 0 },
 
     tags: [{ type: String }],
   },

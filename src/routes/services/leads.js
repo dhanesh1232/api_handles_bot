@@ -67,13 +67,15 @@ router.post("/add-lead", async (req, res) => {
       status: "new",
       source: "website",
       leadScore,
+      rating: 0,
+      reviewsCount: 0,
       activity: [
         {
           type: "created",
           message: `Lead submitted via website (${serviceSelected})`,
         },
       ],
-      tags: ["Website Offer"],
+      tags: ["Website Offer", categoryName, "Created"],
     });
 
     return res.status(201).json({
