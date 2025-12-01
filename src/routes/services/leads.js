@@ -25,10 +25,14 @@ router.post("/add-lead", async (req, res) => {
       title,
       categoryName,
       city,
+      state,
+      street,
       serviceSelected,
       timeline,
       purpose,
     } = req.body;
+
+    console.log(req.body);
 
     // ----------- VALIDATION ----------
     if (!name || !phone || !title) {
@@ -61,6 +65,8 @@ router.post("/add-lead", async (req, res) => {
       email: email || null,
       categoryName,
       city,
+      state,
+      street,
       purpose,
       timeline,
       serviceSelected,
