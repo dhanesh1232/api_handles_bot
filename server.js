@@ -30,6 +30,7 @@ const allowedOrigins = [
   "https://app.ecodrix.com",
   "https://ecodrix.com",
   "https://admin.ecodrix.com",
+  "https://portfolio.ecodrix.com",
   // Add other client origins as needed
 ];
 
