@@ -162,6 +162,7 @@ router.get("/clients/:code/secrets", verifyCoreToken, async (req, res) => {
       r2PublicDomain: secrets.r2PublicDomain,
 
       emailApiKey: secrets.getDecrypted("emailApiKey"),
+      emailProvider: secrets.emailProvider,
       automationWebhookSecret: secrets.getDecrypted("automationWebhookSecret"),
       customSecrets: {},
       _id: secrets._id,
