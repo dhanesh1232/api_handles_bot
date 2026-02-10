@@ -14,16 +14,20 @@ export async function firstContactJob() {
     status: { $in: ["researching", "qualified"] },
   });
 
-  for (const lead of leads) {
-    lead.firstContactOverdue = true;
-
-    lead.activity.push({
-      type: "status-changed",
-      message: "First contact overdue",
-      createdAt: now,
-    });
-
-    await lead.save();
+  if (leads.length > 0) {
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $set: { firstContactOverdue: true },
+        $push: {
+          activity: {
+            type: "status-changed",
+            message: "First contact overdue",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`First-contact check finished: ${leads.length} overdue`);

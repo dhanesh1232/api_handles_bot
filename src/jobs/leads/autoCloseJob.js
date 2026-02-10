@@ -13,16 +13,20 @@ export const autoCloseJob = async () => {
     status: { $nin: ["closed-won", "closed-lost"] },
   });
 
-  for (const lead of leads) {
-    lead.status = "no-response";
-
-    lead.activity.push({
-      type: "status-changed",
-      message: "Auto-closed due to inactivity (30 days)",
-      createdAt: now,
-    });
-
-    await lead.save();
+  if (leads.length > 0) {
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $set: { status: "no-response" },
+        $push: {
+          activity: {
+            type: "status-changed",
+            message: "Auto-closed due to inactivity (30 days)",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`Auto-closed leads: ${leads.length}`);

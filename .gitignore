@@ -1,3 +1,10 @@
 .env
 /node_modules
 .env.*
+
+*.log
+*.txt
+*.sh
+
+# Prevent npm lockfile
+package-lock.json

@@ -8,6 +8,10 @@ import cors from "cors";
 import { predefinedReplies } from "./src/lib/pre-defined.js";
 import blogsRouter from "./src/routes/services/blogs.js";
 import leadsRouter from "./src/routes/services/leads.js";
+import clientsRouter from "./src/routes/services/clients.js";
+import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.js";
+import { createChatRouter } from "./src/routes/saas/whatsapp/chat.js";
+import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.js";
 import cron from "node-cron";
 import {
   firstContactJob,
@@ -16,6 +20,7 @@ import {
   remindersJob,
   autoCloseJob,
   followUpLimitJob,
+  tenantRemindersJob,
 } from "./src/jobs/index.js";
 
 const PORT = process.env.PORT || 4000;
@@ -51,7 +56,7 @@ app.use(express.urlencoded({ extended: true }));
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   },
 });
 
@@ -59,51 +64,34 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  // Allow clients to join a room for their specific tenant
+  socket.on("join-room", (clientCode) => {
+    if (clientCode) {
+      socket.join(clientCode);
+      console.log(`📡 Socket ${socket.id} joined room: ${clientCode}`);
+    }
+  });
+
+  socket.on("join", (clientCode) => {
+    if (clientCode) {
+      socket.join(clientCode);
+      console.log(`📡 Socket ${socket.id} joined room (legacy): ${clientCode}`);
+    }
+  });
+
   socket.on("send-message", async (msg) => {
     console.log("Received:", msg);
-
-    // Emit the user's message to all clients including sender
-    io.emit("receive-message", {
-      id: Date.now(),
-      from: "user",
-      text: msg.text,
-      timestamp: new Date(),
-    });
-
-    // Simple keyword matching to find a predefined reply
-    const lowerText = msg.text.toLowerCase();
-    const matchedReply = predefinedReplies.find(({ keywords }) =>
-      keywords.some((kw) => lowerText.includes(kw))
-    );
-
-    if (matchedReply) {
-      // Delay to simulate typing
-      setTimeout(() => {
-        io.emit("receive-message", {
-          id: Date.now() + 1,
-          from: "bot",
-          text: matchedReply.reply,
-          type: "quick_replies",
-          options: matchedReply.quickReplies,
-          timestamp: new Date(),
-        });
-      }, 1000);
-    } else {
-      // Default fallback reply
-      setTimeout(() => {
-        io.emit("receive-message", {
-          id: Date.now() + 1,
-          from: "bot",
-          text: "Sorry, I didn't understand that. Can you please rephrase?",
-          timestamp: new Date(),
-        });
-      }, 1000);
-    }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
+});
+
+// Middleware to attach io to req
+app.use((req, res, next) => {
+  req.io = io;
+  next();
 });
 
 // Simple REST route
@@ -113,24 +101,61 @@ app.get("/", (req, res) => {
 
 app.use("/api", blogsRouter);
 app.use("/api", leadsRouter);
+app.use("/api", clientsRouter);
+app.use("/api/saas/whatsapp", await createWebhookRouter(io));
+app.use("/api/saas/chat", createChatRouter(io));
+app.use("/api/saas/chat/templates", createTemplateRouter(io));
 
 /**
  * @borrows Cron Jobs for leads
+ *
+ * @param {firstContactJob} - First contact job
+ * @param {followUpJob} - Follow-up job
+ * @param {researchJob} - Research job
+ * @param {remindersJob} - Reminders job
+ * @param {autoCloseJob} - Auto-close job
+ * @param {followUpLimitJob} - Follow-up limit job
+ * @param {tenantRemindersJob} - Tenant reminders job
  */
 
 // Every 5 mins — small tasks
-cron.schedule("*/5 * * * *", () => {
-  firstContactJob();
-  followUpJob();
+cron.schedule("*/5 * * * *", async () => {
+  try {
+    await firstContactJob();
+    await followUpJob();
+  } catch (err) {
+    console.error("❌ 5-minute jobs failed:", err);
+  }
 });
 
 // Every midnight — heavy tasks
-cron.schedule("0 0 * * *", () => {
-  researchJob();
-  remindersJob();
-  autoCloseJob();
-  followUpLimitJob();
+cron.schedule("0 0 * * *", async () => {
+  try {
+    await researchJob();
+    await remindersJob();
+    await autoCloseJob();
+    await followUpLimitJob();
+  } catch (err) {
+    console.error("❌ Midnight jobs failed:", err);
+  }
 });
+
+// High-frequency task: Check all enabled tenants for upcoming reminders
+// Use a controlled loop to prevent overlapping executions and excessive CPU usage
+const runRemindersJob = async () => {
+  try {
+    await tenantRemindersJob();
+  } catch (err) {
+    console.error("❌ Reminders Job Loop Error:", err);
+  } finally {
+    // Wait 30 seconds before scheduling the next check
+    // 30s is more than enough to catch a 1-minute reminder window
+    setTimeout(runRemindersJob, 30000);
+  }
+};
+
+// Start the loop
+runRemindersJob();
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

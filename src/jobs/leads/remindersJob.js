@@ -10,18 +10,20 @@ export const remindersJob = async () => {
     $or: [{ reminderDate: { $lt: now } }, { callBackDate: { $lt: now } }],
   });
 
-  for (const lead of leads) {
-    lead.activity.push({
-      type: "status-changed",
-      message: "Reminder/Callback time reached",
-      createdAt: now,
-    });
-
-    // Reset reminder so it doesn't repeat
-    lead.reminderDate = null;
-    lead.callBackDate = null;
-
-    await lead.save();
+  if (leads.length > 0) {
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $set: { reminderDate: null, callBackDate: null },
+        $push: {
+          activity: {
+            type: "status-changed",
+            message: "Reminder/Callback time reached",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`Reminders executed: ${leads.length}`);

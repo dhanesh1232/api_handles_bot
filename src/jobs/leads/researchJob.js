@@ -15,14 +15,19 @@ export const researchJob = async () => {
     status: "researching",
   });
 
-  for (const lead of leads) {
-    lead.activity.push({
-      type: "status-changed",
-      message: "Research taking too long (no notes added)",
-      createdAt: now,
-    });
-
-    await lead.save();
+  if (leads.length > 0) {
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $push: {
+          activity: {
+            type: "status-changed",
+            message: "Research taking too long (no notes added)",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`Research delay flagged: ${leads.length}`);

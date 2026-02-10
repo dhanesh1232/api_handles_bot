@@ -12,16 +12,20 @@ export const followUpJob = async () => {
     status: { $in: ["contacted", "responded", "follow-up"] },
   });
 
-  for (const lead of leads) {
-    lead.followUpOverdue = true;
-
-    lead.activity.push({
-      type: "follow-up",
-      message: "Follow-up overdue",
-      createdAt: now,
-    });
-
-    await lead.save();
+  if (leads.length > 0) {
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $set: { followUpOverdue: true },
+        $push: {
+          activity: {
+            type: "follow-up",
+            message: "Follow-up overdue",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`Follow-up overdue updated: ${leads.length}`);

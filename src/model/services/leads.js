@@ -28,7 +28,7 @@ const FollowUpSchema = new mongoose.Schema(
       type: String,
       enum: [
         "connected",
-        "no-answered",
+        "not-answered",
         "interested",
         "busy",
         "not-interested",
@@ -62,7 +62,7 @@ const FollowUpSchema = new mongoose.Schema(
       },
     ],
   },
-  { _id: true }
+  { _id: true },
 );
 
 const ActivitySchema = new mongoose.Schema(
@@ -89,7 +89,7 @@ const ActivitySchema = new mongoose.Schema(
     meta: {},
     createdAt: { type: Date, default: Date.now },
   },
-  { _id: true }
+  { _id: true },
 );
 
 const NoteSchema = new mongoose.Schema(
@@ -108,7 +108,7 @@ const NoteSchema = new mongoose.Schema(
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: null },
   },
-  { _id: true }
+  { _id: true },
 );
 
 const initialData = {
@@ -232,7 +232,7 @@ const LeadSchema = new mongoose.Schema(
 
     tags: [{ type: String }],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Lead = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);

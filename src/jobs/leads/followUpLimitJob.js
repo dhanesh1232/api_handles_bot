@@ -10,16 +10,21 @@ export const followUpLimitJob = async () => {
     status: { $ne: "closed-lost" },
   });
 
-  for (const lead of leads) {
-    lead.status = "no-response";
-
-    lead.activity.push({
-      type: "follow-up",
-      message: "Max follow-up limit reached (auto no-response)",
-      createdAt: new Date(),
-    });
-
-    await lead.save();
+  if (leads.length > 0) {
+    const now = new Date();
+    await Lead.updateMany(
+      { _id: { $in: leads.map((l) => l._id) } },
+      {
+        $set: { status: "no-response" },
+        $push: {
+          activity: {
+            type: "follow-up",
+            message: "Max follow-up limit reached (auto no-response)",
+            createdAt: now,
+          },
+        },
+      },
+    );
   }
 
   console.log(`Follow-up limit enforced: ${leads.length}`);
