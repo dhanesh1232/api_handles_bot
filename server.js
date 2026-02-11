@@ -12,6 +12,7 @@ import clientsRouter from "./src/routes/services/clients.js";
 import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.js";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.js";
 import { createImagesRouter } from "./src/routes/saas/images.js";
+import marketingRouter from "./src/routes/saas/marketing.js";
 import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.js";
 import cron from "node-cron";
 import {
@@ -125,6 +126,7 @@ app.use("/api/saas/whatsapp", await createWebhookRouter(io));
 app.use("/api/saas/chat", createChatRouter(io));
 app.use("/api/saas/images", createImagesRouter(io));
 app.use("/api/saas/chat/templates", createTemplateRouter(io));
+app.use("/api/saas/marketing", marketingRouter);
 
 /**
  * @borrows Cron Jobs for leads

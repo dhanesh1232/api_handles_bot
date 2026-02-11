@@ -261,8 +261,49 @@ TemplateSchema.index({ name: 1, language: 1 }, { unique: true });
 export const Template =
   mongoose.models.Template || mongoose.model("Template", TemplateSchema);
 
+const LeadSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, trim: true, lowercase: true },
+    phone: { type: String, required: true, index: true },
+    status: {
+      type: String,
+      enum: ["new", "contacted", "qualified", "proposal", "closed", "lost"],
+      default: "new",
+    },
+    source: String, // e.g., 'whatsapp', 'website', 'manual'
+    leadScore: { type: Number, default: 0 },
+    notes: [
+      {
+        text: String,
+        createdAt: { type: Date, default: Date.now },
+        createdBy: String,
+      },
+    ],
+    metadata: mongoose.Schema.Types.Mixed,
+    assignedTo: String, // User ID
+    lastInteractionAt: Date,
+  },
+  { timestamps: true, collection: "leads" },
+);
+
+const ContactSchema = new mongoose.Schema(
+  {
+    name: { type: String },
+    phone: { type: String, required: true, unique: true },
+    email: { type: String },
+    tags: [String],
+    isBlocked: { type: Boolean, default: false },
+    metadata: mongoose.Schema.Types.Mixed,
+    lastActiveAt: Date,
+  },
+  { timestamps: true, collection: "contacts" },
+);
+
 export const schemas = {
   conversations: ConversationSchema,
   messages: MessageSchema,
   templates: TemplateSchema,
+  leads: LeadSchema,
+  contacts: ContactSchema,
 };

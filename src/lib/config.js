@@ -52,7 +52,7 @@ async function dbConnect(db) {
 
   if (!URI) {
     throw new Error(
-      "⚠️ Please define the MONGODB_URI environment variable inside .env"
+      "⚠️ Please define the MONGODB_URI environment variable inside .env",
     );
   }
 

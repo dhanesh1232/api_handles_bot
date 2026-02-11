@@ -97,7 +97,7 @@ const blogSchema = new mongoose.Schema(
     readTime: Number,
     deleted: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Blog = mongoose.models.Blog || mongoose.model("Blog", blogSchema);
