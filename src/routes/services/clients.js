@@ -164,6 +164,14 @@ router.get("/clients/:code/secrets", verifyCoreToken, async (req, res) => {
       emailApiKey: secrets.getDecrypted("emailApiKey"),
       emailProvider: secrets.emailProvider,
       automationWebhookSecret: secrets.getDecrypted("automationWebhookSecret"),
+
+      smtpHost: secrets.getDecrypted("smtpHost"),
+      smtpPort: secrets.smtpPort,
+      smtpUser: secrets.getDecrypted("smtpUser"),
+      smtpPass: secrets.getDecrypted("smtpPass"),
+      smtpFrom: secrets.getDecrypted("smtpFrom"),
+      smtpSecure: secrets.smtpSecure,
+
       customSecrets: {},
       _id: secrets._id,
       clientCode: secrets.clientCode,

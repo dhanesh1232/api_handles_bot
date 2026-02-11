@@ -29,6 +29,14 @@ const ClientSecretsSchema = new mongoose.Schema(
 
     automationWebhookSecret: { type: String, default: null },
 
+    // SMTP Configuration
+    smtpHost: { type: String, default: null },
+    smtpPort: { type: String, default: null },
+    smtpUser: { type: String, default: null },
+    smtpPass: { type: String, default: null },
+    smtpFrom: { type: String, default: null },
+    smtpSecure: { type: Boolean, default: true },
+
     // General purpose secrets map
     customSecrets: {
       type: Map,
@@ -55,6 +63,10 @@ ClientSecretsSchema.pre("save", function (next) {
     "r2Endpoint",
     "emailApiKey",
     "automationWebhookSecret",
+    "smtpHost",
+    "smtpUser",
+    "smtpPass",
+    "smtpFrom",
   ];
 
   secretFields.forEach((field) => {

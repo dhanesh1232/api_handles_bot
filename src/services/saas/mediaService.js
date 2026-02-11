@@ -88,6 +88,7 @@ export const optimizeAndUploadMedia = async (
   originalFileName,
   mediaId,
   secrets, // Injected secrets
+  folder = "whatsapp",
 ) => {
   let mimeType = originalMimeType;
   let buffer = fileBuffer;
@@ -145,7 +146,7 @@ export const optimizeAndUploadMedia = async (
     fileName = `${mediaId}.${ext}`;
   }
 
-  const r2Key = `whatsapp/${fileName}`;
+  const r2Key = `${folder}/${fileName}`;
 
   const s3Client = getR2Client(secrets);
   if (!s3Client) throw new Error("R2 Storage not configured");
@@ -212,4 +213,41 @@ export const uploadBufferToR2 = async (buffer, mimeType, filename, secrets) => {
   }
 
   return `${r2PublicDomain}/${r2Key}`;
+};
+
+export const listObjectsFromR2 = async (folder, secrets) => {
+  const s3Client = getR2Client(secrets);
+  if (!s3Client) throw new Error("R2 Storage not configured");
+
+  const r2BucketName = secrets.getDecrypted("r2BucketName");
+  const r2PublicDomain = secrets.getDecrypted("r2PublicDomain");
+  const r2Endpoint = secrets.getDecrypted("r2Endpoint");
+
+  const prefix = folder.endsWith("/") ? folder : `${folder}/`;
+
+  const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+
+  const command = new ListObjectsV2Command({
+    Bucket: r2BucketName,
+    Prefix: prefix,
+  });
+
+  const response = await s3Client.send(command);
+
+  return (response.Contents || [])
+    .map((item) => {
+      const publicUrl = r2PublicDomain
+        ? `${r2PublicDomain}/${item.Key}`
+        : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${item.Key}`;
+
+      return {
+        url: publicUrl,
+        name: path.basename(item.Key),
+        fileName: path.basename(item.Key),
+        key: item.Key,
+        lastModified: item.LastModified,
+        size: item.Size,
+      };
+    })
+    .sort((a, b) => b.lastModified - a.lastModified);
 };
