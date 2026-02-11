@@ -31,6 +31,8 @@ const server = http.createServer(app);
 // Middleware
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173", // Vite
   "https://services.ecodrix.com",
   "https://www.ecodrix.com",
   "https://app.ecodrix.com",
@@ -51,9 +53,23 @@ const corsOptions = {
     }
   },
   credentials: true,
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-api-key",
+    "x-client-code",
+  ],
 };
-app.use(express.json());
 app.use(cors(corsOptions));
+app.use((req, res, next) => {
+  express.json()(req, res, (err) => {
+    if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+      console.error(`⚠️ JSON Parse Error: ${err.message}`);
+      return res.status(400).json({ error: "Invalid JSON format" });
+    }
+    next(err);
+  });
+});
 app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {

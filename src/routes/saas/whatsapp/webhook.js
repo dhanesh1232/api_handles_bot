@@ -105,6 +105,10 @@ export const createWebhookRouter = async (io) => {
                         (c) => c.wa_id === from,
                       );
 
+                      console.log(
+                        `[${clientCode}] Incoming ${message.type} from ${from} | Meta TS: ${message.timestamp}`,
+                      );
+
                       await whatsappService.handleIncomingMessage(
                         clientCode,
                         message,
