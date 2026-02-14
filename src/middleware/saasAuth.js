@@ -9,7 +9,7 @@ import { Client } from "../model/clients/client.js";
 export async function validateClientKey(req, res, next) {
   const apiKey = req.headers["x-api-key"];
   const clientCode = req.headers["x-client-code"];
-
+  // console.log(apiKey, clientCode);
   if (!apiKey) {
     return res.status(401).json({ error: "Unauthorized: Missing API Key" });
   }

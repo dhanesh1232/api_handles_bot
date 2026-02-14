@@ -87,6 +87,28 @@ export const tenantRemindersJob = async () => {
             .toArray();
 
           for (const appt of pendingReminders) {
+            let actualStartTime = appt.appointmentDate;
+
+            // If appointmentDate is just a date (00:00) and timeSlot is present, combine them
+            if (appt.timeSlot && appt.appointmentDate) {
+              try {
+                const [startPart] = appt.timeSlot.split(" - ");
+                const [hours, minutes] = startPart.split(":").map(Number);
+                actualStartTime = new Date(appt.appointmentDate);
+                actualStartTime.setHours(hours, minutes, 0, 0);
+              } catch (e) {
+                console.warn(
+                  `[${clientCode}] Failed to parse timeSlot: ${appt.timeSlot}`,
+                );
+              }
+            }
+
+            // Re-verify if this appointment is still in the target window after time correction
+            const timeDiff =
+              (actualStartTime.getTime() - now.getTime()) / 60000;
+            // Allow a small buffer (e.g., if it's within the rule.minutesPrior +/- 2 minutes)
+            if (Math.abs(timeDiff - rule.minutesPrior) > 2) continue;
+
             let waSent = false;
             let emailSent = false;
 
@@ -95,15 +117,21 @@ export const tenantRemindersJob = async () => {
               (rule.channel === "whatsapp" || rule.channel === "both") &&
               appt.patientPhone
             ) {
+              const formattedTime = actualStartTime.toLocaleTimeString(
+                "en-US",
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                },
+              );
+
               const components = [
                 {
                   type: "body",
                   parameters: [
                     { type: "text", text: appt.patientName || "Patient" },
-                    {
-                      type: "text",
-                      text: appt.appointmentDate.toLocaleTimeString(),
-                    },
+                    { type: "text", text: formattedTime },
                     { type: "text", text: appt.location || "Nirvisham Clinic" },
                   ],
                 },

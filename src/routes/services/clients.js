@@ -1,12 +1,12 @@
-import express from "express";
 import crypto from "crypto";
+import express from "express";
 
+import { verifyCoreToken } from "../../lib/auth.js";
 import { dbConnect } from "../../lib/config.js";
 import { Client } from "../../model/clients/client.js";
 import { ClientServiceConfig } from "../../model/clients/config.js";
-import { ClientSecrets } from "../../model/clients/secrets.js";
 import { ClientDataSource } from "../../model/clients/dataSource.js";
-import { verifyCoreToken } from "../../lib/auth.js";
+import { ClientSecrets } from "../../model/clients/secrets.js";
 
 const router = express.Router();
 
@@ -360,7 +360,7 @@ router.post("/clients/:code/api-key", verifyCoreToken, async (req, res) => {
     }
 
     // Generate a secure random key
-    const apiKey = `ERIX$${crypto.randomBytes(24).toString("hex").toUpperCase()}`;
+    const apiKey = `ERIX${crypto.randomBytes(24).toString("hex").toUpperCase()}`;
     client.apiKey = apiKey;
     await client.save();
 
