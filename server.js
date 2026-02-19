@@ -7,14 +7,15 @@ import http from "http";
 import cron from "node-cron";
 import { Server } from "socket.io";
 import {
-  autoCloseJob,
-  firstContactJob,
-  followUpJob,
-  followUpLimitJob,
-  remindersJob,
-  researchJob,
-  tenantRemindersJob,
+    autoCloseJob,
+    firstContactJob,
+    followUpJob,
+    followUpLimitJob,
+    remindersJob,
+    researchJob,
+    tenantRemindersJob,
 } from "./src/jobs/index.js";
+import googleAuthRouter from "./src/routes/auth/google.js";
 import { createImagesRouter } from "./src/routes/saas/images.js";
 import marketingRouter from "./src/routes/saas/marketing.js";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.js";
@@ -23,7 +24,6 @@ import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.js";
 import blogsRouter from "./src/routes/services/blogs.js";
 import clientsRouter from "./src/routes/services/clients.js";
 import leadsRouter from "./src/routes/services/leads.js";
-import googleAuthRouter from "./src/routes/auth/google.js";
 
 const PORT = process.env.PORT || 4000;
 const app = express();

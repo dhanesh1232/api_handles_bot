@@ -7,6 +7,8 @@ import { ClientSecrets } from "../../model/clients/secrets.js";
  * Handles generating meeting links and managing calendar events for tenants.
  */
 
+const url = "http://localhost:4000" || "https://api.ecodrix.com";
+
 export const createGoogleMeetService = () => {
   /**
    * Get OAuth2 Client for a specific client
@@ -27,7 +29,7 @@ export const createGoogleMeetService = () => {
     const oAuth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      "https://api.ecodrix.com/api/auth/google/callback",
+      `${url}/api/auth/google/callback`,
     );
 
     oAuth2Client.setCredentials({ refresh_token: refreshToken });
