@@ -27,7 +27,7 @@ export const createGoogleMeetService = () => {
     const oAuth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      "https://services.ecodrix.com/api/auth/google/callback",
+      "https://api.ecodrix.com/api/auth/google/callback",
     );
 
     oAuth2Client.setCredentials({ refresh_token: refreshToken });

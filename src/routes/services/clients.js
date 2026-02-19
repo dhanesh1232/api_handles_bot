@@ -154,6 +154,10 @@ router.get("/clients/:code/secrets", verifyCoreToken, async (req, res) => {
       whatsappBusinessId: secrets.getDecrypted("whatsappBusinessId"),
       whatsappPhoneNumberId: secrets.getDecrypted("whatsappPhoneNumberId"),
       whatsappWebhookToken: secrets.getDecrypted("whatsappWebhookToken"),
+      
+      googleClientId: secrets.getDecrypted("googleClientId"),
+      googleClientSecret: secrets.getDecrypted("googleClientSecret"),
+      googleRefreshToken: secrets.getDecrypted("googleRefreshToken"),
 
       r2AccessKeyId: secrets.getDecrypted("r2AccessKeyId"),
       r2SecretKey: secrets.getDecrypted("r2SecretKey"),

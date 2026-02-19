@@ -17,6 +17,11 @@ const ClientSecretsSchema = new mongoose.Schema(
     whatsappPhoneNumberId: { type: String, default: null },
     whatsappWebhookToken: { type: String, default: null },
 
+    // Google Meet Credentials
+    googleClientId: { type: String, default: null },
+    googleClientSecret: { type: String, default: null },
+    googleRefreshToken: { type: String, default: null },
+
     // Cloudflare R2
     r2AccessKeyId: { type: String, default: null },
     r2SecretKey: { type: String, default: null },
@@ -58,6 +63,9 @@ ClientSecretsSchema.pre("save", function (next) {
     "whatsappBusinessId",
     "whatsappPhoneNumberId",
     "whatsappWebhookToken",
+    "googleClientId",
+    "googleClientSecret",
+    "googleRefreshToken",
     "r2AccessKeyId",
     "r2SecretKey",
     "r2Endpoint",
