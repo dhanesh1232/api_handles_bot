@@ -103,9 +103,29 @@ router.post(
         
         const date = new Date(appointmentDate);
         
-        const start = new Date(date);
-        start.setHours(startHours, startMinutes, 0, 0);
+        // Convert to IST string to force the correct day (e.g. Feb 27)
+        // regardless of server timezone/UTC time (which might be Feb 26)
+        const istDateStr = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+        const istDate = new Date(istDateStr);
+
+        // Create a new Date object for the appointment start time
+        // We set the time components on the IST date
+        istDate.setHours(startHours, startMinutes, 0, 0);
+
+        // However, if the server is in UTC, istDate is now 18:00 UTC (Feb 27).
+        // If the server is in IST, istDate is 18:00 IST (Feb 27).
+        // To be safe and server-agnostic, we can construct the UTC time manually:
+        // 1. Get the date parts from the IST string
+        const [month, day, year] = istDateStr.split(",")[0].split("/").map(Number);
         
+        // 2. Create the target time in UTC (e.g. Feb 27, 18:00 UTC)
+        const targetUTC = new Date(Date.UTC(year, month - 1, day, startHours, startMinutes));
+        
+        // 3. Subtract 5.5 hours (330 minutes) to get the time in UTC that corresponds to 18:00 IST
+        // 18:00 UTC - 5.5h = 12:30 UTC
+        targetUTC.setMinutes(targetUTC.getMinutes() - 330);
+
+        const start = targetUTC;
         const meetingDuration = duration || 30; // Default to 30 mins if not provided
         const end = new Date(start.getTime() + meetingDuration * 60000);
         
@@ -139,7 +159,7 @@ router.post(
 
       // 2. Schedule Reminders (Placeholder)
       // Logic to schedule WhatsApp/Email reminders 1hr and 15min before
-      // console.log(`[Marketing] Appointment ${appointmentId} confirmed. Meet: ${meetLink}`);
+      console.log(`[Marketing] Appointment ${appointmentId} confirmed. Meet: ${meetLink}`);
 
       res.status(200).json({
         success: true,
