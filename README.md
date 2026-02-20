@@ -24,16 +24,23 @@ The **API Bot** is the core backend engine for ECODrIx, responsible for handling
 
 ---
 
+## 📚 Documentation
+
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)**: Guidelines for code standards, branching, and pull requests.
+- **[.env.example](./.env.example)**: Reference for required environment variables.
+
+---
+
 ## 🏗 Key Components & Logic Flow
 
-### 1. WebHook Handler (`src/routes/saas/whatsapp/webhook.js`)
+### 1. WebHook Handler (`src/routes/saas/whatsapp/webhook.ts`)
 
 - **Verification**: Handles Meta's verification challenge using client-specific tokens.
 - **Ingestion**: Receives incoming JSON payloads from WhatsApp.
 - **Matching**: Decrypts stored `whatsappPhoneNumberId` to identify which client the message belongs to.
-- **Asynchronous Processing**: Responds with `200 OK` immediately and processes the message logic using `setImmediate` to avoid blocking Meta's retries.
+- **Asynchronous Processing**: Responds with `200 OK` immediately and processes the message logic asynchronously to avoid blocking Meta's retries.
 
-### 2. WhatsApp Service (`src/services/saas/whatsapp/whatsappService.js`)
+### 2. WhatsApp Service (`src/services/saas/whatsapp/whatsappService.ts`)
 
 - **Message Parsing**: Handles Text, Images, Video, Documents, and Interactive Button Replies.
 - **Reactions**: Managed via a priority-based status system to avoid out-of-order updates.
