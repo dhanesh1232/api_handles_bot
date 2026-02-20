@@ -59,6 +59,7 @@ const corsOptions = {
     "Authorization",
     "x-api-key",
     "x-client-code",
+    "x-core-api-key",
   ],
 };
 app.use(cors(corsOptions));
