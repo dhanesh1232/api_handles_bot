@@ -32,10 +32,12 @@ router.get("/connect", async (req, res) => {
     }
 
     // 2. Create OAuth Client
+    const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
+    
     const oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
+      redirectUri,
     );
 
     // 3. Generate Auth URL
@@ -83,10 +85,12 @@ router.get("/callback", async (req, res) => {
         .send("Google Client ID and Secret are missing in configuration");
     }
 
+    const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
+
     const oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
+      redirectUri,
     );
 
     // 2. Exchange Code for Tokens
