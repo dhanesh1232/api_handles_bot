@@ -1,9 +1,10 @@
-import express from "express";
-import { ClientSecrets } from "../../../model/clients/secrets.js";
+import express, { type Request, type Response } from "express";
+import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.js";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.js";
+import { ClientSecrets } from "../../../model/clients/secrets.js";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
 
-export const createWebhookRouter = async (io) => {
+export const createWebhookRouter = async (io: Server) => {
   await dbConnect("services");
   const router = express.Router();
   const whatsappService = createWhatsappService(io);
@@ -11,17 +12,16 @@ export const createWebhookRouter = async (io) => {
   /**
    * WhatsApp Webhook Verification (Meta Cloud API)
    */
-  router.get("/webhook", async (req, res) => {
+  router.get("/webhook", async (req: Request, res: Response) => {
     const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
+    const token = req.query["hub.verify_token"] as string;
     const challenge = req.query["hub.challenge"];
 
-    console.log(mode, token, challenge);
     const allSecrets = await ClientSecrets.find({});
 
     console.log(`🔍 Verifying Webhook. Incoming: ${token}`);
 
-    const secrets = allSecrets.find((s) => {
+    const secrets = allSecrets.find((s: any) => {
       const stored = s.getDecrypted("whatsappWebhookToken");
       return stored && stored.trim() === token;
     });
@@ -41,7 +41,7 @@ export const createWebhookRouter = async (io) => {
   /**
    * WhatsApp Webhook Message Handler
    */
-  router.post("/webhook", async (req, res) => {
+  router.post("/webhook", async (req: Request, res: Response) => {
     const body = req.body;
 
     if (body.object === "whatsapp_business_account") {
@@ -50,7 +50,6 @@ export const createWebhookRouter = async (io) => {
       setImmediate(async () => {
         try {
           if (body.entry && body.entry.length > 0) {
-            // Fetch all secrets once (optimization: cache this later)
             const allSecrets = await ClientSecrets.find({});
 
             for (const entry of body.entry) {
@@ -62,10 +61,9 @@ export const createWebhookRouter = async (io) => {
 
                   if (!metadata) continue;
 
-                  const phoneId = String(metadata.phone_number_id); // Ensure string
+                  const phoneId = String(metadata.phone_number_id);
 
-                  // Match tenant by Phone ID
-                  const secrets = allSecrets.find((s) => {
+                  const secrets = allSecrets.find((s: any) => {
                     const storedPid = s.getDecrypted("whatsappPhoneNumberId");
                     return storedPid && String(storedPid) === phoneId;
                   });
@@ -100,9 +98,8 @@ export const createWebhookRouter = async (io) => {
                           msgBody = message.interactive.list_reply?.title;
                       }
 
-                      // Find the specific contact for this sender
                       const contact = value.contacts?.find(
-                        (c) => c.wa_id === from,
+                        (c: any) => c.wa_id === from,
                       );
 
                       console.log(
@@ -119,7 +116,7 @@ export const createWebhookRouter = async (io) => {
                     }
                   }
 
-                  // 2. Handle Status Updates (Sent, Delivered, Read)
+                  // 2. Handle Status Updates
                   if (value.statuses && value.statuses.length > 0) {
                     for (const status of value.statuses) {
                       console.log(

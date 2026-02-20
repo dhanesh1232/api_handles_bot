@@ -1,9 +1,21 @@
+import { type Document } from "mongoose";
 import { dbConnect } from "../../lib/config.js";
-import { ClientServiceConfig } from "../../model/clients/config.js";
-import { ClientSecrets } from "../../model/clients/secrets.js";
-import { ClientDataSource } from "../../model/clients/dataSource.js";
 import { getTenantConnection } from "../../lib/tenantDb.js";
 import { sendWhatsAppTemplate } from "../../lib/whatsapp.js";
+import { ClientServiceConfig } from "../../model/clients/config.js";
+import { ClientDataSource } from "../../model/clients/dataSource.js";
+import { ClientSecrets } from "../../model/clients/secrets.js";
+
+interface IAppointment extends Document {
+  appointmentDate: Date;
+  timeSlot?: string;
+  patientPhone: string;
+  patientName?: string;
+  patientEmail?: string;
+  location?: string;
+  remindersSent?: Record<string, boolean>;
+  status: string;
+}
 
 /**
  * Multi-tenant Reminder Job
@@ -46,7 +58,7 @@ export const tenantRemindersJob = async () => {
         const db = conn.db;
 
         // We assume a collection named 'appointments' or check config for custom collection
-        const appointmentsCollection = db.collection("appointments");
+        const appointmentsCollection = db?.collection<IAppointment>("appointments");
 
         // 5. Find upcoming appointments based on dynamic timing rules
         const reminderRules = config?.cron?.reminders?.timingRules || [
@@ -76,11 +88,13 @@ export const tenantRemindersJob = async () => {
           );
           const targetTimeEnd = new Date(targetTimeStart.getTime() + 60000); // 1 minute window
 
-          const query = {
+          const query: any = {
             appointmentDate: { $gte: targetTimeStart, $lt: targetTimeEnd },
             [`remindersSent.${rule.tag}`]: { $ne: true },
             status: { $ne: "cancelled" },
           };
+
+          if (!appointmentsCollection) continue;
 
           const pendingReminders = await appointmentsCollection
             .find(query)
@@ -150,6 +164,10 @@ export const tenantRemindersJob = async () => {
                 console.log(
                   `✅ [${clientCode}] Sent WA Template ${rule.whatsappTemplateName} to ${appt.patientPhone}`,
                 );
+
+                // Optional: Log this as a Message in our WhatsApp system
+                // const MessageModel = conn.model("Message", schemas.messages);
+                // await MessageModel.create({ ... });
               }
             }
 
@@ -159,7 +177,7 @@ export const tenantRemindersJob = async () => {
               appt.patientEmail
             ) {
               console.log(
-                `📧 [${clientCode}] Dispatching Email Template ${rule.emailTemplateId} to ${appt.patientEmail}`,
+                `📧 [${clientCode}] Dispatching Email Template ${(rule as any).emailTemplateId} to ${appt.patientEmail}`,
               );
               // Mocking successful email dispatch for now
               emailSent = true;
@@ -174,14 +192,14 @@ export const tenantRemindersJob = async () => {
             }
           }
         }
-      } catch (tenantErr) {
+      } catch (tenantErr: any) {
         console.error(
           `❌ Error processing tenant ${clientCode}:`,
           tenantErr.message,
         );
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("❌ Global Reminders Job Error:", err.message);
   }
 };

@@ -1,17 +1,22 @@
 import axios from "axios";
 import FormData from "form-data";
+import mongoose, { type Connection, type Model } from "mongoose";
 import path from "path";
+import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.js";
-import { ClientSecrets } from "../../../model/clients/secrets.js";
 import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.js";
+import { ClientSecrets } from "../../../model/clients/secrets.js";
 import { schemas } from "../../../model/saas/tenantSchemas.js";
+import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
+import type { IMessage, IMessageTemplateData } from "../../../model/saas/whatsapp/message.model.ts";
+import type { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
-const STATUS_PRIORITY = {
+const STATUS_PRIORITY: Record<string, number> = {
   read: 10,
   delivered: 8,
   failed: 5,
@@ -19,27 +24,35 @@ const STATUS_PRIORITY = {
   queued: 1,
 };
 
+interface WhatsAppServiceContext {
+  secrets: any;
+  Conversation: Model<IConversation>;
+  Message: Model<IMessage>;
+  Template: Model<ITemplate>;
+  tenantConn: Connection;
+}
+
 /**
  * WhatsApp Service Factory
- * @param {Socket} io - Socket.io instance
+ * @param {Server} io - Socket.io instance
  */
-export const createWhatsappService = (io) => {
+export const createWhatsappService = (io: Server) => {
   /**
    * Helper to get tenant context: Connection, Models, Secrets
    */
-  const getContext = async (clientCode) => {
+  const getContext = async (clientCode: string): Promise<WhatsAppServiceContext> => {
     await dbConnect("services");
     const secrets = await ClientSecrets.findOne({ clientCode });
     if (!secrets) throw new Error("Client secrets not found");
 
     const tenantConn = await getTenantConnection(clientCode);
-    const Conversation = getTenantModel(
+    const Conversation = getTenantModel<IConversation>(
       tenantConn,
       "Conversation",
       schemas.conversations,
     );
-    const Message = getTenantModel(tenantConn, "Message", schemas.messages);
-    const Template = getTenantModel(tenantConn, "Template", schemas.templates);
+    const Message = getTenantModel<IMessage>(tenantConn, "Message", schemas.messages);
+    const Template = getTenantModel<ITemplate>(tenantConn, "Template", schemas.templates);
 
     return { secrets, Conversation, Message, Template, tenantConn };
   };
@@ -47,7 +60,7 @@ export const createWhatsappService = (io) => {
   /**
    * Download Media from WhatsApp and Upload to R2 (via mediaService)
    */
-  const processIncomingMedia = async (mediaId, secrets, originalFilename) => {
+  const processIncomingMedia = async (mediaId: string, secrets: any, originalFilename?: string): Promise<string | null> => {
     if (!mediaId) return null;
     try {
       const token = secrets.getDecrypted("whatsappToken");
@@ -78,7 +91,7 @@ export const createWhatsappService = (io) => {
       );
 
       return result.url;
-    } catch (e) {
+    } catch (e: any) {
       console.error("Media processing failed:", e.message);
       return null;
     }
@@ -87,11 +100,11 @@ export const createWhatsappService = (io) => {
   // --- Core Methods ---
 
   const handleIncomingMessage = async (
-    clientCode,
-    messagePayload,
-    from,
-    msgBody,
-    contacts,
+    clientCode: string,
+    messagePayload: any,
+    from: string,
+    msgBody: string,
+    contacts: any,
   ) => {
     try {
       console.log(`[${clientCode}] Handling Incoming Message from: ${from}`);
@@ -99,7 +112,7 @@ export const createWhatsappService = (io) => {
 
       const phone = from;
       const userName = contacts?.profile?.name || "Customer";
-      const profilePicture = contacts?.profile?.profile_picture; // In case Meta adds it
+      const profilePicture = contacts?.profile?.profile_picture; 
 
       // 1. Find or Create Conversation
       let conversation = await Conversation.findOne({ phone });
@@ -147,7 +160,7 @@ export const createWhatsappService = (io) => {
         return;
       }
 
-      let mediaUrl = null;
+      let mediaUrl: string | null = null;
       let messageType = messagePayload.type || "text";
       let finalMsgBody = msgBody;
 
@@ -200,7 +213,7 @@ export const createWhatsappService = (io) => {
             }
 
             const senderReactionIndex = originalMsg.reactions.findIndex(
-              (r) => r.reactBy === from,
+              (r: any) => r.reactBy === from,
             );
 
             if (!emoji) {
@@ -229,33 +242,19 @@ export const createWhatsappService = (io) => {
             }
           }
         }
-        return; // Reactions don't create new messages in our UI flow
-      } else if (
-        ![
-          "text",
-          "image",
-          "document",
-          "video",
-          "audio",
-          "interactive",
-        ].includes(messageType)
-      ) {
-        console.log(
-          `[${clientCode}] Info: Received unhandled message type: ${messageType}. Payload:`,
-          JSON.stringify(messagePayload),
-        );
+        return; 
       }
 
       // 2.5 Find Replied Message if any
-      let replyTo = null;
-      let replyToWhatsappId = null;
+      let replyTo: mongoose.Types.ObjectId | null = null;
+      let replyToWhatsappId: string | null = null;
       if (messagePayload.context?.id) {
         replyToWhatsappId = messagePayload.context.id;
         const repliedMsg = await Message.findOne({
           whatsappMessageId: replyToWhatsappId,
         });
         if (repliedMsg) {
-          replyTo = repliedMsg._id;
+          replyTo = repliedMsg._id as mongoose.Types.ObjectId;
         }
       }
 
@@ -277,7 +276,7 @@ export const createWhatsappService = (io) => {
           whatsappMessageId: messagePayload.id,
           replyTo,
           replyToWhatsappId,
-          status: "delivered", // Webhook confirms delivery to us
+          status: "delivered", 
         });
         console.log(
           `✅ [${clientCode}] Inbound Message saved: ${newMessage._id}`,
@@ -308,7 +307,7 @@ export const createWhatsappService = (io) => {
           conversation.lastMessageSender = "user";
           conversation.lastMessageType = messageType;
           conversation.lastUserMessageAt = new Date();
-          conversation.lastMessageId = newMessage._id;
+          conversation.lastMessageId = newMessage._id as mongoose.Types.ObjectId;
           conversation.lastMessageStatus = "delivered";
           conversation.unreadCount = (conversation.unreadCount || 0) + 1;
 
@@ -335,7 +334,7 @@ export const createWhatsappService = (io) => {
     }
   };
 
-  const handleStatusUpdate = async (clientCode, statusPayload) => {
+  const handleStatusUpdate = async (clientCode: string, statusPayload: any) => {
     try {
       const { Message, Conversation } = await getContext(clientCode);
       const { id, status, errors } = statusPayload;
@@ -371,10 +370,10 @@ export const createWhatsappService = (io) => {
         conversation &&
         conversation.lastMessageId?.toString() === message._id.toString()
       ) {
-        const convPriority =
-          STATUS_PRIORITY[conversation.lastMessageStatus] || 0;
+        const lastStatus = (conversation.lastMessageStatus || "queued") as string;
+        const convPriority = STATUS_PRIORITY[lastStatus] || 0;
         if (newPriority > convPriority) {
-          conversation.lastMessageStatus = status;
+          conversation.lastMessageStatus = status as any;
           await conversation.save();
         }
       }
@@ -406,16 +405,16 @@ export const createWhatsappService = (io) => {
   };
 
   const sendOutboundMessage = async (
-    clientCode,
-    conversationId,
-    text,
-    mediaUrl,
-    mediaType,
-    userId,
-    templateName,
-    templateLanguage = "en_US",
-    variables = [],
-    replyToId = null,
+    clientCode: string,
+    conversationId: string,
+    text?: string,
+    mediaUrl?: string,
+    mediaType?: string,
+    userId: string = "admin",
+    templateName?: string,
+    templateLanguage: string = "en_US",
+    variables: string[] = [],
+    replyToId: string | null = null,
   ) => {
     const { secrets, Conversation, Message, Template } =
       await getContext(clientCode);
@@ -425,7 +424,7 @@ export const createWhatsappService = (io) => {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) throw new Error("Conversation not found");
 
-    let replyToWhatsappId = null;
+    let replyToWhatsappId: string | null = null;
     if (replyToId) {
       const parentMsg = await Message.findById(replyToId);
       if (parentMsg && parentMsg.whatsappMessageId) {
@@ -434,11 +433,11 @@ export const createWhatsappService = (io) => {
     }
 
     const to = conversation.phone;
-    let finalMessageType = "text";
+    let finalMessageType: any = "text";
     let resolvedText = text;
 
     // Logic for Template / Media / Text
-    let templateData = null;
+    let templateData: IMessageTemplateData | undefined = undefined;
     if (templateName) {
       finalMessageType = "template";
       const tmpl = await Template.findOne({
@@ -449,8 +448,6 @@ export const createWhatsappService = (io) => {
         let content = tmpl.bodyText;
         if (variables && variables.length > 0) {
           variables.forEach((val, idx) => {
-            const placeholder = `{{${idx + 1}}}`;
-            // Correctly escape curly braces for literal matching in RegExp
             const regex = new RegExp(`\\{\\{${idx + 1}\\}\\}`, "g");
             content = content.replace(regex, val || "");
           });
@@ -461,7 +458,7 @@ export const createWhatsappService = (io) => {
           language: templateLanguage,
           footer: tmpl.footerText,
           buttons: tmpl.buttons,
-          variables: variables, // Store used variables for reference
+          variables: variables, 
           headerType: tmpl.headerType,
         };
       } else {
@@ -472,7 +469,7 @@ export const createWhatsappService = (io) => {
     }
 
     // Save Queued Message
-    const messageData = {
+    const messageData: any = {
       conversationId: conversation._id,
       direction: "outbound",
       messageType: finalMessageType,
@@ -495,7 +492,7 @@ export const createWhatsappService = (io) => {
     const message = await Message.create(messageData);
     console.log(`[${clientCode}] Outbound Message Queued: ${message._id}`);
 
-    // Update Conversation head immediately so webhooks for this message can find it correctly
+    // Update Conversation head immediately
     const conv = await Conversation.findByIdAndUpdate(
       conversationId,
       {
@@ -515,14 +512,13 @@ export const createWhatsappService = (io) => {
     }
 
     try {
-      // 1. Upload Media to WhatsApp if needed (Direct media message)
-      let mediaId = null;
+      // 1. Upload Media
+      let mediaId: string | null = null;
       if (
         mediaUrl &&
         (["image", "video", "audio", "document"].includes(finalMessageType) ||
           finalMessageType === "template")
       ) {
-        // Fetch stream from R2 public URL
         const fileRes = await axios.get(mediaUrl, { responseType: "stream" });
         const form = new FormData();
         form.append("file", fileRes.data, {
@@ -544,8 +540,8 @@ export const createWhatsappService = (io) => {
         mediaId = uploadRes.data.id;
       }
 
-      // 2. Build WhatsApp Payload
-      const payload = {
+      // 2. Build Payload
+      const payload: any = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
         to: to,
@@ -571,11 +567,9 @@ export const createWhatsappService = (io) => {
         if (tmpl && tmpl.components) {
           let varIndex = 0;
 
-          // Process Components in Order
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
-              const headerParams = [];
-              // Handle Media Header
+              const headerParams: any[] = [];
               if (["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)) {
                 if (mediaId) {
                   headerParams.push({
@@ -584,7 +578,6 @@ export const createWhatsappService = (io) => {
                   });
                 }
               }
-              // Handle Header Text Variables
               const headerVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
                 .length;
               for (let i = 0; i < headerVarsCount; i++) {
@@ -604,7 +597,7 @@ export const createWhatsappService = (io) => {
             } else if (comp.type === "BODY") {
               const bodyVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
                 .length;
-              const bodyParams = [];
+              const bodyParams: any[] = [];
               for (let i = 0; i < bodyVarsCount; i++) {
                 if (variables[varIndex] !== undefined) {
                   bodyParams.push({
@@ -620,11 +613,11 @@ export const createWhatsappService = (io) => {
                 });
               }
             } else if (comp.type === "BUTTONS") {
-              comp.buttons.forEach((btn, btnIdx) => {
+              comp.buttons.forEach((btn: any, btnIdx: number) => {
                 const btnVarsCount = (btn.url?.match(/{{[0-9]+}}/g) || [])
                   .length;
                 if (btnVarsCount > 0) {
-                  const btnParams = [];
+                  const btnParams: any[] = [];
                   for (let i = 0; i < btnVarsCount; i++) {
                     if (variables[varIndex] !== undefined) {
                       btnParams.push({
@@ -644,7 +637,6 @@ export const createWhatsappService = (io) => {
             }
           }
         } else {
-          // Fallback if template components aren't synced properly
           if (variables.length > 0) {
             payload.template.components.push({
               type: "BODY",
@@ -658,7 +650,6 @@ export const createWhatsappService = (io) => {
       } else if (finalMessageType === "text") {
         payload.text = { body: resolvedText || text };
       } else {
-        // Media
         if (!mediaId) throw new Error("Failed to upload media to WhatsApp");
         payload[finalMessageType] = {
           id: mediaId,
@@ -667,10 +658,6 @@ export const createWhatsappService = (io) => {
       }
 
       // 3. Send
-      console.log(
-        `[${clientCode}] Outgoing WhatsApp Payload:`,
-        JSON.stringify(payload, null, 2),
-      );
       const response = await axios.post(
         `${WHATSAPP_API_URL}/${phoneId}/messages`,
         payload,
@@ -682,16 +669,14 @@ export const createWhatsappService = (io) => {
         },
       );
 
-      // 4. Update Message Safely (Atomic check for faster webhooks)
+      // 4. Update Message
       const incomingId = response.data.messages[0].id;
-
       const freshMessage = await Message.findById(message._id);
       if (freshMessage) {
         const currentP = STATUS_PRIORITY[freshMessage.status] || 0;
         const sentP = STATUS_PRIORITY["sent"];
 
         freshMessage.whatsappMessageId = incomingId;
-        // Only set to 'sent' if it's still 'queued' or 'failed' (don't overwrite 'delivered')
         if (sentP > currentP) {
           freshMessage.status = "sent";
           freshMessage.statusHistory.push({
@@ -700,36 +685,25 @@ export const createWhatsappService = (io) => {
           });
         }
         await freshMessage.save();
-
-        // Sync local object for logging and emit
         message.whatsappMessageId = freshMessage.whatsappMessageId;
         message.status = freshMessage.status;
       }
 
-      console.log(
-        `✅ [${clientCode}] Outbound Message Processed: ${message._id} (Status: ${message.status})`,
-      );
-
-      // 5. Update Conversation Safely (Final Sync)
+      // 5. Update Conversation
       const freshConversation = await Conversation.findById(conversationId);
       if (freshConversation) {
-        // Only update status if it's an upgrade (respecting webhooks that might have fired already)
-        const currentCP =
-          STATUS_PRIORITY[freshConversation.lastMessageStatus] || 0;
+        const lastStatus = (freshConversation.lastMessageStatus || "queued") as string;
+        const currentCP = STATUS_PRIORITY[lastStatus] || 0;
         const finalP = STATUS_PRIORITY[message.status] || 0;
 
         if (finalP > currentCP) {
-          freshConversation.lastMessageStatus = message.status;
+          freshConversation.lastMessageStatus = message.status as any;
         }
-
-        // Always sync these metadata fields just in case
-        freshConversation.lastMessage = resolvedText;
-        freshConversation.lastMessageId = message._id;
+        freshConversation.lastMessage = resolvedText || "";
+        freshConversation.lastMessageId = message._id as mongoose.Types.ObjectId;
         freshConversation.lastMessageSender = "admin";
-
         await freshConversation.save();
 
-        // 6. Emit with fresh data
         if (io) {
           if (replyToId) {
             await message.populate("replyTo");
@@ -743,7 +717,7 @@ export const createWhatsappService = (io) => {
       }
 
       return message;
-    } catch (e) {
+    } catch (e: any) {
       console.error("Send Error:", e.response?.data || e.message);
       message.status = "failed";
       message.error = JSON.stringify(e.response?.data || e.message);
@@ -756,7 +730,7 @@ export const createWhatsappService = (io) => {
     }
   };
 
-  const syncTemplates = async (clientCode) => {
+  const syncTemplates = async (clientCode: string) => {
     try {
       const { secrets, Template } = await getContext(clientCode);
       const token = secrets.getDecrypted("whatsappToken");
@@ -766,8 +740,6 @@ export const createWhatsappService = (io) => {
         throw new Error("WhatsApp Business Account ID not found.");
       }
 
-      // 1. Call Meta API
-      const axios = (await import("axios")).default;
       const res = await axios.get(
         `${WHATSAPP_API_URL}/${wabaId}/message_templates`,
         {
@@ -776,69 +748,61 @@ export const createWhatsappService = (io) => {
       );
 
       const templates = res.data.data || [];
-      let upsertCount = 0;
 
-      // 2. Iterate through response
       for (const t of templates) {
         if (t.status !== "APPROVED") continue;
 
-        // 4. Extract and Map
-        let headerType = "NONE";
-        const headerComp = t.components.find((c) => c.type === "HEADER");
+        let headerType: any = "NONE";
+        const headerComp = t.components.find((c: any) => c.type === "HEADER");
         if (headerComp && headerComp.format) {
           headerType = headerComp.format;
         }
 
-        const bodyComp = t.components.find((c) => c.type === "BODY");
+        const bodyComp = t.components.find((c: any) => c.type === "BODY");
         const rawBodyText = bodyComp ? bodyComp.text : "";
         const bodyText = rawBodyText.replace(/\n{3,}/g, "\n\n");
         const variablesCount = (bodyText.match(/{{[0-9]+}}/g) || []).length;
 
-        const footerComp = t.components.find((c) => c.type === "FOOTER");
+        const footerComp = t.components.find((c: any) => c.type === "FOOTER");
         const footerText = footerComp ? footerComp.text : undefined;
 
-        const buttonsComp = t.components.find((c) => c.type === "BUTTONS");
-        const buttons = (buttonsComp?.buttons || []).map((b) => ({
-          type: b.type,
-          text: b.text,
-          url: b.url,
-          phoneNumber: b.phone_number,
-        }));
+        const buttonsData: any[] = [];
+        const buttonsComp = t.components.find((c: any) => c.type === "BUTTONS");
+        if (buttonsComp && buttonsComp.buttons) {
+          buttonsComp.buttons.forEach((b: any) => {
+            buttonsData.push({
+              type: b.type,
+              text: b.text,
+              url: b.url,
+              phoneNumber: b.phone_number,
+            });
+          });
+        }
 
-        // 5. Upsert into MongoDB
         await Template.findOneAndUpdate(
           { name: t.name, language: t.language },
           {
+            name: t.name,
+            language: t.language,
             status: t.status,
-            category: t.category,
-            components: t.components,
             headerType,
             bodyText,
             variablesCount,
             footerText,
-            buttons,
-            metaId: t.id,
-            lastSyncedAt: new Date(),
+            buttons: buttonsData,
+            components: t.components,
           },
-          { upsert: true, new: true },
+          { upsert: true },
         );
-        upsertCount++;
       }
-
-      console.log(
-        `[${clientCode}] Sync complete: Upserted/Updated ${upsertCount}`,
-      );
-      return { success: true, count: upsertCount };
-    } catch (error) {
-      console.error(
-        "Sync Templates Error:",
-        error.response?.data || error.message,
-      );
-      throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error("Template sync error:", err.message);
+      throw err;
     }
   };
 
-  const getTemplates = async (clientCode) => {
+  const getTemplates = async (clientCode: string) => {
     try {
       const { Template } = await getContext(clientCode);
       return await Template.find({ status: "APPROVED" }).lean();
@@ -848,78 +812,60 @@ export const createWhatsappService = (io) => {
     }
   };
 
-  const sendReaction = async (clientCode, messageId, emoji) => {
-    const { secrets, Message, Conversation } = await getContext(clientCode);
+  const sendReaction = async (clientCode: string, messageId: string, emoji: string) => {
+    const { secrets, Message } = await getContext(clientCode);
     const token = secrets.getDecrypted("whatsappToken");
     const phoneId = secrets.getDecrypted("whatsappPhoneNumberId");
 
     const message = await Message.findById(messageId);
-    if (!message) throw new Error("Message not found");
-    if (!message.whatsappMessageId)
-      throw new Error("Message has no WhatsApp ID");
+    if (!message || !message.whatsappMessageId) throw new Error("Message not found on WhatsApp");
 
-    const conversation = await Conversation.findById(message.conversationId);
+    const conversation = await (Message.db.model("Conversation", schemas.conversations)).findById(message.conversationId);
     if (!conversation) throw new Error("Conversation not found");
 
-    // build payload
-    const payload = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: conversation.phone,
-      type: "reaction",
-      reaction: {
-        message_id: message.whatsappMessageId,
-        emoji: emoji || "",
+    const response = await axios.post(
+      `${WHATSAPP_API_URL}/${phoneId}/messages`,
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: conversation.phone,
+        type: "reaction",
+        reaction: {
+          message_id: message.whatsappMessageId,
+          emoji,
+        },
       },
-    };
-
-    try {
-      await axios.post(`${WHATSAPP_API_URL}/${phoneId}/messages`, payload, {
+      {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-      });
+      },
+    );
 
-      // Update Local Message with Array Logic
-      if (!Array.isArray(message.reactions)) {
-        message.reactions = [];
-      }
-
-      const adminReactionIndex = message.reactions.findIndex(
-        (r) => r.reactBy === "admin",
-      );
-
-      if (!emoji) {
-        // Remove admin reaction
-        if (adminReactionIndex !== -1) {
-          message.reactions.splice(adminReactionIndex, 1);
+    if (response.data.messages[0].id) {
+        if (!Array.isArray(message.reactions)) {
+            message.reactions = [];
         }
-      } else {
-        // Update or Add
-        if (adminReactionIndex !== -1) {
-          message.reactions[adminReactionIndex].emoji = emoji;
+        const senderReactionIndex = message.reactions.findIndex((r) => r.reactBy === "admin");
+        if (!emoji) {
+            if (senderReactionIndex !== -1) message.reactions.splice(senderReactionIndex, 1);
         } else {
-          message.reactions.push({ emoji, reactBy: "admin" });
+            if (senderReactionIndex !== -1) message.reactions[senderReactionIndex].emoji = emoji;
+            else message.reactions.push({ emoji, reactBy: "admin" });
         }
-      }
+        await message.save();
 
-      await message.save();
-
-      // Emit
-      if (io) {
-        io.to(clientCode).emit("message_updated", {
-          messageId: message._id,
-          conversationId: message.conversationId,
-          updates: { reactions: message.reactions },
-        });
-      }
-
-      return { success: true, reactions: message.reactions };
-    } catch (e) {
-      console.error("Reaction Error:", e.response?.data || e.message);
-      throw e;
+        if (io) {
+            io.to(clientCode).emit("message_updated", {
+                messageId: message._id,
+                conversationId: message.conversationId,
+                updates: { reactions: message.reactions },
+            });
+        }
     }
+
+    return { success: true };
   };
 
   return {

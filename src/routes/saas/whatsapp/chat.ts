@@ -1,37 +1,47 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 import multer from "multer";
-import { optimizeAndUploadMedia } from "../../../services/saas/mediaService.js";
-import { ClientSecrets } from "../../../model/clients/secrets.js";
+import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.js";
 import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.js";
-import { Message, schemas } from "../../../model/saas/tenantSchemas.js";
-import { validateClientKey } from "../../../middleware/saasAuth.js";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.js";
 import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.js";
+import { validateClientKey } from "../../../middleware/saasAuth.js";
+import { ClientSecrets } from "../../../model/clients/secrets.js";
+import { schemas } from "../../../model/saas/tenantSchemas.js";
+import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
+import type { IMessage } from "../../../model/saas/whatsapp/message.model.ts";
+import { optimizeAndUploadMedia } from "../../../services/saas/mediaService.js";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-export const createChatRouter = (io) => {
+export interface SaasRequest extends Request {
+  clientCode?: string;
+  user?: any;
+}
+
+export const createChatRouter = (io: Server) => {
   const router = express.Router();
-  const whatsappService = createWhatsappService(io); // Helper instance
+  const whatsappService = createWhatsappService(io);
 
   // 1. List Conversations
-  router.get("/conversations", validateClientKey, async (req, res) => {
+  router.get("/conversations", validateClientKey, async (req: Request, res: Response) => {
     try {
-      const { clientCode } = req;
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode!;
       const uri = await GetURI(clientCode);
       const conn = await tenantDBConnect(uri);
-      const ConversationModel =
-        conn.models["Conversation"] ||
-        conn.model("Conversation", schemas.conversations);
+      const ConversationModel = getTenantModel<IConversation>(
+          conn,
+          "Conversation",
+          schemas.conversations,
+        );
 
       const conversations = await ConversationModel.find({}).sort({
         lastMessageAt: -1,
       });
-      // console.log(conversations);
       res.json(conversations);
     } catch (err) {
       console.error("Error fetching conversations:", err);
@@ -43,17 +53,21 @@ export const createChatRouter = (io) => {
   router.get(
     "/conversations/:id/messages",
     validateClientKey,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { clientCode } = req;
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
-        const MessageModel =
-          conn.models["Message"] || conn.model("Message", schemas.messages);
+        const MessageModel = getTenantModel<IMessage>(
+            conn,
+            "Message",
+            schemas.messages,
+        );
 
-        const messages = await MessageModel.find({ conversationId: id })
+        const messages = await MessageModel.find({ conversationId: id as any })
           .populate("replyTo")
           .sort({
             createdAt: 1,
@@ -71,19 +85,22 @@ export const createChatRouter = (io) => {
   router.post(
     "/conversations/:id/read",
     validateClientKey,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { clientCode } = req;
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
-        const ConversationModel =
-          conn.models["Conversation"] ||
-          conn.model("Conversation", schemas.conversations);
+        const ConversationModel = getTenantModel<IConversation>(
+            conn,
+            "Conversation",
+            schemas.conversations,
+        );
 
         await ConversationModel.updateOne(
-          { _id: id },
+          { _id: id as any },
           { $set: { unreadCount: 0 } },
         );
 
@@ -96,16 +113,19 @@ export const createChatRouter = (io) => {
   );
 
   // 4. Create New Conversation manually
-  router.post("/conversations", validateClientKey, async (req, res) => {
+  router.post("/conversations", validateClientKey, async (req: Request, res: Response) => {
     try {
-      const { clientCode } = req;
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode!;
       const { phone, name } = req.body;
 
       const uri = await GetURI(clientCode);
       const conn = await tenantDBConnect(uri);
-      const ConversationModel =
-        conn.models["Conversation"] ||
-        conn.model("Conversation", schemas.conversations);
+      const ConversationModel = getTenantModel<IConversation>(
+          conn,
+          "Conversation",
+          schemas.conversations,
+        );
 
       let conversation = await ConversationModel.findOne({ phone });
       if (!conversation) {
@@ -131,9 +151,10 @@ export const createChatRouter = (io) => {
     "/upload",
     validateClientKey,
     upload.single("file"),
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { clientCode } = req;
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
         const file = req.file;
 
         if (!file) {
@@ -155,55 +176,48 @@ export const createChatRouter = (io) => {
           secrets,
         );
 
-        // Determine type for frontend
         let type = "document";
         if (result.mimeType.startsWith("image/")) type = "image";
         else if (result.mimeType.startsWith("video/")) type = "video";
         else if (result.mimeType.startsWith("audio/")) type = "audio";
 
         res.json({ url: result.url, type });
-      } catch (err) {
+      } catch (err: any) {
         console.error("Upload error:", err);
         res.status(500).json({ error: err.message || "Upload failed" });
       }
     },
   );
 
-  /**
-   * Dashboard Message Sender
-   * Uses centralized Service
-   */
-  router.post("/send", validateClientKey, async (req, res) => {
-    const clientCode = req.clientCode || req.body.clientCode;
-    console.log("🚀 ~ clientCode:", clientCode);
-    const {
-      conversationId,
-      to,
-      text,
-      mediaUrl,
-      mediaType,
-      templateName,
-      templateLanguage = "en_US",
-      variables = [],
-      userId = "admin", // Default sender
-      replyToId = null,
-    } = req.body;
-
+  // 6. Dashboard Message Sender
+  router.post("/send", validateClientKey, async (req: Request, res: Response) => {
     try {
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode || req.body.clientCode;
+      const {
+        conversationId,
+        to,
+        text,
+        mediaUrl,
+        mediaType,
+        templateName,
+        templateLanguage = "en_US",
+        variables = [],
+        userId = "admin", 
+        replyToId = null,
+      } = req.body;
+
       if (!conversationId && !to) {
         return res
           .status(400)
           .json({ error: "Missing conversationId or to phone number" });
       }
 
-      // If no conversationId, we might need to resolve it first or let service handle it?
-      // Service expects conversationId. Let's resolve it here if needed.
       let targetConvId = conversationId;
 
       if (!targetConvId && to) {
-        // Resolve conversation ID from phone
         const tenantConn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel(
+        const ConversationModel = getTenantModel<IConversation>(
           tenantConn,
           "Conversation",
           schemas.conversations,
@@ -235,28 +249,32 @@ export const createChatRouter = (io) => {
       );
 
       res.json({ success: true, message });
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ Outgoing Chat Error:", err);
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 6. Toggle Message Star Status
+  // 7. Toggle Message Star Status
   router.post(
     "/messages/:messageId/star",
     validateClientKey,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { clientCode } = req;
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
         const { messageId } = req.params;
         const { isStarred } = req.body;
 
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
-        const MessageModel =
-          conn.models["Message"] || conn.model("Message", schemas.messages);
+        const MessageModel = getTenantModel<IMessage>(
+            conn,
+            "Message",
+            schemas.messages,
+        );
 
-        const message = await MessageModel.findById(messageId);
+        const message = await MessageModel.findById(messageId as string);
         if (!message) {
           return res.status(404).json({ error: "Message not found" });
         }
@@ -265,7 +283,6 @@ export const createChatRouter = (io) => {
           typeof isStarred === "boolean" ? isStarred : !message.isStarred;
         await message.save();
 
-        // Emit socket event for real-time update
         if (io) {
           io.to(clientCode).emit("message_updated", {
             messageId: message._id,
@@ -282,23 +299,24 @@ export const createChatRouter = (io) => {
     },
   );
 
-  // 7. React to Message
+  // 8. React to Message
   router.post(
     "/messages/:messageId/react",
     validateClientKey,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { clientCode } = req;
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
         const { messageId } = req.params;
         const { reaction } = req.body;
 
         const result = await whatsappService.sendReaction(
           clientCode,
-          messageId,
+          messageId as string,
           reaction,
         );
         res.json(result);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error reacting to message:", err);
         res.status(500).json({ error: err.message || "Failed to react" });
       }

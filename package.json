@@ -5,13 +5,15 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "tsx server.js",
     "dev": "nodemon --cwd ./ server.js",
+    "dev:ts": "nodemon --exec tsx server.js",
+    "type-check": "tsc --noEmit",
     "tunnel": "bash tunnel.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
     "build": "pnpm run lint && pnpm run test && node --check server.js",
-    "test": "node --test src/**/*.test.js"
+    "test": "tsx --test src/**/*.test.js"
   },
   "keywords": [],
   "author": "",
@@ -35,9 +37,19 @@
     "openai": "^5.22.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/fluent-ffmpeg": "^2.1.28",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^25.3.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.4",
+    "@types/uuid": "^11.0.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",

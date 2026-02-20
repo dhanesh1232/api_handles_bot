@@ -1,15 +1,22 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
+import { Server } from "socket.io";
 import { validateClientKey } from "../../../middleware/saasAuth.js";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.js";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
 
-export const createTemplateRouter = (io) => {
+export interface SaasRequest extends Request {
+  clientCode?: string;
+  user?: any;
+}
+
+export const createTemplateRouter = (io: Server) => {
   const router = express.Router();
   const whatsappService = createWhatsappService(io);
 
   // POST /sync - Sync templates from Meta
-  router.post("/sync", validateClientKey, async (req, res) => {
+  router.post("/sync", validateClientKey, async (req: Request, res: Response) => {
     try {
-      const { clientCode } = req;
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode!;
       const result = await whatsappService.syncTemplates(clientCode);
       res.json(result);
     } catch (error) {
@@ -19,9 +26,10 @@ export const createTemplateRouter = (io) => {
   });
 
   // GET / - Read templates from Local DB
-  router.get("/", validateClientKey, async (req, res) => {
+  router.get("/", validateClientKey, async (req: Request, res: Response) => {
     try {
-      const { clientCode } = req;
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode!;
       const templates = await whatsappService.getTemplates(clientCode);
       res.json({ data: templates });
     } catch (error) {

@@ -71,9 +71,11 @@ export async function getTenantConnection(clientCode) {
  * Helper to get a dynamic model on a tenant connection.
  * Useful since we don't know the exact schemas beforehand.
  *
+ * @template T
  * @param {mongoose.Connection} conn
  * @param {string} collectionName
- * @param {mongoose.Schema} [schema] - Optional schema, defaults to an empty strict:false schema
+ * @param {mongoose.Schema<T>} [schema] - Optional schema, defaults to an empty strict:false schema
+ * @returns {mongoose.Model<T>}
  */
 export function getTenantModel(conn, collectionName, schema) {
   // If model already compiled on this connection, return it
