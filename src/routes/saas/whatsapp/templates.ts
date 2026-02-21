@@ -30,7 +30,8 @@ export const createTemplateRouter = (io: Server) => {
     try {
       const sReq = req as SaasRequest;
       const clientCode = sReq.clientCode!;
-      const templates = await whatsappService.getTemplates(clientCode);
+      const channel = req.query.channel as string;
+      const templates = await whatsappService.getTemplates(clientCode, channel);
       res.json({ data: templates });
     } catch (error) {
       console.error("Fetch templates error:", error);

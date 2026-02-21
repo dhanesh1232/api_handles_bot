@@ -10,13 +10,16 @@ export interface ITemplateButton {
 export interface ITemplate extends Document {
   name: string;
   language: string;
-  status: "APPROVED";
-  headerType: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" | "TEXT";
+  channel: "whatsapp" | "email";
+  status: string;
+  headerType?: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" | "TEXT";
   bodyText: string;
-  variablesCount: number;
+  subject?: string;
+  attachments?: string[];
+  variablesCount?: number;
   footerText?: string;
-  buttons: ITemplateButton[];
-  components: any[];
+  buttons?: ITemplateButton[];
+  components?: any[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,20 +37,34 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
       required: true,
       default: "en_US",
     },
+    channel: {
+      type: String,
+      enum: ["whatsapp", "email"],
+      default: "whatsapp",
+      required: true,
+    },
     status: {
       type: String,
       required: true,
-      enum: ["APPROVED"], // Only store APPROVED templates
     },
     headerType: {
       type: String,
       enum: ["NONE", "IMAGE", "VIDEO", "DOCUMENT", "TEXT"],
       default: "NONE",
     },
+    subject: {
+      type: String,
+      trim: true,
+    },
     bodyText: {
       type: String,
       required: true,
     },
+    attachments: [
+      {
+        type: String,
+      },
+    ],
     variablesCount: {
       type: Number,
       default: 0,
@@ -71,8 +88,8 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
   { timestamps: true, collection: "templates" },
 );
 
-// Unique index on name + language
-TemplateSchema.index({ name: 1, language: 1 }, { unique: true });
+// Unique index on name + language + channel
+TemplateSchema.index({ name: 1, language: 1, channel: 1 }, { unique: true });
 
 const Template: Model<ITemplate> =
   mongoose.models.Template || mongoose.model<ITemplate>("Template", TemplateSchema);

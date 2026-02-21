@@ -732,6 +732,7 @@ export const createWhatsappService = (io: Server) => {
 
   const syncTemplates = async (clientCode: string) => {
     try {
+      console.log("Syncing templates for client:", clientCode);
       const { secrets, Template } = await getContext(clientCode);
       const token = secrets.getDecrypted("whatsappToken");
       const wabaId = secrets.getDecrypted("whatsappBusinessId");
@@ -750,7 +751,7 @@ export const createWhatsappService = (io: Server) => {
       const templates = res.data.data || [];
 
       for (const t of templates) {
-        if (t.status !== "APPROVED") continue;
+        // We sync all templates regardless of status now
 
         let headerType: any = "NONE";
         const headerComp = t.components.find((c: any) => c.type === "HEADER");
@@ -784,6 +785,7 @@ export const createWhatsappService = (io: Server) => {
           {
             name: t.name,
             language: t.language,
+            channel: "whatsapp",
             status: t.status,
             headerType,
             bodyText,
@@ -802,10 +804,12 @@ export const createWhatsappService = (io: Server) => {
     }
   };
 
-  const getTemplates = async (clientCode: string) => {
+  const getTemplates = async (clientCode: string, channel?: string) => {
     try {
       const { Template } = await getContext(clientCode);
-      return await Template.find({ status: "APPROVED" }).lean();
+      const query: any = {};
+      if (channel) query.channel = channel;
+      return await Template.find(query).lean();
     } catch (err) {
       console.error("Get Templates Error:", err);
       return [];
