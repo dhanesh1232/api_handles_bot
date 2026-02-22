@@ -1,0 +1,32 @@
+{
+  "name": "doctor_appointment_final_v1",
+  "category": "UTILITY",
+  "language": "en_US",
+  "channel": "whatsapp",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Namaste {{1}}! Your appointment with {{2}} is confirmed for {{3}}. Click below to join your consultation.",
+      "example": {
+        "body_text": [
+          [
+            "Dhanesh",
+            "Dr. Sharma",
+            "Mon, Oct 25 at 10:00 AM"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Join Consultation",
+          "url": "https://meet.google.com/{{1}}",
+          "example": ["sns-wqek-rcn"]
+        }
+      ]
+    }
+  ]
+}
