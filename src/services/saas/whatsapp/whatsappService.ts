@@ -40,6 +40,44 @@ export const createWhatsappService = (io: Server) => {
   /**
    * Helper to get tenant context: Connection, Models, Secrets
    */
+  const extractEnrichedFields = (components: any[]) => {
+    let headerType: any = "NONE";
+    const headerComp = components.find((c: any) => c.type === "HEADER");
+    if (headerComp && headerComp.format) {
+      headerType = headerComp.format;
+    }
+
+    const bodyComp = components.find((c: any) => c.type === "BODY");
+    const rawBodyText = bodyComp ? bodyComp.text : "";
+    const bodyText = rawBodyText.replace(/\n{3,}/g, "\n\n");
+    const variablesCount = (bodyText.match(/{{[0-9]+}}/g) || []).length;
+
+    const footerComp = components.find((c: any) => c.type === "FOOTER");
+    const footerText = footerComp ? footerComp.text : undefined;
+
+    const buttonsData: any[] = [];
+    const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
+    if (buttonsComp && buttonsComp.buttons) {
+      buttonsComp.buttons.forEach((b: any) => {
+        buttonsData.push({
+          type: b.type,
+          text: b.text,
+          url: b.url,
+          phoneNumber: b.phone_number || b.phoneNumber,
+        });
+      });
+    }
+
+    return {
+      headerType,
+      bodyText,
+      variablesCount,
+      footerText,
+      buttons: buttonsData,
+    };
+  };
+
+  // Helper to get tenant context: Connection, Models, Secrets
   const getContext = async (clientCode: string): Promise<WhatsAppServiceContext> => {
     await dbConnect("services");
     const secrets = await ClientSecrets.findOne({ clientCode });
@@ -751,34 +789,7 @@ export const createWhatsappService = (io: Server) => {
       const templates = res.data.data || [];
 
       for (const t of templates) {
-        // We sync all templates regardless of status now
-
-        let headerType: any = "NONE";
-        const headerComp = t.components.find((c: any) => c.type === "HEADER");
-        if (headerComp && headerComp.format) {
-          headerType = headerComp.format;
-        }
-
-        const bodyComp = t.components.find((c: any) => c.type === "BODY");
-        const rawBodyText = bodyComp ? bodyComp.text : "";
-        const bodyText = rawBodyText.replace(/\n{3,}/g, "\n\n");
-        const variablesCount = (bodyText.match(/{{[0-9]+}}/g) || []).length;
-
-        const footerComp = t.components.find((c: any) => c.type === "FOOTER");
-        const footerText = footerComp ? footerComp.text : undefined;
-
-        const buttonsData: any[] = [];
-        const buttonsComp = t.components.find((c: any) => c.type === "BUTTONS");
-        if (buttonsComp && buttonsComp.buttons) {
-          buttonsComp.buttons.forEach((b: any) => {
-            buttonsData.push({
-              type: b.type,
-              text: b.text,
-              url: b.url,
-              phoneNumber: b.phone_number,
-            });
-          });
-        }
+        const enriched = extractEnrichedFields(t.components);
 
         await Template.findOneAndUpdate(
           { name: t.name, language: t.language },
@@ -787,11 +798,7 @@ export const createWhatsappService = (io: Server) => {
             language: t.language,
             channel: "whatsapp",
             status: t.status,
-            headerType,
-            bodyText,
-            variablesCount,
-            footerText,
-            buttons: buttonsData,
+            ...enriched,
             components: t.components,
           },
           { upsert: true },
@@ -872,6 +879,75 @@ export const createWhatsappService = (io: Server) => {
     return { success: true };
   };
 
+  const createTemplate = async (clientCode: string, templateData: any) => {
+    try {
+      const { secrets, Template } = await getContext(clientCode);
+      let status = templateData.status;
+
+      if (templateData.channel === "whatsapp") {
+        const token = secrets.getDecrypted("whatsappToken");
+        const wabaId = secrets.getDecrypted("whatsappBusinessId");
+
+        if (!wabaId) {
+          throw new Error("WhatsApp Business ID not found.");
+        }
+
+        // Submit to Meta for approval
+        console.log(`[${clientCode}] Submitting WhatsApp template to Meta:`, templateData.name);
+        console.log(`[${clientCode}] Payload:`, JSON.stringify({
+           name: templateData.name,
+           category: templateData.category || "UTILITY",
+           language: templateData.language || "en_US",
+           components: templateData.components,
+        }, null, 2));
+
+        const res = await axios.post(
+          `${WHATSAPP_API_URL}/${wabaId}/message_templates`,
+          {
+            name: templateData.name,
+            category: templateData.category || "UTILITY",
+            language: templateData.language || "en_US",
+            components: templateData.components,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 15000, // 15 seconds timeout
+          },
+        );
+
+        console.log(`[${clientCode}] Meta response:`, res.data);
+
+        status = res.data.status || "PENDING_APPROVAL";
+      }
+
+      let enriched = {};
+      if (templateData.channel === "whatsapp" && templateData.components) {
+        enriched = extractEnrichedFields(templateData.components);
+      }
+
+      const template = await Template.findOneAndUpdate(
+        {
+          name: templateData.name,
+          language: templateData.language || "en_US",
+          channel: templateData.channel,
+        },
+        {
+          ...templateData,
+          ...enriched,
+          status,
+        },
+        { upsert: true, new: true },
+      );
+      return { success: true, data: template };
+    } catch (err: any) {
+      console.error(
+        "Create Template Error:",
+        err.response?.data || err.message,
+      );
+      throw err;
+    }
+  };
+
   return {
     handleIncomingMessage,
     handleStatusUpdate,
@@ -879,5 +955,6 @@ export const createWhatsappService = (io: Server) => {
     getTemplates,
     syncTemplates,
     sendReaction,
+    createTemplate,
   };
 };

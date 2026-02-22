@@ -39,5 +39,19 @@ export const createTemplateRouter = (io: Server) => {
     }
   });
 
+  // POST / - Create a new template manually
+  router.post("/", validateClientKey, async (req: Request, res: Response) => {
+    try {
+      const sReq = req as SaasRequest;
+      const clientCode = sReq.clientCode!;
+      const templateData = req.body;
+      const result = await whatsappService.createTemplate(clientCode, templateData);
+      res.json(result);
+    } catch (error) {
+      console.error("Create template error:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
   return router;
 };
