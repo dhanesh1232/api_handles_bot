@@ -42,21 +42,30 @@ export const createWhatsappService = (io: Server) => {
    */
   const extractEnrichedFields = (components: any[]) => {
     let headerType: any = "NONE";
+    let variablesCount = 0;
+
     const headerComp = components.find((c: any) => c.type === "HEADER");
-    if (headerComp && headerComp.format) {
-      headerType = headerComp.format;
+    if (headerComp) {
+      if (headerComp.format) {
+        headerType = headerComp.format;
+      }
+      if (headerComp.text) {
+        variablesCount += (headerComp.text.match(/{{[0-9]+}}/g) || []).length;
+      }
     }
 
     const bodyComp = components.find((c: any) => c.type === "BODY");
     const rawBodyText = bodyComp ? bodyComp.text : "";
     const bodyText = rawBodyText.replace(/\n{3,}/g, "\n\n");
-    const variablesCount = (bodyText.match(/{{[0-9]+}}/g) || []).length;
+    const bodyVars = (bodyText.match(/{{[0-9]+}}/g) || []).length;
+    variablesCount += bodyVars;
 
     const footerComp = components.find((c: any) => c.type === "FOOTER");
     const footerText = footerComp ? footerComp.text : undefined;
 
     const buttonsData: any[] = [];
     const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
+    let buttonVars = 0;
     if (buttonsComp && buttonsComp.buttons) {
       buttonsComp.buttons.forEach((b: any) => {
         buttonsData.push({
@@ -65,8 +74,15 @@ export const createWhatsappService = (io: Server) => {
           url: b.url,
           phoneNumber: b.phone_number || b.phoneNumber,
         });
+        if (b.url) {
+          buttonVars += (b.url.match(/{{[0-9]+}}/g) || []).length;
+        }
       });
     }
+    variablesCount += buttonVars;
+
+    console.log(`[WhatsAppService] Extracted: bodyVars=${bodyVars}, buttonVars=${buttonVars}, total=${variablesCount}`);
+
 
     return {
       headerType,
@@ -76,6 +92,7 @@ export const createWhatsappService = (io: Server) => {
       buttons: buttonsData,
     };
   };
+
 
   // Helper to get tenant context: Connection, Models, Secrets
   const getContext = async (clientCode: string): Promise<WhatsAppServiceContext> => {
@@ -603,7 +620,9 @@ export const createWhatsappService = (io: Server) => {
         };
 
         if (tmpl && tmpl.components) {
+          console.log(`[${clientCode}] Using cached template components for ${templateName}`);
           let varIndex = 0;
+
 
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
@@ -619,12 +638,11 @@ export const createWhatsappService = (io: Server) => {
               const headerVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
                 .length;
               for (let i = 0; i < headerVarsCount; i++) {
-                if (variables[varIndex] !== undefined) {
-                  headerParams.push({
-                    type: "text",
-                    text: String(variables[varIndex++]),
-                  });
-                }
+                const val = variables[varIndex] !== undefined ? variables[varIndex++] : (comp.example?.header_text?.[0] || "[N/A]");
+                headerParams.push({
+                  type: "text",
+                  text: String(val),
+                });
               }
               if (headerParams.length > 0) {
                 payload.template.components.push({
@@ -637,12 +655,11 @@ export const createWhatsappService = (io: Server) => {
                 .length;
               const bodyParams: any[] = [];
               for (let i = 0; i < bodyVarsCount; i++) {
-                if (variables[varIndex] !== undefined) {
-                  bodyParams.push({
-                    type: "text",
-                    text: String(variables[varIndex++]),
-                  });
-                }
+                const val = variables[varIndex] !== undefined ? variables[varIndex++] : (comp.example?.body_text?.[0]?.[i] || "[N/A]");
+                bodyParams.push({
+                  type: "text",
+                  text: String(val),
+                });
               }
               if (bodyParams.length > 0) {
                 payload.template.components.push({
@@ -651,28 +668,32 @@ export const createWhatsappService = (io: Server) => {
                 });
               }
             } else if (comp.type === "BUTTONS") {
+              console.log(`[${clientCode}] Processing BUTTONS:`, JSON.stringify(comp.buttons));
               comp.buttons.forEach((btn: any, btnIdx: number) => {
                 const btnVarsCount = (btn.url?.match(/{{[0-9]+}}/g) || [])
                   .length;
                 if (btnVarsCount > 0) {
                   const btnParams: any[] = [];
                   for (let i = 0; i < btnVarsCount; i++) {
-                    if (variables[varIndex] !== undefined) {
-                      btnParams.push({
-                        type: "text",
-                        text: String(variables[varIndex++]),
-                      });
-                    }
+                    const val = variables[varIndex] !== undefined ? variables[varIndex++] : (btn.example?.[i] || "[N/A]");
+                    btnParams.push({
+                      type: "text",
+                      text: String(val),
+                    });
                   }
-                  payload.template.components.push({
-                    type: "BUTTON",
-                    sub_type: btn.type === "URL" ? "url" : "quick_reply",
-                    index: String(btnIdx),
-                    parameters: btnParams,
-                  });
+                  // Only push BUTTON component if we actually have parameters for it
+                  if (btnParams.length > 0) {
+                    payload.template.components.push({
+                      type: "BUTTON",
+                      sub_type: btn.type === "URL" ? "url" : "quick_reply",
+                      index: String(btnIdx),
+                      parameters: btnParams,
+                    });
+                  }
                 }
               });
             }
+
           }
         } else {
           if (variables.length > 0) {
@@ -696,6 +717,8 @@ export const createWhatsappService = (io: Server) => {
       }
 
       // 3. Send
+      console.log(`[${clientCode}] WhatsApp Meta Payload:`, JSON.stringify(payload, null, 2));
+
       const response = await axios.post(
         `${WHATSAPP_API_URL}/${phoneId}/messages`,
         payload,
@@ -706,6 +729,8 @@ export const createWhatsappService = (io: Server) => {
           },
         },
       );
+      console.log(`[${clientCode}] WhatsApp Meta Response:`, response.data);
+
 
       // 4. Update Message
       const incomingId = response.data.messages[0].id;
@@ -798,10 +823,14 @@ export const createWhatsappService = (io: Server) => {
             language: t.language,
             channel: "whatsapp",
             status: t.status,
-            ...enriched,
-            components: t.components,
+            headerType: enriched.headerType,
+            bodyText: enriched.bodyText,
+            footerText: enriched.footerText,
+            variablesCount: enriched.variablesCount,
+            buttons: enriched.buttons,
+            components: t.components, // Save raw components
           },
-          { upsert: true },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
         );
       }
       return { success: true };
@@ -915,8 +944,6 @@ export const createWhatsappService = (io: Server) => {
           },
         );
 
-        console.log(`[${clientCode}] Meta response:`, res.data);
-
         status = res.data.status || "PENDING_APPROVAL";
       }
 
@@ -940,11 +967,10 @@ export const createWhatsappService = (io: Server) => {
       );
       return { success: true, data: template };
     } catch (err: any) {
-      console.error(
-        "Create Template Error:",
-        err.response?.data || err.message,
-      );
-      throw err;
+      const metaError =
+        err.response?.data?.error?.message || err.response?.data || err.message;
+      console.error("Create Template Error:", metaError);
+      throw new Error(metaError);
     }
   };
 
