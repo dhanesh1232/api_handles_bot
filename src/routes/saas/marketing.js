@@ -87,12 +87,22 @@ router.post("/emails/campaign", validateClientKey, async (req, res) => {
  * 5. Appointment Confirmation - Generate Meet & Reminders
  */
 router.post(
-  "/marketing/appointment/confirm",
+  "/create/google-meet",
   validateClientKey,
   async (req, res) => {
     try {
       const { clientCode } = req;
-      const { appointmentId, doctorDetails, patientDetails, appointmentDate, timeSlot, duration } = req.body;
+      const { durationCredentials, payload } = req.body;
+
+      // Extract Timing from durationCredentials
+      const { date: appointmentDate, time: timeSlot, duration } = durationCredentials || {};
+      
+      // Extract Metadata from payload
+      const { moduleId: appointmentId, participants = [], summary: customSummary, description: customDescription } = payload || {};
+
+      // Find specific roles for meeting metadata
+      const doctor = participants.find(p => p.role === "doctor") || {};
+      const patient = participants.find(p => p.role === "patient") || {};
 
       // 1. Generate Google Meet Link
       let startTime, endTime;
@@ -103,49 +113,33 @@ router.post(
         
         const date = new Date(appointmentDate);
         
-        // Convert to IST string to force the correct day (e.g. Feb 27)
-        // regardless of server timezone/UTC time (which might be Feb 26)
+        // Convert to IST string to force the correct day
         const istDateStr = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
         const istDate = new Date(istDateStr);
 
-        // Create a new Date object for the appointment start time
-        // We set the time components on the IST date
-        istDate.setHours(startHours, startMinutes, 0, 0);
-
-        // However, if the server is in UTC, istDate is now 18:00 UTC (Feb 27).
-        // If the server is in IST, istDate is 18:00 IST (Feb 27).
-        // To be safe and server-agnostic, we can construct the UTC time manually:
-        // 1. Get the date parts from the IST string
         const [month, day, year] = istDateStr.split(",")[0].split("/").map(Number);
-        
-        // 2. Create the target time in UTC (e.g. Feb 27, 18:00 UTC)
         const targetUTC = new Date(Date.UTC(year, month - 1, day, startHours, startMinutes));
-        
-        // 3. Subtract 5.5 hours (330 minutes) to get the time in UTC that corresponds to 18:00 IST
-        // 18:00 UTC - 5.5h = 12:30 UTC
         targetUTC.setMinutes(targetUTC.getMinutes() - 330);
 
         const start = targetUTC;
-        const meetingDuration = duration || 30; // Default to 30 mins if not provided
+        const meetingDuration = duration || 30;
         const end = new Date(start.getTime() + meetingDuration * 60000);
         
         startTime = start.toISOString();
         endTime = end.toISOString();
       } else {
-        // Fallback if no specific time provided
          startTime = new Date().toISOString(); 
          endTime = new Date(Date.now() + 30 * 60000).toISOString();
       }
 
       const meetResult = await meetService.createMeeting(clientCode, {
-        summary: `Consultation: ${doctorDetails?.name || "Doctor"} with ${patientDetails?.name}`,
-        description: `Appointment ID: ${appointmentId}. Patient Phone: ${patientDetails?.phone}`,
+        summary: customSummary || `Consultation: ${doctor.name || "Doctor"} with ${patient.name || "Patient"}`,
+        description: customDescription || `Appointment ID: ${appointmentId}. Patient Phone: ${patient.phone}`,
         start: startTime,
         end: endTime,
-        attendees: [
-          patientDetails?.email,
-          // doctorDetails?.email // Add doctor if available
-        ].filter(Boolean),
+        attendees: participants
+          .map(p => p.email)
+          .filter(Boolean),
       });
 
       if (!meetResult.success) {

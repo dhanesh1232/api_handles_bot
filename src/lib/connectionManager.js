@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { ClientDataSource } from "../model/clients/dataSource.js";
 import { dbConnect } from "./config.js";
 
-const connectionCache = new Map();
+export const connectionCache = new Map();
 
 /**
  * Dynamically connects to a tenant's database based on their clientCode.

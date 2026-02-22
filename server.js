@@ -15,40 +15,39 @@ import {
   researchJob,
   tenantRemindersJob,
 } from "./src/jobs/index.js";
+import { getDynamicOrigins } from "./src/model/cors-origins.ts";
 import googleAuthRouter from "./src/routes/auth/google.js";
+import corsRouter from "./src/routes/saas/cors.ts";
 import crmRouter from "./src/routes/saas/crm.ts";
 import { createImagesRouter } from "./src/routes/saas/images.js";
 import marketingRouter from "./src/routes/saas/marketing.js";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.ts";
+import { createWorkflowRouter } from "./src/routes/saas/whatsapp/communication-workflow.ts";
 import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.ts";
 import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.ts";
 import blogsRouter from "./src/routes/services/blogs.js";
 import clientsRouter from "./src/routes/services/clients.js";
 import leadsRouter from "./src/routes/services/leads.js";
 
+/**
+ * @Start MongoDB Workflow Processor (Free Alternative)
+ * @borrows Workflow Processor for saas
+ * 
+ * @param {startWorkflowProcessor} - Start workflow processor
+ * @param {registerGlobalIo} - Register global io
+ */
+
+import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
+import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
+
 const PORT = process.env.PORT || 4000;
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Nginx)
 const server = http.createServer(app);
 
-// Middleware
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173", // Vite
-  "https://services.ecodrix.com",
-  "https://www.ecodrix.com",
-  "https://app.ecodrix.com",
-  "https://ecodrix.com",
-  "https://admin.ecodrix.com",
-  "https://portfolio.ecodrix.com",
-  "https://nirvisham.com",
-  "https://www.nirvisham.com",
-  // Add other client origins as needed
-];
-
 const corsOptions = {
-  origin: function (origin, callback) {
+  origin: async function (origin, callback) {
+    const allowedOrigins = await getDynamicOrigins();
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -111,6 +110,9 @@ io.on("connection", (socket) => {
   });
 });
 
+registerGlobalIo(io);
+startWorkflowProcessor();
+
 // Middleware to attach io to req
 app.use((req, res, next) => {
   req.io = io;
@@ -131,6 +133,8 @@ app.use("/api/saas/images", createImagesRouter(io));
 app.use("/api/saas/chat/templates", createTemplateRouter(io));
 app.use("/api/saas/marketing", marketingRouter);
 app.use("/api/saas/crm", crmRouter);
+app.use("/api/saas/workflows", createWorkflowRouter());
+app.use("/api/saas/cors", corsRouter);
 app.use("/api/auth/google", googleAuthRouter);
 
 /**
