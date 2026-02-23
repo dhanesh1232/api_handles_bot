@@ -1,7 +1,7 @@
 import {
   getTenantConnection,
   getTenantModel,
-} from "../../lib/connectionManager.js";
+} from "../../lib/connectionManager.ts";
 import { schemas } from "../../model/saas/tenantSchemas.js";
 
 let globalIo: any = null;

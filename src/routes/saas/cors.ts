@@ -1,5 +1,5 @@
 import express from "express";
-import { verifyCoreToken } from "../../lib/auth.js";
+import { verifyCoreToken } from "../../lib/auth.ts";
 import { dbConnect } from "../../lib/config.js";
 import { CorsOrigin } from "../../model/cors-origin.model.ts";
 import { refreshOriginsCache } from "../../model/cors-origins.ts";

@@ -1,6 +1,6 @@
-# ECODrIx API Bot (Logic Engine)
+# ECOD Backend API (Logic Engine)
 
-The **API Bot** is the core backend engine for ECODrIx, responsible for handling real-time communications, multi-tenant WhatsApp integration, background jobs, and dynamic database routing.
+The **API Bot** is the core backend engine for ECOD, responsible for handling real-time communications, multi-tenant WhatsApp integration, background jobs, and dynamic database routing.
 
 ## 🚀 Core Responsibilities
 
@@ -46,7 +46,7 @@ The **API Bot** is the core backend engine for ECODrIx, responsible for handling
 - **Reactions**: Managed via a priority-based status system to avoid out-of-order updates.
 - **Outbound Engine**: Supports sending templates, media, and free-form text.
 
-### 3. Connection Manager (`src/lib/connectionManager.js` & `tenantDb.js`)
+### 3. Connection Manager (`src/lib/connectionManager.ts` & `tenantDb.ts`)
 
 - Ensures that client data is strictly isolated.
 - Connections are cached to optimize performance while maintaining the ability to route requests across hundreds of different database URIs.
@@ -108,6 +108,19 @@ pnpm run lint
 # Auto-fix formatting and linting issues
 pnpm run format
 ```
+
+## ☁️ Deployment (Render)
+
+The project is natively configured to deploy on **Render.com**. You can use the included `render.yaml` blueprint or configure it manually via the dashboard:
+
+- **Build Command**: `pnpm install && pnpm run build`
+  - *This installs dependencies and compiles TypeScript to highly optimized JavaScript in the `/dist` folder.*
+- **Start Command**: `pnpm start`
+  - *Executes the compiled JS payload fast and cleanly (`node dist/server.js`).*
+
+**Important Render Environment Variables:**
+- `NODE_VERSION`: `22.18.0`
+- `PNPM_VERSION`: `10.30.1`
 
 ## 🧹 Linting & Formatting
 

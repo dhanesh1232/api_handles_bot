@@ -1,0 +1,295 @@
+import dotenv from "dotenv";
+dotenv.config({ path: "./.env" });
+
+import cors from "cors";
+import express, { type Request, type Response, type NextFunction } from "express";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import http from "http";
+import { Server, type Socket } from "socket.io";
+import { getDynamicOrigins } from "./src/model/cors-origins.ts";
+import googleAuthRouter from "./src/routes/auth/google.ts";
+import corsRouter from "./src/routes/saas/cors.ts";
+import crmRouter from "./src/routes/saas/crm.ts";
+import { createImagesRouter } from "./src/routes/saas/images.ts";
+import marketingRouter from "./src/routes/saas/marketing.ts";
+import { createChatRouter } from "./src/routes/saas/whatsapp/chat.ts";
+import { createWorkflowRouter } from "./src/routes/saas/whatsapp/communication-workflow.ts";
+import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.ts";
+import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.ts";
+import blogsRouter from "./src/routes/services/blogs.ts";
+import clientsRouter from "./src/routes/services/clients.ts";
+import leadsRouter from "./src/routes/services/leads.ts";
+
+/**
+ * @Start MongoDB Workflow Processor (Free Alternative)
+ * @borrows Workflow Processor for saas
+ *
+ * @param {startWorkflowProcessor} - Start workflow processor
+ * @param {registerGlobalIo} - Register global io
+ * @param {cronJobs} - Cron jobs for leads
+ */
+
+import { cronJobs } from "./src/jobs/cron.ts";
+import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
+import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
+
+const PORT = process.env.PORT || 4000;
+const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Nginx)
+const server = http.createServer(app);
+
+/**
+ * @Start CORS Options
+ * @borrows CORS options for saas
+ *
+ * @param {getDynamicOrigins} - Get dynamic origins
+ */
+
+const corsOptions: cors.CorsOptions = {
+  origin: async function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    const allowedOrigins = await getDynamicOrigins();
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-api-key",
+    "x-client-code",
+    "x-core-api-key",
+  ],
+};
+
+/**
+ * @Start Security Middleware
+ * @borrows Helmet and Rate Limiting
+ */
+app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+  standardHeaders: "draft-7", // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+  message: { error: "Too many requests, please try again later." },
+});
+
+// Apply rate limiting to all /api routes
+app.use("/api", limiter);
+
+/**
+ * @Start CORS
+ * @borrows CORS for saas
+ *
+ * @param {corsOptions} - CORS options
+ */
+app.use(cors(corsOptions));
+
+/**
+ * @Start JSON Parser
+ * @borrows JSON parser for saas
+ *
+ * @param {express.json} - JSON parser
+ */
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  express.json()(req, res, (err: any) => {
+    if (err instanceof SyntaxError && (err as any).status === 400 && "body" in err) {
+      console.error(`⚠️ JSON Parse Error: ${err.message}`);
+      return res.status(400).json({ error: "Invalid JSON format" });
+    }
+    next(err);
+  });
+});
+
+/**
+ * @Start URL Encoded Parser
+ * @borrows URL encoded parser for saas
+ *
+ * @param {express.urlencoded} - URL encoded parser
+ */
+app.use(express.urlencoded({ extended: true }));
+
+/**
+ * @Start Socket.IO
+ * @borrows Socket.IO for saas
+ *
+ * @param {Server} - Server for saas
+ */
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  },
+});
+
+/**
+ * @Start Socket Events
+ * @borrows Socket events for saas
+ *
+ * @param {join-room} - Join room
+ * @param {join} - Join room (legacy)
+ * @param {send-message} - Send message
+ * @param {disconnect} - Disconnect
+ */
+
+// Socket events
+io.on("connection", (socket: Socket) => {
+  console.log("User connected:", socket.id);
+
+  // Allow clients to join a room for their specific tenant
+  socket.on("join-room", (clientCode: string) => {
+    if (clientCode) {
+      socket.join(clientCode);
+      console.log(`📡 Socket ${socket.id} joined room: ${clientCode}`);
+    }
+  });
+
+  socket.on("join", (clientCode: string) => {
+    if (clientCode) {
+      socket.join(clientCode);
+      console.log(`📡 Socket ${socket.id} joined room (legacy): ${clientCode}`);
+    }
+  });
+
+  socket.on("send-message", async (msg: any) => {
+    console.log("Received:", msg);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+/**
+ * @Start Global Io
+ * @borrows Global Io for saas
+ *
+ * @param {registerGlobalIo} - Register global io
+ */
+
+registerGlobalIo(io);
+
+/**
+ * @Start Workflow Processor
+ * @borrows Workflow Processor for saas
+ *
+ * @param {startWorkflowProcessor} - Start workflow processor
+ */
+
+startWorkflowProcessor();
+
+/**
+ * @Start Cron Jobs
+ * @borrows Cron jobs for leads
+ *
+ * @param {cronJobs} - Cron jobs for leads
+ */
+
+cronJobs();
+
+/**
+ * @Start Middleware
+ * @borrows Middleware for saas
+ *
+ * @param {req.io} - Middleware to attach io to req
+ */
+app.use((req: any, res: Response, next: NextFunction) => {
+  req.io = io;
+  next();
+});
+
+/**
+ * @Start Simple REST Route
+ * @borrows Simple REST route for saas
+ *
+ * @param {req.io} - Middleware to attach io to req
+ */
+
+app.get("/", (req: Request, res: Response) => {
+  res.send("Hello from server");
+});
+
+/**
+ * @Start Routes
+ * @borrows Routes for saas
+ *
+ * @param {blogsRouter} - Blogs router
+ * @param {leadsRouter} - Leads router
+ * @param {clientsRouter} - Clients router
+ * @param {createWebhookRouter} - Webhook router
+ * @param {createChatRouter} - Chat router
+ * @param {createImagesRouter} - Images router
+ * @param {createTemplateRouter} - Template router
+ * @param {marketingRouter} - Marketing router
+ * @param {crmRouter} - CRM router
+ * @param {createWorkflowRouter} - Workflow router
+ * @param {corsRouter} - CORS router
+ * @param {googleAuthRouter} - Google auth router
+ */
+app.use("/api", blogsRouter);
+app.use("/api", leadsRouter);
+app.use("/api", clientsRouter);
+
+// Using top-level await pattern natively or wrap carefully.
+// Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router
+const initializeRoutes = async () => {
+  app.use("/api/saas/whatsapp", await createWebhookRouter(io));
+  app.use("/api/saas/chat", createChatRouter(io));
+  app.use("/api/saas/images", createImagesRouter(io));
+  app.use("/api/saas/chat/templates", createTemplateRouter(io));
+  app.use("/api/saas/marketing", marketingRouter);
+  app.use("/api/saas/crm", crmRouter);
+  app.use("/api/saas/workflows", createWorkflowRouter());
+  app.use("/api/saas/cors", corsRouter);
+  app.use("/api/auth/google", googleAuthRouter);
+
+  /**
+   * @Start Global Error Handler
+   */
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    console.error(`❌ Global Error Handler: ${err.message}`, err.stack);
+    res.status(err.status || 500).json({
+      error: process.env.NODE_ENV === "production" ? "Internal Server Error" : err.message,
+    });
+  });
+
+  /**
+   * @Start Server
+   * @borrows Server for saas
+   *
+   * @param {PORT} - Port for server
+   */
+
+  server.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+};
+
+initializeRoutes().catch(console.error);
+
+/**
+ * @Start Graceful Shutdown
+ */
+const shutdown = () => {
+  console.log("Shutting down gracefully...");
+  server.close(() => {
+    console.log("Closed out remaining connections.");
+    process.exit(0);
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error("Could not close connections in time, forcefully shutting down");
+    process.exit(1);
+  }, 10000);
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

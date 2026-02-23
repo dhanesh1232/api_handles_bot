@@ -5,7 +5,7 @@ import { dbConnect } from "../../../lib/config.js";
 import {
   getTenantConnection,
   getTenantModel,
-} from "../../../lib/connectionManager.js";
+} from "../../../lib/connectionManager.ts";
 import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.js";
 import { validateClientKey } from "../../../middleware/saasAuth.js";
 import { ClientSecrets } from "../../../model/clients/secrets.js";

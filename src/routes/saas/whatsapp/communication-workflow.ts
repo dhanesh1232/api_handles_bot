@@ -2,7 +2,7 @@ import express, { type Request, type Response } from "express";
 import {
   getTenantConnection,
   getTenantModel,
-} from "../../../lib/connectionManager.js";
+} from "../../../lib/connectionManager.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.js";
 import { schemas } from "../../../model/saas/tenantSchemas.js";
 import type { ICommunicationWorkflow } from "../../../model/saas/whatsapp/communication-workflow.model.ts";

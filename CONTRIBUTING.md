@@ -1,6 +1,6 @@
-# Contributing to ECODrIx Backend
+# Contributing to ECOD Backend
 
-Thank you for your interest in contributing to the ECODrIx Logic Engine! This document provides guidelines for developers to maintain high code quality and consistency.
+Thank you for your interest in contributing to the ECOD Logic Engine! This document provides guidelines for developers to maintain high code quality and consistency.
 
 ## 🛠 Development Workflow
 

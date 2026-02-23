@@ -7,7 +7,7 @@ import { dbConnect } from "../../../lib/config.js";
 import {
   getTenantConnection,
   getTenantModel,
-} from "../../../lib/connectionManager.js";
+} from "../../../lib/connectionManager.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.js";
 import { schemas } from "../../../model/saas/tenantSchemas.js";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";

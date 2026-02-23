@@ -14,8 +14,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/**/*", "server.js"],
+  "include": ["src/**/*", "server.ts"],
   "exclude": ["node_modules", "dist"]
 }
