@@ -46,9 +46,23 @@ const server = http.createServer(app);
  * @param {getDynamicOrigins} - Get dynamic origins
  */
 
+const originsUrls = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173", // Vite
+    "https://services.ecodrix.com",
+    "https://www.ecodrix.com",
+    "https://app.ecodrix.com",
+    "https://ecodrix.com",
+    "https://admin.ecodrix.com",
+    "https://portfolio.ecodrix.com",
+    "https://nirvisham.com",
+    "https://www.nirvisham.com",
+];
+
 const corsOptions: cors.CorsOptions = {
   origin: async function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    const allowedOrigins = await getDynamicOrigins();
+    const allowedOrigins = [...originsUrls, ...await getDynamicOrigins()];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -170,28 +184,20 @@ io.on("connection", (socket: Socket) => {
 /**
  * @Start Global Io
  * @borrows Global Io for saas
- *
  * @param {registerGlobalIo} - Register global io
+ * 
+ * @Start Workflow Processor
+ * @borrows Workflow Processor for saas
+ * @param {startWorkflowProcessor} - Start workflow processor
+ * 
+ * @Start Cron Jobs
+ * @borrows Cron jobs for leads
+ * @param {cronJobs} - Cron jobs for leads
+ * 
  */
 
 registerGlobalIo(io);
-
-/**
- * @Start Workflow Processor
- * @borrows Workflow Processor for saas
- *
- * @param {startWorkflowProcessor} - Start workflow processor
- */
-
 startWorkflowProcessor();
-
-/**
- * @Start Cron Jobs
- * @borrows Cron jobs for leads
- *
- * @param {cronJobs} - Cron jobs for leads
- */
-
 cronJobs();
 
 /**
