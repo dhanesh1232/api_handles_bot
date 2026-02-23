@@ -37,6 +37,8 @@ const communicationWorkflowSchema: Schema<ICommunicationWorkflow> = new mongoose
         "product_purchased",
         "service_enrolled",
         "lead_captured",
+        "appointment_cancelled",
+        "appointment_rescheduled",
       ],
       index: true,
     },

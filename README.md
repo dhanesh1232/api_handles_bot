@@ -115,3 +115,185 @@ This project uses **ESLint** (Flat Config) and **Prettier** to maintain code qua
 
 - **Linting**: Checks for potential errors and unused variables.
 - **Formatting**: Automatically fixes indentation, quotes, and spacing.
+
+---
+
+## 🔁 Workflow Trigger System
+
+The backend includes a **MongoDB-backed job queue** (no Redis required) that handles delayed WhatsApp automations across all tenants.
+
+### How it works
+
+1. **Client project** fires a `POST /api/saas/workflows/trigger` request when an event occurs (payment success, booking, enrollment, etc.)
+2. **Backend** looks up the active `CommunicationWorkflow` rules for that trigger in the client's tenant DB
+3. **Instant workflows** (`delayMinutes: 0`) → executed immediately
+4. **Delayed workflows** → job stored in the central `services` DB, worker picks it up at the right time
+5. After execution, the backend optionally calls back the client's `callbackUrl` to update state
+
+### Client Setup (per project)
+
+Add these to the client Next.js project `.env`:
+
+```env
+ERIX_SOCKET_URL=https://your-ecod-backend.com
+ERIX_CLIENT_CODE=CLIENTNAME          # unique code per client (uppercase)
+ERIX_CLIENT_API_KEY=their-api-key    # stored in ECOD ClientSecrets collection
+```
+
+In ECOD backend (one-time per client):
+1. Create `ClientDataSource` pointing to their MongoDB URI
+2. Create `ClientSecrets` with their `whatsappToken` + `whatsappPhoneNumberId`
+3. Create `CommunicationWorkflow` rules in their tenant DB (via the workflow API or directly)
+
+### Trigger API
+
+```
+POST /api/saas/workflows/trigger
+Headers:
+  x-api-key: <ERIX_CLIENT_API_KEY>
+  x-client-code: <ERIX_CLIENT_CODE>
+  Content-Type: application/json
+```
+
+#### Payload
+
+```jsonc
+{
+  "trigger": "appointment_confirmed",   // see Trigger Events below
+  "phone": "918143963821",              // E.164 format, digits only
+  "variables": ["Dhanesh", "Dr. Arjun", "Monday 10AM", "abc-xyz"],  // WhatsApp template vars
+  "conversationId": "optional-id",      // skip to auto-create conversation
+
+  // For delayed/scheduled workflows (optional)
+  "baseTime": "2026-02-23T10:00:00Z",   // reference timestamp
+  "delayMinutes": -60,                  // relative to baseTime (-60 = 1h before)
+
+  // Callback — backend will PUT this URL after execution (optional)
+  "callbackUrl": "https://yoursite.com/api/workflows/callback",
+  "callbackMetadata": {
+    "moduleId": "appt_id_here",
+    "moduleType": "Appointment",
+    "reminderKey": "1h"
+  }
+}
+```
+
+#### Trigger Events
+
+| Event | When to fire |
+|---|---|
+| `appointment_confirmed` | After appointment is booked and paid |
+| `appointment_reminder` | Use with `delayMinutes: -60` or `-15` for reminders |
+| `appointment_cancelled` | When appointment is cancelled |
+| `appointment_rescheduled` | When appointment time changes |
+| `product_purchased` | After order payment is confirmed |
+| `service_enrolled` | After service enrollment payment is confirmed |
+| `lead_captured` | When a new lead fills a form |
+
+#### Example — appointment confirmation + reminder chain
+
+```ts
+const headers = {
+  "Content-Type": "application/json",
+  "x-api-key": process.env.ERIX_CLIENT_API_KEY,
+  "x-client-code": process.env.ERIX_CLIENT_CODE,
+};
+
+const callbackUrl = `${process.env.NEXT_PUBLIC_WEBSITE_URL}/api/workflows/callback`;
+const variables = [patientName, doctorName, `${date} at ${timeSlot}`, meetCode];
+
+// 1. Instant confirmation
+await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
+  method: "POST", headers,
+  body: JSON.stringify({
+    trigger: "appointment_confirmed",
+    phone: patientPhone,
+    variables,
+    callbackUrl,
+    callbackMetadata: { moduleId, moduleType: "Appointment", reminderKey: "confirmed" },
+  }),
+});
+
+// 2. 1-hour reminder (fires automatically 1h before appointment)
+await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
+  method: "POST", headers,
+  body: JSON.stringify({
+    trigger: "appointment_reminder",
+    phone: patientPhone,
+    baseTime: appointmentDate,     // ISO date string
+    delayMinutes: -60,
+    variables,
+    callbackUrl,
+    callbackMetadata: { moduleId, moduleType: "Appointment", reminderKey: "1h" },
+  }),
+});
+```
+
+#### Callback endpoint (client side)
+
+The backend will make a `PUT` request to your `callbackUrl` after execution:
+
+```ts
+// app/api/workflows/callback/route.ts
+export async function PUT(req: Request) {
+  const { status, metadata } = await req.json();
+  const { moduleId, moduleType, reminderKey } = metadata;
+
+  if (moduleType === "Appointment") {
+    await Appointment.findByIdAndUpdate(moduleId, {
+      $set: { [`remindersSent.${reminderKey}`]: true },
+    });
+  }
+  return Response.json({ success: true });
+}
+```
+
+### CommunicationWorkflow Rules
+
+Workflows must be configured per client in their tenant DB. Example document:
+
+```jsonc
+{
+  "name": "Appointment Confirmation",
+  "trigger": "appointment_confirmed",
+  "channel": "whatsapp",
+  "templateName": "appointment_confirmed_v2",  // must exist in Meta template library
+  "delayMinutes": 0,                            // 0 = instant
+  "isActive": true
+}
+```
+
+### Test via CLI
+
+```bash
+# Instant send
+pnpm test:worker \
+  --clientCode ERIX_CLNT1 \
+  --phone 918143963821 \
+  --template appointment_confirmed \
+  --watch
+
+# Delayed (5 minutes)
+pnpm test:worker \
+  --clientCode ERIX_CLNT1 \
+  --phone 918143963821 \
+  --template appointment_confirmed \
+  --delay 300 \
+  --watch
+```
+
+`--watch` polls the job status every 3s until `completed` or `failed`.
+
+### Worker Configuration
+
+The worker runs automatically when the server starts (`server.js` → `startWorkflowProcessor()`).
+
+| Setting | Default | Description |
+|---|---|---|
+| `concurrency` | 3 | Max parallel jobs |
+| `pollIntervalMs` | 10,000ms | How often DB is polled |
+| `baseBackoffMs` | 5,000ms | Base for exponential retry (5s × 2ⁿ) |
+| `maxAttempts` | 3 | Attempts before job is marked `failed` |
+
+Jobs are stored in the `services` DB → `jobs` collection and visible for debugging.
+

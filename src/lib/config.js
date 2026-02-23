@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 dotenv.config({ path: "./.env" });
 
 // Global mongoose configuration (runs once)
@@ -64,7 +64,6 @@ async function dbConnect(db) {
       maxPoolSize: 5,
       retryWrites: true,
     };
-    console.log(URI);
     cached.promise = mongoose
       .connect(URI, opts)
       .then((mongoose) => mongoose)

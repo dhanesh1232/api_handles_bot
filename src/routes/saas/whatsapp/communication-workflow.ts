@@ -92,8 +92,6 @@ export const createWorkflowRouter = () => {
         return res.json({ success: true, message: "No active workflows for this trigger" });
       }
 
-      const { createWhatsappService } = await import("../../../services/saas/whatsapp/whatsappService.ts");
-      const whatsappService = createWhatsappService((req as any).io);
       const { scheduleWorkflow } = await import("../../../lib/queue.ts");
       const { executeWorkflow } = await import("../../../jobs/saas/workflowWorker.ts");
 

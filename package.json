@@ -5,14 +5,14 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "tsx server.js",
-    "dev": "nodemon --cwd ./ server.js",
-    "dev:ts": "nodemon --exec tsx server.js",
+    "start": "node --import tsx/esm server.js",
+    "dev": "nodemon --exec 'tsx server.js' --ext ts,js",
     "type-check": "tsc --noEmit",
     "tunnel": "bash tunnel.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
     "build": "pnpm run lint && pnpm run test && node --check server.js",
+    "test:worker": "tsx scripts/test-worker.ts",
     "test": "tsx --test src/**/*.test.js"
   },
   "keywords": [],
@@ -21,7 +21,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
     "axios": "^1.13.4",
-    "bullmq": "^5.65.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
@@ -30,12 +29,10 @@
     "form-data": "^4.0.5",
     "googleapis": "^171.4.0",
     "http": "^0.0.1-security",
-    "ioredis": "^5.8.2",
     "mongoose": "^8.18.2",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
-    "nodemon": "^3.1.10",
     "openai": "^5.22.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
@@ -56,6 +53,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "globals": "^16.5.0",
+    "nodemon": "^3.1.11",
     "prettier": "^3.7.4"
   }
 }

@@ -33,11 +33,10 @@ export async function getDynamicOrigins(): Promise<string[]> {
 
   try {
     // Ensure DB connection (using saas db as specified in config)
-    await dbConnect("saas");
+    const db = await dbConnect("saas");
     
     const dbOrigins = await CorsOrigin.find({ isActive: true }).lean();
     const dynamicUrls = dbOrigins.map((o: any) => o.url);
-    console.log(dynamicUrls)
     // Combine hardcoded and dynamic, ensure unique items
     const combined = Array.from(new Set([...DEFAULT_ORIGINS, ...dynamicUrls]));
     
