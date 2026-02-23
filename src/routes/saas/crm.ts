@@ -3,7 +3,10 @@ import express, { Router } from "express";
 import { validateClientKey } from "../../middleware/saasAuth.js";
 import Pipeline from "../../model/saas/crm/pipeline.model.ts";
 import PipelineStage from "../../model/saas/crm/pipelineStage.model.ts";
-import { updateLeadStage, upsertLead } from "../../services/saas/lead/lead.services.ts";
+import {
+  updateLeadStage,
+  upsertLead,
+} from "../../services/saas/lead/lead.services.ts";
 
 interface SaasRequest extends Request {
   clientCode?: string;
@@ -17,7 +20,9 @@ router.use(validateClientKey);
 // --- Pipelines ---
 router.get("/pipelines", async (req: SaasRequest, res: Response) => {
   try {
-    const pipelines = await Pipeline.find({ clientCode: req.clientCode }).sort({ order: 1 });
+    const pipelines = await Pipeline.find({ clientCode: req.clientCode }).sort({
+      order: 1,
+    });
     res.json({ success: true, data: pipelines });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -26,7 +31,10 @@ router.get("/pipelines", async (req: SaasRequest, res: Response) => {
 
 router.post("/pipelines", async (req: SaasRequest, res: Response) => {
   try {
-    const pipeline = await Pipeline.create({ ...req.body, clientCode: req.clientCode });
+    const pipeline = await Pipeline.create({
+      ...req.body,
+      clientCode: req.clientCode,
+    });
     res.json({ success: true, data: pipeline });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -39,7 +47,7 @@ router.get("/stages", async (req: SaasRequest, res: Response) => {
     const { pipelineId } = req.query;
     const filter: any = { clientCode: req.clientCode };
     if (pipelineId) filter.pipelineId = pipelineId;
-    
+
     const stages = await PipelineStage.find(filter).sort({ order: 1 });
     res.json({ success: true, data: stages });
   } catch (err: any) {
@@ -49,7 +57,10 @@ router.get("/stages", async (req: SaasRequest, res: Response) => {
 
 router.post("/stages", async (req: SaasRequest, res: Response) => {
   try {
-    const stage = await PipelineStage.create({ ...req.body, clientCode: req.clientCode });
+    const stage = await PipelineStage.create({
+      ...req.body,
+      clientCode: req.clientCode,
+    });
     res.json({ success: true, data: stage });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -59,11 +70,11 @@ router.post("/stages", async (req: SaasRequest, res: Response) => {
 router.put("/stages/reorder", async (req: SaasRequest, res: Response) => {
   try {
     const { stages } = req.body; // Array of { _id, order }
-    const promises = stages.map((s: any) => 
+    const promises = stages.map((s: any) =>
       PipelineStage.findOneAndUpdate(
         { _id: s._id, clientCode: req.clientCode },
-        { order: s.order }
-      )
+        { order: s.order },
+      ),
     );
     await Promise.all(promises);
     res.json({ success: true, message: "Stages reordered" });
@@ -86,7 +97,11 @@ router.post("/leads/upsert", async (req: SaasRequest, res: Response) => {
 router.patch("/leads/:id/stage", async (req: SaasRequest, res: Response) => {
   try {
     const { stageId } = req.body;
-    const lead = await updateLeadStage(req.clientCode!, req.params.id as string, stageId);
+    const lead = await updateLeadStage(
+      req.clientCode!,
+      req.params.id as string,
+      stageId,
+    );
     res.json({ success: true, data: lead });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

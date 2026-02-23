@@ -35,6 +35,7 @@ const activitySchema: Schema<ILeadActivity> = new mongoose.Schema({
 });
 
 const LeadActivity: Model<ILeadActivity> =
-  mongoose.models.LeadActivity || mongoose.model<ILeadActivity>("LeadActivity", activitySchema);
+  mongoose.models.LeadActivity ||
+  mongoose.model<ILeadActivity>("LeadActivity", activitySchema);
 
 export default LeadActivity;

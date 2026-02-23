@@ -1,23 +1,39 @@
 {
-  "name": "server",
+  "name": "@ecodrix/api-engine",
   "version": "1.0.0",
-  "description": "",
+  "description": "ECODrIx API Engine — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and MongoDB-backed job queuing.",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
     "start": "node --import tsx/esm server.js",
     "dev": "nodemon --exec 'tsx server.js' --ext ts,js",
     "type-check": "tsc --noEmit",
-    "tunnel": "bash tunnel.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "build": "pnpm run lint && pnpm run test && node --check server.js",
+    "build": "pnpm run type-check && pnpm run lint",
     "test:worker": "tsx scripts/test-worker.ts",
-    "test": "tsx --test src/**/*.test.js"
+    "test": "tsx --test src/**/*.test.js",
+    "tunnel": "bash tunnel.sh"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "whatsapp",
+    "saas",
+    "multi-tenant",
+    "crm",
+    "automation",
+    "google-meet",
+    "job-queue",
+    "mongodb",
+    "express",
+    "socket.io"
+  ],
+  "author": "ECODrIx <contact@ecodrix.com> (https://ecodrix.com)",
+  "license": "UNLICENSED",
+  "private": true,
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
     "axios": "^1.13.4",

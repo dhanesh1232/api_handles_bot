@@ -11,7 +11,7 @@ import { ClientSecrets } from "../../model/clients/secrets.js";
 const router = express.Router();
 
 // 1. GET ALL CLIENTS (Admin / Discovery)
-router.get("/clients", async (req, res) => {
+router.get("/clients", verifyCoreToken, async (req, res) => {
   await dbConnect("services");
   try {
     const clients = await Client.find().sort({ createdAt: -1 });
@@ -154,7 +154,7 @@ router.get("/clients/:code/secrets", verifyCoreToken, async (req, res) => {
       whatsappBusinessId: secrets.getDecrypted("whatsappBusinessId"),
       whatsappPhoneNumberId: secrets.getDecrypted("whatsappPhoneNumberId"),
       whatsappWebhookToken: secrets.getDecrypted("whatsappWebhookToken"),
-      
+
       googleClientId: secrets.getDecrypted("googleClientId"),
       googleClientSecret: secrets.getDecrypted("googleClientSecret"),
       googleRefreshToken: secrets.getDecrypted("googleRefreshToken"),
@@ -183,12 +183,10 @@ router.get("/clients/:code/secrets", verifyCoreToken, async (req, res) => {
 
     // Decrypt custom fields
     if (secrets.customSecrets) {
-      for (let [key, value] of secrets.customSecrets) {
+      for (const [key] of secrets.customSecrets) {
         decrypted.customSecrets[key] =
           secrets.getDecrypted(`customSecrets.${key}`) ||
           secrets.customSecrets.get(key);
-        // Note: getDecrypted logic in model might need fix for deep paths, but model usage of Map is usually direct.
-        // Let's assume decrypt works on the raw value for now or fix it in model.
       }
     }
 

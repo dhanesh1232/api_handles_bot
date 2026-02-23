@@ -10,7 +10,13 @@ export interface IConversation extends Document {
   lastMessageId?: mongoose.Types.ObjectId;
   lastMessageStatus?: string;
   lastMessageSender: "admin" | "user";
-  lastMessageType: "text" | "image" | "document" | "template" | "video" | "audio";
+  lastMessageType:
+    | "text"
+    | "image"
+    | "document"
+    | "template"
+    | "video"
+    | "audio";
   lastMessageAt?: Date;
   unreadCount: number;
   status: "open" | "closed";

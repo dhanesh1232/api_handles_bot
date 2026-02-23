@@ -13,17 +13,21 @@ export const createTemplateRouter = (io: Server) => {
   const whatsappService = createWhatsappService(io);
 
   // POST /sync - Sync templates from Meta
-  router.post("/sync", validateClientKey, async (req: Request, res: Response) => {
-    try {
-      const sReq = req as SaasRequest;
-      const clientCode = sReq.clientCode!;
-      const result = await whatsappService.syncTemplates(clientCode);
-      res.json(result);
-    } catch (error) {
-      console.error("Sync error:", error);
-      res.status(500).json({ error: "Failed to sync templates" });
-    }
-  });
+  router.post(
+    "/sync",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const result = await whatsappService.syncTemplates(clientCode);
+        res.json(result);
+      } catch (error) {
+        console.error("Sync error:", error);
+        res.status(500).json({ error: "Failed to sync templates" });
+      }
+    },
+  );
 
   // GET / - Read templates from Local DB
   router.get("/", validateClientKey, async (req: Request, res: Response) => {
@@ -45,7 +49,10 @@ export const createTemplateRouter = (io: Server) => {
       const sReq = req as SaasRequest;
       const clientCode = sReq.clientCode!;
       const templateData = req.body;
-      const result = await whatsappService.createTemplate(clientCode, templateData);
+      const result = await whatsappService.createTemplate(
+        clientCode,
+        templateData,
+      );
       res.json(result);
     } catch (error) {
       console.error("Create template error:", error);

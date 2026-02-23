@@ -11,7 +11,10 @@ import {
 import { ClientSecrets } from "../../../model/clients/secrets.js";
 import { schemas } from "../../../model/saas/tenantSchemas.js";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
-import type { IMessage, IMessageTemplateData } from "../../../model/saas/whatsapp/message.model.ts";
+import type {
+  IMessage,
+  IMessageTemplateData,
+} from "../../../model/saas/whatsapp/message.model.ts";
 import type { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
@@ -81,8 +84,9 @@ export const createWhatsappService = (io: Server) => {
     }
     variablesCount += buttonVars;
 
-    console.log(`[WhatsAppService] Extracted: bodyVars=${bodyVars}, buttonVars=${buttonVars}, total=${variablesCount}`);
-
+    console.log(
+      `[WhatsAppService] Extracted: bodyVars=${bodyVars}, buttonVars=${buttonVars}, total=${variablesCount}`,
+    );
 
     return {
       headerType,
@@ -93,9 +97,10 @@ export const createWhatsappService = (io: Server) => {
     };
   };
 
-
   // Helper to get tenant context: Connection, Models, Secrets
-  const getContext = async (clientCode: string): Promise<WhatsAppServiceContext> => {
+  const getContext = async (
+    clientCode: string,
+  ): Promise<WhatsAppServiceContext> => {
     await dbConnect("services");
     const secrets = await ClientSecrets.findOne({ clientCode });
     if (!secrets) throw new Error("Client secrets not found");
@@ -106,8 +111,16 @@ export const createWhatsappService = (io: Server) => {
       "Conversation",
       schemas.conversations,
     );
-    const Message = getTenantModel<IMessage>(tenantConn, "Message", schemas.messages);
-    const Template = getTenantModel<ITemplate>(tenantConn, "Template", schemas.templates);
+    const Message = getTenantModel<IMessage>(
+      tenantConn,
+      "Message",
+      schemas.messages,
+    );
+    const Template = getTenantModel<ITemplate>(
+      tenantConn,
+      "Template",
+      schemas.templates,
+    );
 
     return { secrets, Conversation, Message, Template, tenantConn };
   };
@@ -115,7 +128,11 @@ export const createWhatsappService = (io: Server) => {
   /**
    * Download Media from WhatsApp and Upload to R2 (via mediaService)
    */
-  const processIncomingMedia = async (mediaId: string, secrets: any, originalFilename?: string): Promise<string | null> => {
+  const processIncomingMedia = async (
+    mediaId: string,
+    secrets: any,
+    originalFilename?: string,
+  ): Promise<string | null> => {
     if (!mediaId) return null;
     try {
       const token = secrets.getDecrypted("whatsappToken");
@@ -167,7 +184,7 @@ export const createWhatsappService = (io: Server) => {
 
       const phone = from;
       const userName = contacts?.profile?.name || "Customer";
-      const profilePicture = contacts?.profile?.profile_picture; 
+      const profilePicture = contacts?.profile?.profile_picture;
 
       // 1. Find or Create Conversation
       let conversation = await Conversation.findOne({ phone });
@@ -297,7 +314,7 @@ export const createWhatsappService = (io: Server) => {
             }
           }
         }
-        return; 
+        return;
       }
 
       // 2.5 Find Replied Message if any
@@ -331,7 +348,7 @@ export const createWhatsappService = (io: Server) => {
           whatsappMessageId: messagePayload.id,
           replyTo,
           replyToWhatsappId,
-          status: "delivered", 
+          status: "delivered",
         });
         console.log(
           `✅ [${clientCode}] Inbound Message saved: ${newMessage._id}`,
@@ -362,7 +379,8 @@ export const createWhatsappService = (io: Server) => {
           conversation.lastMessageSender = "user";
           conversation.lastMessageType = messageType;
           conversation.lastUserMessageAt = new Date();
-          conversation.lastMessageId = newMessage._id as mongoose.Types.ObjectId;
+          conversation.lastMessageId =
+            newMessage._id as mongoose.Types.ObjectId;
           conversation.lastMessageStatus = "delivered";
           conversation.unreadCount = (conversation.unreadCount || 0) + 1;
 
@@ -425,7 +443,8 @@ export const createWhatsappService = (io: Server) => {
         conversation &&
         conversation.lastMessageId?.toString() === message._id.toString()
       ) {
-        const lastStatus = (conversation.lastMessageStatus || "queued") as string;
+        const lastStatus = (conversation.lastMessageStatus ||
+          "queued") as string;
         const convPriority = STATUS_PRIORITY[lastStatus] || 0;
         if (newPriority > convPriority) {
           conversation.lastMessageStatus = status as any;
@@ -513,7 +532,7 @@ export const createWhatsappService = (io: Server) => {
           language: templateLanguage,
           footer: tmpl.footerText,
           buttons: tmpl.buttons,
-          variables: variables, 
+          variables: variables,
           headerType: tmpl.headerType,
         };
       } else {
@@ -620,9 +639,10 @@ export const createWhatsappService = (io: Server) => {
         };
 
         if (tmpl && tmpl.components) {
-          console.log(`[${clientCode}] Using cached template components for ${templateName}`);
+          console.log(
+            `[${clientCode}] Using cached template components for ${templateName}`,
+          );
           let varIndex = 0;
-
 
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
@@ -638,7 +658,10 @@ export const createWhatsappService = (io: Server) => {
               const headerVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
                 .length;
               for (let i = 0; i < headerVarsCount; i++) {
-                const val = variables[varIndex] !== undefined ? variables[varIndex++] : (comp.example?.header_text?.[0] || "[N/A]");
+                const val =
+                  variables[varIndex] !== undefined
+                    ? variables[varIndex++]
+                    : comp.example?.header_text?.[0] || "[N/A]";
                 headerParams.push({
                   type: "text",
                   text: String(val),
@@ -655,7 +678,10 @@ export const createWhatsappService = (io: Server) => {
                 .length;
               const bodyParams: any[] = [];
               for (let i = 0; i < bodyVarsCount; i++) {
-                const val = variables[varIndex] !== undefined ? variables[varIndex++] : (comp.example?.body_text?.[0]?.[i] || "[N/A]");
+                const val =
+                  variables[varIndex] !== undefined
+                    ? variables[varIndex++]
+                    : comp.example?.body_text?.[0]?.[i] || "[N/A]";
                 bodyParams.push({
                   type: "text",
                   text: String(val),
@@ -668,14 +694,20 @@ export const createWhatsappService = (io: Server) => {
                 });
               }
             } else if (comp.type === "BUTTONS") {
-              console.log(`[${clientCode}] Processing BUTTONS:`, JSON.stringify(comp.buttons));
+              console.log(
+                `[${clientCode}] Processing BUTTONS:`,
+                JSON.stringify(comp.buttons),
+              );
               comp.buttons.forEach((btn: any, btnIdx: number) => {
                 const btnVarsCount = (btn.url?.match(/{{[0-9]+}}/g) || [])
                   .length;
                 if (btnVarsCount > 0) {
                   const btnParams: any[] = [];
                   for (let i = 0; i < btnVarsCount; i++) {
-                    const val = variables[varIndex] !== undefined ? variables[varIndex++] : (btn.example?.[i] || "[N/A]");
+                    const val =
+                      variables[varIndex] !== undefined
+                        ? variables[varIndex++]
+                        : btn.example?.[i] || "[N/A]";
                     btnParams.push({
                       type: "text",
                       text: String(val),
@@ -693,7 +725,6 @@ export const createWhatsappService = (io: Server) => {
                 }
               });
             }
-
           }
         } else {
           if (variables.length > 0) {
@@ -717,7 +748,10 @@ export const createWhatsappService = (io: Server) => {
       }
 
       // 3. Send
-      console.log(`[${clientCode}] WhatsApp Meta Payload:`, JSON.stringify(payload, null, 2));
+      console.log(
+        `[${clientCode}] WhatsApp Meta Payload:`,
+        JSON.stringify(payload, null, 2),
+      );
 
       const response = await axios.post(
         `${WHATSAPP_API_URL}/${phoneId}/messages`,
@@ -730,7 +764,6 @@ export const createWhatsappService = (io: Server) => {
         },
       );
       console.log(`[${clientCode}] WhatsApp Meta Response:`, response.data);
-
 
       // 4. Update Message
       const incomingId = response.data.messages[0].id;
@@ -755,7 +788,8 @@ export const createWhatsappService = (io: Server) => {
       // 5. Update Conversation
       const freshConversation = await Conversation.findById(conversationId);
       if (freshConversation) {
-        const lastStatus = (freshConversation.lastMessageStatus || "queued") as string;
+        const lastStatus = (freshConversation.lastMessageStatus ||
+          "queued") as string;
         const currentCP = STATUS_PRIORITY[lastStatus] || 0;
         const finalP = STATUS_PRIORITY[message.status] || 0;
 
@@ -763,7 +797,8 @@ export const createWhatsappService = (io: Server) => {
           freshConversation.lastMessageStatus = message.status as any;
         }
         freshConversation.lastMessage = resolvedText || "";
-        freshConversation.lastMessageId = message._id as mongoose.Types.ObjectId;
+        freshConversation.lastMessageId =
+          message._id as mongoose.Types.ObjectId;
         freshConversation.lastMessageSender = "admin";
         await freshConversation.save();
 
@@ -852,15 +887,22 @@ export const createWhatsappService = (io: Server) => {
     }
   };
 
-  const sendReaction = async (clientCode: string, messageId: string, emoji: string) => {
+  const sendReaction = async (
+    clientCode: string,
+    messageId: string,
+    emoji: string,
+  ) => {
     const { secrets, Message } = await getContext(clientCode);
     const token = secrets.getDecrypted("whatsappToken");
     const phoneId = secrets.getDecrypted("whatsappPhoneNumberId");
 
     const message = await Message.findById(messageId);
-    if (!message || !message.whatsappMessageId) throw new Error("Message not found on WhatsApp");
+    if (!message || !message.whatsappMessageId)
+      throw new Error("Message not found on WhatsApp");
 
-    const conversation = await (Message.db.model("Conversation", schemas.conversations)).findById(message.conversationId);
+    const conversation = await Message.db
+      .model("Conversation", schemas.conversations)
+      .findById(message.conversationId);
     if (!conversation) throw new Error("Conversation not found");
 
     const response = await axios.post(
@@ -884,25 +926,29 @@ export const createWhatsappService = (io: Server) => {
     );
 
     if (response.data.messages[0].id) {
-        if (!Array.isArray(message.reactions)) {
-            message.reactions = [];
-        }
-        const senderReactionIndex = message.reactions.findIndex((r) => r.reactBy === "admin");
-        if (!emoji) {
-            if (senderReactionIndex !== -1) message.reactions.splice(senderReactionIndex, 1);
-        } else {
-            if (senderReactionIndex !== -1) message.reactions[senderReactionIndex].emoji = emoji;
-            else message.reactions.push({ emoji, reactBy: "admin" });
-        }
-        await message.save();
+      if (!Array.isArray(message.reactions)) {
+        message.reactions = [];
+      }
+      const senderReactionIndex = message.reactions.findIndex(
+        (r) => r.reactBy === "admin",
+      );
+      if (!emoji) {
+        if (senderReactionIndex !== -1)
+          message.reactions.splice(senderReactionIndex, 1);
+      } else {
+        if (senderReactionIndex !== -1)
+          message.reactions[senderReactionIndex].emoji = emoji;
+        else message.reactions.push({ emoji, reactBy: "admin" });
+      }
+      await message.save();
 
-        if (io) {
-            io.to(clientCode).emit("message_updated", {
-                messageId: message._id,
-                conversationId: message.conversationId,
-                updates: { reactions: message.reactions },
-            });
-        }
+      if (io) {
+        io.to(clientCode).emit("message_updated", {
+          messageId: message._id,
+          conversationId: message.conversationId,
+          updates: { reactions: message.reactions },
+        });
+      }
     }
 
     return { success: true };
@@ -922,13 +968,23 @@ export const createWhatsappService = (io: Server) => {
         }
 
         // Submit to Meta for approval
-        console.log(`[${clientCode}] Submitting WhatsApp template to Meta:`, templateData.name);
-        console.log(`[${clientCode}] Payload:`, JSON.stringify({
-           name: templateData.name,
-           category: templateData.category || "UTILITY",
-           language: templateData.language || "en_US",
-           components: templateData.components,
-        }, null, 2));
+        console.log(
+          `[${clientCode}] Submitting WhatsApp template to Meta:`,
+          templateData.name,
+        );
+        console.log(
+          `[${clientCode}] Payload:`,
+          JSON.stringify(
+            {
+              name: templateData.name,
+              category: templateData.category || "UTILITY",
+              language: templateData.language || "en_US",
+              components: templateData.components,
+            },
+            null,
+            2,
+          ),
+        );
 
         const res = await axios.post(
           `${WHATSAPP_API_URL}/${wabaId}/message_templates`,

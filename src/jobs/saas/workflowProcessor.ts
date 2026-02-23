@@ -20,7 +20,7 @@ export const startWorkflowProcessor = () => {
       concurrency: 3,
       pollIntervalMs: 10_000,
       baseBackoffMs: 5_000,
-    }
+    },
   );
 
   worker.start();

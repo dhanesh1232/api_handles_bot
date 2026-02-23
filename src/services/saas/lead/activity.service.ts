@@ -28,4 +28,3 @@ export async function logActivity(
     console.error("❌ Failed to log Lead activity:", err);
   }
 }
-

@@ -27,27 +27,31 @@ export const createChatRouter = (io: Server) => {
   const whatsappService = createWhatsappService(io);
 
   // 1. List Conversations
-  router.get("/conversations", validateClientKey, async (req: Request, res: Response) => {
-    try {
-      const sReq = req as SaasRequest;
-      const clientCode = sReq.clientCode!;
-      const uri = await GetURI(clientCode);
-      const conn = await tenantDBConnect(uri);
-      const ConversationModel = getTenantModel<IConversation>(
+  router.get(
+    "/conversations",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const uri = await GetURI(clientCode);
+        const conn = await tenantDBConnect(uri);
+        const ConversationModel = getTenantModel<IConversation>(
           conn,
           "Conversation",
           schemas.conversations,
         );
 
-      const conversations = await ConversationModel.find({}).sort({
-        lastMessageAt: -1,
-      });
-      res.json(conversations);
-    } catch (err) {
-      console.error("Error fetching conversations:", err);
-      res.status(500).json({ error: "Failed to fetch chats" });
-    }
-  });
+        const conversations = await ConversationModel.find({}).sort({
+          lastMessageAt: -1,
+        });
+        res.json(conversations);
+      } catch (err) {
+        console.error("Error fetching conversations:", err);
+        res.status(500).json({ error: "Failed to fetch chats" });
+      }
+    },
+  );
 
   // 2. Get Messages for a Conversation
   router.get(
@@ -62,9 +66,9 @@ export const createChatRouter = (io: Server) => {
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
         const MessageModel = getTenantModel<IMessage>(
-            conn,
-            "Message",
-            schemas.messages,
+          conn,
+          "Message",
+          schemas.messages,
         );
 
         const messages = await MessageModel.find({ conversationId: id as any })
@@ -94,9 +98,9 @@ export const createChatRouter = (io: Server) => {
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
         const ConversationModel = getTenantModel<IConversation>(
-            conn,
-            "Conversation",
-            schemas.conversations,
+          conn,
+          "Conversation",
+          schemas.conversations,
         );
 
         await ConversationModel.updateOne(
@@ -113,38 +117,42 @@ export const createChatRouter = (io: Server) => {
   );
 
   // 4. Create New Conversation manually
-  router.post("/conversations", validateClientKey, async (req: Request, res: Response) => {
-    try {
-      const sReq = req as SaasRequest;
-      const clientCode = sReq.clientCode!;
-      const { phone, name } = req.body;
+  router.post(
+    "/conversations",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const { phone, name } = req.body;
 
-      const uri = await GetURI(clientCode);
-      const conn = await tenantDBConnect(uri);
-      const ConversationModel = getTenantModel<IConversation>(
+        const uri = await GetURI(clientCode);
+        const conn = await tenantDBConnect(uri);
+        const ConversationModel = getTenantModel<IConversation>(
           conn,
           "Conversation",
           schemas.conversations,
         );
 
-      let conversation = await ConversationModel.findOne({ phone });
-      if (!conversation) {
-        conversation = await ConversationModel.create({
-          phone,
-          userName: name || "New Contact",
-          status: "open",
-          channel: "whatsapp",
-          unreadCount: 0,
-          lastMessageAt: new Date(),
-        });
-      }
+        let conversation = await ConversationModel.findOne({ phone });
+        if (!conversation) {
+          conversation = await ConversationModel.create({
+            phone,
+            userName: name || "New Contact",
+            status: "open",
+            channel: "whatsapp",
+            unreadCount: 0,
+            lastMessageAt: new Date(),
+          });
+        }
 
-      res.json(conversation);
-    } catch (err) {
-      console.error("Error creating chat:", err);
-      res.status(500).json({ error: "Failed to create chat" });
-    }
-  });
+        res.json(conversation);
+      } catch (err) {
+        console.error("Error creating chat:", err);
+        res.status(500).json({ error: "Failed to create chat" });
+      }
+    },
+  );
 
   // 5. Upload Media to R2
   router.post(
@@ -190,70 +198,74 @@ export const createChatRouter = (io: Server) => {
   );
 
   // 6. Dashboard Message Sender
-  router.post("/send", validateClientKey, async (req: Request, res: Response) => {
-    try {
-      const sReq = req as SaasRequest;
-      const clientCode = sReq.clientCode || req.body.clientCode;
-      const {
-        conversationId,
-        to,
-        text,
-        mediaUrl,
-        mediaType,
-        templateName,
-        templateLanguage = "en_US",
-        variables = [],
-        userId = "admin", 
-        replyToId = null,
-      } = req.body;
+  router.post(
+    "/send",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode || req.body.clientCode;
+        const {
+          conversationId,
+          to,
+          text,
+          mediaUrl,
+          mediaType,
+          templateName,
+          templateLanguage = "en_US",
+          variables = [],
+          userId = "admin",
+          replyToId = null,
+        } = req.body;
 
-      if (!conversationId && !to) {
-        return res
-          .status(400)
-          .json({ error: "Missing conversationId or to phone number" });
-      }
-
-      let targetConvId = conversationId;
-
-      if (!targetConvId && to) {
-        const tenantConn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          tenantConn,
-          "Conversation",
-          schemas.conversations,
-        );
-        let conv = await ConversationModel.findOne({ phone: to });
-        if (!conv) {
-          conv = await ConversationModel.create({
-            phone: to,
-            userName: "Customer",
-            status: "open",
-            channel: "whatsapp",
-            unreadCount: 0,
-          });
+        if (!conversationId && !to) {
+          return res
+            .status(400)
+            .json({ error: "Missing conversationId or to phone number" });
         }
-        targetConvId = conv._id;
+
+        let targetConvId = conversationId;
+
+        if (!targetConvId && to) {
+          const tenantConn = await getTenantConnection(clientCode);
+          const ConversationModel = getTenantModel<IConversation>(
+            tenantConn,
+            "Conversation",
+            schemas.conversations,
+          );
+          let conv = await ConversationModel.findOne({ phone: to });
+          if (!conv) {
+            conv = await ConversationModel.create({
+              phone: to,
+              userName: "Customer",
+              status: "open",
+              channel: "whatsapp",
+              unreadCount: 0,
+            });
+          }
+          targetConvId = conv._id;
+        }
+
+        const message = await whatsappService.sendOutboundMessage(
+          clientCode,
+          targetConvId,
+          text,
+          mediaUrl,
+          mediaType,
+          userId,
+          templateName,
+          templateLanguage,
+          variables,
+          replyToId,
+        );
+
+        res.json({ success: true, message });
+      } catch (err: any) {
+        console.error("❌ Outgoing Chat Error:", err);
+        res.status(500).json({ error: err.message });
       }
-
-      const message = await whatsappService.sendOutboundMessage(
-        clientCode,
-        targetConvId,
-        text,
-        mediaUrl,
-        mediaType,
-        userId,
-        templateName,
-        templateLanguage,
-        variables,
-        replyToId,
-      );
-
-      res.json({ success: true, message });
-    } catch (err: any) {
-      console.error("❌ Outgoing Chat Error:", err);
-      res.status(500).json({ error: err.message });
-    }
-  });
+    },
+  );
 
   // 7. Toggle Message Star Status
   router.post(
@@ -269,9 +281,9 @@ export const createChatRouter = (io: Server) => {
         const uri = await GetURI(clientCode);
         const conn = await tenantDBConnect(uri);
         const MessageModel = getTenantModel<IMessage>(
-            conn,
-            "Message",
-            schemas.messages,
+          conn,
+          "Message",
+          schemas.messages,
         );
 
         const message = await MessageModel.findById(messageId as string);

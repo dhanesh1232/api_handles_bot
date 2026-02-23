@@ -48,7 +48,7 @@ const jobSchema = new mongoose.Schema<IJob>(
     completedAt: { type: Date },
     failedAt: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 /**

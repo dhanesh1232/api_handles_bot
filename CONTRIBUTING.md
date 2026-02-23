@@ -20,17 +20,20 @@ Thank you for your interest in contributing to the ECODrIx Logic Engine! This do
 ## 📝 Coding Standards
 
 ### 1. TypeScript & ESM
+
 - Always prefer **TypeScript** for new modules.
 - Use **ESM (ECMAScript Modules)** syntax (`import`/`export`).
 - For Mongoose and interface imports, use `import type { ... }` to ensure ESM compatibility.
 - Ensure all TypeScript modules pass `pnpm run type-check`.
 
 ### 2. Multi-tenancy
+
 - Never hardcode database URIs.
 - Use `getTenantConnection(clientCode)` and `getTenantModel(clientCode, modelName, schema)` for data isolation.
 - Always validate the `clientCode` before accessing tenant-specific data.
 
 ### 3. Error Handling
+
 - Use `try/catch` blocks for all asynchronous operations, especially those involving external APIs (Meta, Google, DB).
 - Log errors descriptive with `console.error` including context (e.g., specific tenant or job ID).
 

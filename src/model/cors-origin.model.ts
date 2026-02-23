@@ -18,7 +18,8 @@ const CorsOriginSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-export const CorsOrigin = mongoose.models.CorsOrigin || mongoose.model("CorsOrigin", CorsOriginSchema);
+export const CorsOrigin =
+  mongoose.models.CorsOrigin || mongoose.model("CorsOrigin", CorsOriginSchema);

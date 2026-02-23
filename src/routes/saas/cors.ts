@@ -31,22 +31,26 @@ router.post("/", async (req, res) => {
   try {
     const { url, name } = req.body;
     if (!url) {
-      return res.status(400).json({ success: false, error: "Origin URL is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Origin URL is required" });
     }
 
     await dbConnect("saas");
-    const origin = await CorsOrigin.create({ 
-      url: url.toLowerCase().trim(), 
-      name 
+    const origin = await CorsOrigin.create({
+      url: url.toLowerCase().trim(),
+      name,
     });
-    
+
     // Invalidate cache immediately to apply changes
     refreshOriginsCache();
-    
+
     res.json({ success: true, data: origin });
   } catch (error: any) {
     if ((error as any).code === 11000) {
-      return res.status(400).json({ success: false, error: "This origin URL already exists" });
+      return res
+        .status(400)
+        .json({ success: false, error: "This origin URL already exists" });
     }
     res.status(500).json({ success: false, error: error.message });
   }
@@ -59,16 +63,16 @@ router.post("/", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   try {
     await dbConnect("saas");
-    const origin = await CorsOrigin.findByIdAndUpdate(
-      req.params.id, 
-      req.body, 
-      { new: true }
-    );
-    
+    const origin = await CorsOrigin.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+
     if (!origin) {
-      return res.status(404).json({ success: false, error: "CORS origin not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "CORS origin not found" });
     }
-    
+
     refreshOriginsCache();
     res.json({ success: true, data: origin });
   } catch (error: any) {
@@ -84,11 +88,13 @@ router.delete("/:id", async (req, res) => {
   try {
     await dbConnect("saas");
     const origin = await CorsOrigin.findByIdAndDelete(req.params.id);
-    
+
     if (!origin) {
-      return res.status(404).json({ success: false, error: "CORS origin not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "CORS origin not found" });
     }
-    
+
     refreshOriginsCache();
     res.json({ success: true, message: "CORS origin deleted successfully" });
   } catch (error: any) {

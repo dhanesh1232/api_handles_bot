@@ -58,7 +58,8 @@ export const tenantRemindersJob = async () => {
         const db = conn.db;
 
         // We assume a collection named 'appointments' or check config for custom collection
-        const appointmentsCollection = db?.collection<IAppointment>("appointments");
+        const appointmentsCollection =
+          db?.collection<IAppointment>("appointments");
 
         // 5. Find upcoming appointments based on dynamic timing rules
         const reminderRules = config?.cron?.reminders?.timingRules || [

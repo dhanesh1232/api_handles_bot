@@ -8,13 +8,7 @@
       "type": "BODY",
       "text": "Namaste {{1}}! Your appointment with {{2}} is confirmed for {{3}}. Click below to join your consultation.",
       "example": {
-        "body_text": [
-          [
-            "Dhanesh",
-            "Dr. Sharma",
-            "Mon, Oct 25 at 10:00 AM"
-          ]
-        ]
+        "body_text": [["Dhanesh", "Dr. Sharma", "Mon, Oct 25 at 10:00 AM"]]
       }
     },
     {

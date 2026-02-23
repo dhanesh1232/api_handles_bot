@@ -1,19 +1,19 @@
 import express from "express";
 import multer from "multer";
+import { dbConnect } from "../../lib/config.js";
+import { validateClientKey } from "../../middleware/saasAuth.js";
+import { ClientSecrets } from "../../model/clients/secrets.js";
 import {
   listObjectsFromR2,
   optimizeAndUploadMedia,
 } from "../../services/saas/mediaService.js";
-import { ClientSecrets } from "../../model/clients/secrets.js";
-import { validateClientKey } from "../../middleware/saasAuth.js";
-import { dbConnect } from "../../lib/config.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-export const createImagesRouter = (io) => {
+export const createImagesRouter = (_io) => {
   const router = express.Router();
 
   // GET /api/images - List images for the client

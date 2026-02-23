@@ -5,4 +5,3 @@ export { followUpLimitJob } from "./leads/followUpLimitJob.js";
 export { remindersJob } from "./leads/remindersJob.js";
 export { researchJob } from "./leads/researchJob.js";
 export { tenantRemindersJob } from "./saas/tenantRemindersJob.ts";
-

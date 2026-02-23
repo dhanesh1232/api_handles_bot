@@ -33,7 +33,7 @@ router.get("/connect", async (req, res) => {
 
     // 2. Create OAuth Client
     const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
-    
+
     const oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
@@ -106,7 +106,7 @@ router.get("/callback", async (req, res) => {
     // 3. Update Secrets with Refresh Token
     // We only care about the refresh token for long-term server-side usage
     if (tokens.refresh_token) {
-      secrets.googleRefreshToken = tokens.refresh_token; 
+      secrets.googleRefreshToken = tokens.refresh_token;
       // Note: Encryption happens in pre-save hook automatically
       await secrets.save();
     }

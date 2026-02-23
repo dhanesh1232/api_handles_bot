@@ -26,24 +26,24 @@ const DEFAULT_ORIGINS = [
  */
 export async function getDynamicOrigins(): Promise<string[]> {
   const now = Date.now();
-  
-  if (cachedOrigins && (now - lastFetch < CACHE_TTL)) {
+
+  if (cachedOrigins && now - lastFetch < CACHE_TTL) {
     return cachedOrigins;
   }
 
   try {
     // Ensure DB connection (using saas db as specified in config)
     const db = await dbConnect("saas");
-    
+
     const dbOrigins = await CorsOrigin.find({ isActive: true }).lean();
     const dynamicUrls = dbOrigins.map((o: any) => o.url);
     // Combine hardcoded and dynamic, ensure unique items
     const combined = Array.from(new Set([...DEFAULT_ORIGINS, ...dynamicUrls]));
-    
+
     // Only update cache if we successfully fetched
     cachedOrigins = combined;
     lastFetch = now;
-    
+
     return cachedOrigins;
   } catch (err) {
     console.error("❌ Error fetching dynamic CORS origins:", err);

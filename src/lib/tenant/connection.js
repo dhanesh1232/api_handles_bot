@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 import { ClientDataSource } from "../../model/clients/dataSource.js";
 import { dbConnect } from "../config.js";
 
@@ -14,8 +14,8 @@ async function tenantDBConnect(URI) {
       if (conn.readyState === 1 || conn.readyState === 2) {
         return conn;
       }
-    } catch (e) {
-      console.warn("Cached connection check failed, reconnecting...");
+    } catch (_e) {
+      console.warn(`Cached connection check failed, reconnecting... ${_e}`);
     }
   }
 

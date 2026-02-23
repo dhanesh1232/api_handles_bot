@@ -141,6 +141,7 @@ ERIX_CLIENT_API_KEY=their-api-key    # stored in ECOD ClientSecrets collection
 ```
 
 In ECOD backend (one-time per client):
+
 1. Create `ClientDataSource` pointing to their MongoDB URI
 2. Create `ClientSecrets` with their `whatsappToken` + `whatsappPhoneNumberId`
 3. Create `CommunicationWorkflow` rules in their tenant DB (via the workflow API or directly)
@@ -159,36 +160,36 @@ Headers:
 
 ```jsonc
 {
-  "trigger": "appointment_confirmed",   // see Trigger Events below
-  "phone": "918143963821",              // E.164 format, digits only
-  "variables": ["Dhanesh", "Dr. Arjun", "Monday 10AM", "abc-xyz"],  // WhatsApp template vars
-  "conversationId": "optional-id",      // skip to auto-create conversation
+  "trigger": "appointment_confirmed", // see Trigger Events below
+  "phone": "918143963821", // E.164 format, digits only
+  "variables": ["Dhanesh", "Dr. Arjun", "Monday 10AM", "abc-xyz"], // WhatsApp template vars
+  "conversationId": "optional-id", // skip to auto-create conversation
 
   // For delayed/scheduled workflows (optional)
-  "baseTime": "2026-02-23T10:00:00Z",   // reference timestamp
-  "delayMinutes": -60,                  // relative to baseTime (-60 = 1h before)
+  "baseTime": "2026-02-23T10:00:00Z", // reference timestamp
+  "delayMinutes": -60, // relative to baseTime (-60 = 1h before)
 
   // Callback — backend will PUT this URL after execution (optional)
   "callbackUrl": "https://yoursite.com/api/workflows/callback",
   "callbackMetadata": {
     "moduleId": "appt_id_here",
     "moduleType": "Appointment",
-    "reminderKey": "1h"
-  }
+    "reminderKey": "1h",
+  },
 }
 ```
 
 #### Trigger Events
 
-| Event | When to fire |
-|---|---|
-| `appointment_confirmed` | After appointment is booked and paid |
-| `appointment_reminder` | Use with `delayMinutes: -60` or `-15` for reminders |
-| `appointment_cancelled` | When appointment is cancelled |
-| `appointment_rescheduled` | When appointment time changes |
-| `product_purchased` | After order payment is confirmed |
-| `service_enrolled` | After service enrollment payment is confirmed |
-| `lead_captured` | When a new lead fills a form |
+| Event                     | When to fire                                        |
+| ------------------------- | --------------------------------------------------- |
+| `appointment_confirmed`   | After appointment is booked and paid                |
+| `appointment_reminder`    | Use with `delayMinutes: -60` or `-15` for reminders |
+| `appointment_cancelled`   | When appointment is cancelled                       |
+| `appointment_rescheduled` | When appointment time changes                       |
+| `product_purchased`       | After order payment is confirmed                    |
+| `service_enrolled`        | After service enrollment payment is confirmed       |
+| `lead_captured`           | When a new lead fills a form                        |
 
 #### Example — appointment confirmation + reminder chain
 
@@ -204,27 +205,37 @@ const variables = [patientName, doctorName, `${date} at ${timeSlot}`, meetCode];
 
 // 1. Instant confirmation
 await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
-  method: "POST", headers,
+  method: "POST",
+  headers,
   body: JSON.stringify({
     trigger: "appointment_confirmed",
     phone: patientPhone,
     variables,
     callbackUrl,
-    callbackMetadata: { moduleId, moduleType: "Appointment", reminderKey: "confirmed" },
+    callbackMetadata: {
+      moduleId,
+      moduleType: "Appointment",
+      reminderKey: "confirmed",
+    },
   }),
 });
 
 // 2. 1-hour reminder (fires automatically 1h before appointment)
 await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
-  method: "POST", headers,
+  method: "POST",
+  headers,
   body: JSON.stringify({
     trigger: "appointment_reminder",
     phone: patientPhone,
-    baseTime: appointmentDate,     // ISO date string
+    baseTime: appointmentDate, // ISO date string
     delayMinutes: -60,
     variables,
     callbackUrl,
-    callbackMetadata: { moduleId, moduleType: "Appointment", reminderKey: "1h" },
+    callbackMetadata: {
+      moduleId,
+      moduleType: "Appointment",
+      reminderKey: "1h",
+    },
   }),
 });
 ```
@@ -257,9 +268,9 @@ Workflows must be configured per client in their tenant DB. Example document:
   "name": "Appointment Confirmation",
   "trigger": "appointment_confirmed",
   "channel": "whatsapp",
-  "templateName": "appointment_confirmed_v2",  // must exist in Meta template library
-  "delayMinutes": 0,                            // 0 = instant
-  "isActive": true
+  "templateName": "appointment_confirmed_v2", // must exist in Meta template library
+  "delayMinutes": 0, // 0 = instant
+  "isActive": true,
 }
 ```
 
@@ -288,12 +299,29 @@ pnpm test:worker \
 
 The worker runs automatically when the server starts (`server.js` → `startWorkflowProcessor()`).
 
-| Setting | Default | Description |
-|---|---|---|
-| `concurrency` | 3 | Max parallel jobs |
-| `pollIntervalMs` | 10,000ms | How often DB is polled |
-| `baseBackoffMs` | 5,000ms | Base for exponential retry (5s × 2ⁿ) |
-| `maxAttempts` | 3 | Attempts before job is marked `failed` |
+| Setting          | Default  | Description                            |
+| ---------------- | -------- | -------------------------------------- |
+| `concurrency`    | 3        | Max parallel jobs                      |
+| `pollIntervalMs` | 10,000ms | How often DB is polled                 |
+| `baseBackoffMs`  | 5,000ms  | Base for exponential retry (5s × 2ⁿ)   |
+| `maxAttempts`    | 3        | Attempts before job is marked `failed` |
 
 Jobs are stored in the `services` DB → `jobs` collection and visible for debugging.
 
+---
+
+## 📄 License
+
+This software is proprietary and confidential.
+
+Copyright © 2025 **ECODrIx**. All rights reserved.
+
+Unauthorized copying, distribution, modification, or use of this software — in whole or in part — is strictly prohibited without prior written consent from ECODrIx. See the [LICENSE](./LICENSE) file for full terms.
+
+---
+
+## 📬 Contact
+
+**ECODrIx**
+🌐 [ecodrix.com](https://ecodrix.com)
+✉️ legal@ecodrix.com

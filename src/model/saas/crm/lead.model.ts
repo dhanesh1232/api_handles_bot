@@ -67,6 +67,7 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
 leadSchema.index({ clientCode: 1, phone: 1 }, { unique: true, sparse: true });
 
-const Lead: Model<ILead> = mongoose.models.Lead || mongoose.model<ILead>("Lead", leadSchema);
+const Lead: Model<ILead> =
+  mongoose.models.Lead || mongoose.model<ILead>("Lead", leadSchema);
 
 export default Lead;

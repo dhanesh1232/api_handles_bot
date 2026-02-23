@@ -33,7 +33,7 @@ export class MongoQueue {
     });
 
     console.log(
-      `[MongoQueue:${this.queueName}] Job ${job._id} queued, runAt=${runAt.toISOString()}`
+      `[MongoQueue:${this.queueName}] Job ${job._id} queued, runAt=${runAt.toISOString()}`,
     );
     return job;
   }

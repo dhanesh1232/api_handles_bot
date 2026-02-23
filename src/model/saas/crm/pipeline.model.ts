@@ -33,6 +33,7 @@ const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
 );
 
 const Pipeline: Model<IPipeline> =
-  mongoose.models.Pipeline || mongoose.model<IPipeline>("Pipeline", pipelineSchema);
+  mongoose.models.Pipeline ||
+  mongoose.model<IPipeline>("Pipeline", pipelineSchema);
 
 export default Pipeline;

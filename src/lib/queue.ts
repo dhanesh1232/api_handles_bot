@@ -10,10 +10,12 @@ const workflowQueue = MongoQueue.getQueue("whatsapp-workflow");
  */
 export const scheduleWorkflow = async (
   data: Record<string, unknown>,
-  delayMs: number
+  delayMs: number,
 ) => {
   try {
-    const job = await workflowQueue.add(data, { delayMs } satisfies AddJobOptions);
+    const job = await workflowQueue.add(data, {
+      delayMs,
+    } satisfies AddJobOptions);
     return { id: job._id };
   } catch (err: any) {
     console.error(`[MongoQueue] Failed to schedule workflow:`, err.message);

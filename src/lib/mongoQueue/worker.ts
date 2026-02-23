@@ -28,7 +28,7 @@ export class MongoWorker {
   constructor(
     queueName: string,
     processor: (job: IJob) => Promise<void>,
-    opts: WorkerOptions = {}
+    opts: WorkerOptions = {},
   ) {
     this.queueName = queueName;
     this.processor = processor;
@@ -39,7 +39,7 @@ export class MongoWorker {
 
   start() {
     console.log(
-      `[MongoWorker:${this.queueName}] Starting — concurrency=${this.concurrency}, poll=${this.pollIntervalMs}ms`
+      `[MongoWorker:${this.queueName}] Starting — concurrency=${this.concurrency}, poll=${this.pollIntervalMs}ms`,
     );
     // Run once immediately, then on interval
     this.poll();
@@ -77,7 +77,7 @@ export class MongoWorker {
         {
           new: true,
           sort: { priority: 1, runAt: 1 }, // highest priority (lowest number), oldest first
-        }
+        },
       ).lean<IJob>();
 
       if (!job) break; // No more jobs ready
@@ -99,7 +99,7 @@ export class MongoWorker {
       });
 
       console.log(
-        `[MongoWorker:${this.queueName}] ✅ Job ${job._id} completed`
+        `[MongoWorker:${this.queueName}] ✅ Job ${job._id} completed`,
       );
     } catch (err: any) {
       const attempts = job.attempts + 1;
@@ -119,7 +119,7 @@ export class MongoWorker {
           },
         });
         console.error(
-          `[MongoWorker:${this.queueName}] ❌ Job ${job._id} permanently failed after ${attempts} attempts: ${err.message}`
+          `[MongoWorker:${this.queueName}] ❌ Job ${job._id} permanently failed after ${attempts} attempts: ${err.message}`,
         );
       } else {
         // Re-queue with backoff
@@ -132,7 +132,7 @@ export class MongoWorker {
           },
         });
         console.warn(
-          `[MongoWorker:${this.queueName}] ⚠️ Job ${job._id} failed (attempt ${attempts}/${job.maxAttempts}), retrying at ${runAt.toISOString()}`
+          `[MongoWorker:${this.queueName}] ⚠️ Job ${job._id} failed (attempt ${attempts}/${job.maxAttempts}), retrying at ${runAt.toISOString()}`,
         );
       }
     }

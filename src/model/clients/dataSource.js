@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { encrypt, decrypt } from "../../lib/crypto.js";
+import { decrypt, encrypt } from "../../lib/crypto.js";
 
 const ClientDataSourceSchema = new mongoose.Schema(
   {
@@ -54,9 +54,9 @@ ClientDataSourceSchema.methods.getUri = function () {
     try {
       // console.log("Decryption:", this.dbUri);
       return decrypt(this.dbUri);
-    } catch (e) {
+    } catch (_e) {
       console.warn(
-        `⚠️ Decryption failed for client ${this.clientCode}, returning raw value.`,
+        `⚠️ Decryption failed for client ${this.clientCode}, returning raw value ${_e}.`,
       );
       return this.dbUri;
     }

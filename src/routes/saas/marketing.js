@@ -86,87 +86,101 @@ router.post("/emails/campaign", validateClientKey, async (req, res) => {
 /**
  * 5. Appointment Confirmation - Generate Meet & Reminders
  */
-router.post(
-  "/create/google-meet",
-  validateClientKey,
-  async (req, res) => {
-    try {
-      const { clientCode } = req;
-      const { durationCredentials, payload } = req.body;
+router.post("/create/google-meet", validateClientKey, async (req, res) => {
+  try {
+    const { clientCode } = req;
+    const { durationCredentials, payload } = req.body;
 
-      // Extract Timing from durationCredentials
-      const { date: appointmentDate, time: timeSlot, duration } = durationCredentials || {};
-      
-      // Extract Metadata from payload
-      const { moduleId: appointmentId, participants = [], summary: customSummary, description: customDescription } = payload || {};
+    // Extract Timing from durationCredentials
+    const {
+      date: appointmentDate,
+      time: timeSlot,
+      duration,
+    } = durationCredentials || {};
 
-      // Find specific roles for meeting metadata
-      const doctor = participants.find(p => p.role === "doctor") || {};
-      const patient = participants.find(p => p.role === "patient") || {};
+    // Extract Metadata from payload
+    const {
+      moduleId: appointmentId,
+      participants = [],
+      summary: customSummary,
+      description: customDescription,
+    } = payload || {};
 
-      // 1. Generate Google Meet Link
-      let startTime, endTime;
-      
-      if (appointmentDate && timeSlot) {
-        const [startStr, endStr] = timeSlot.split("-").map(t => t.trim());
-        const [startHours, startMinutes] = startStr.split(":").map(Number);
-        
-        const date = new Date(appointmentDate);
-        
-        // Convert to IST string to force the correct day
-        const istDateStr = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-        const istDate = new Date(istDateStr);
+    // Find specific roles for meeting metadata
+    const doctor = participants.find((p) => p.role === "doctor") || {};
+    const patient = participants.find((p) => p.role === "patient") || {};
 
-        const [month, day, year] = istDateStr.split(",")[0].split("/").map(Number);
-        const targetUTC = new Date(Date.UTC(year, month - 1, day, startHours, startMinutes));
-        targetUTC.setMinutes(targetUTC.getMinutes() - 330);
+    // 1. Generate Google Meet Link
+    let startTime, endTime;
 
-        const start = targetUTC;
-        const meetingDuration = duration || 30;
-        const end = new Date(start.getTime() + meetingDuration * 60000);
-        
-        startTime = start.toISOString();
-        endTime = end.toISOString();
-      } else {
-         startTime = new Date().toISOString(); 
-         endTime = new Date(Date.now() + 30 * 60000).toISOString();
-      }
+    if (appointmentDate && timeSlot) {
+      const [startStr] = timeSlot.split("-").map((t) => t.trim());
+      const [startHours, startMinutes] = startStr.split(":").map(Number);
 
-      const meetResult = await meetService.createMeeting(clientCode, {
-        summary: customSummary || `Consultation: ${doctor.name || "Doctor"} with ${patient.name || "Patient"}`,
-        description: customDescription || `Appointment ID: ${appointmentId}. Patient Phone: ${patient.phone}`,
-        start: startTime,
-        end: endTime,
-        attendees: participants
-          .map(p => p.email)
-          .filter(Boolean),
+      const date = new Date(appointmentDate);
+
+      // Convert to IST to get the correct calendar day
+      const istDateStr = date.toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
       });
 
-      if (!meetResult.success) {
-        console.error("Failed to generate meet link:", meetResult.error);
-        // We generally still want to return success for the handshake, but maybe without the link?
-        // Or fail? Let's log it and return partial success or fail.
-        // For now, let's proceed but note the failure.
-      }
+      const [month, day, year] = istDateStr
+        .split(",")[0]
+        .split("/")
+        .map(Number);
+      const targetUTC = new Date(
+        Date.UTC(year, month - 1, day, startHours, startMinutes),
+      );
+      targetUTC.setMinutes(targetUTC.getMinutes() - 330); // IST offset -5h30m
 
-      const meetLink = meetResult.hangoutLink;
+      const start = targetUTC;
+      const meetingDuration = duration || 30;
+      const end = new Date(start.getTime() + meetingDuration * 60000);
 
-      // 2. Schedule Reminders (Placeholder)
-      // Logic to schedule WhatsApp/Email reminders 1hr and 15min before
-      console.log(`[Marketing] Appointment ${appointmentId} confirmed. Meet: ${meetLink}`);
-
-      res.status(200).json({
-        success: true,
-        meetLink,
-        eventId: meetResult.eventId,
-        appointmentId
-      });
-
-    } catch (error) {
-      console.error("Appointment confirmation error:", error);
-      res.status(500).json({ error: error.message });
+      startTime = start.toISOString();
+      endTime = end.toISOString();
+    } else {
+      startTime = new Date().toISOString();
+      endTime = new Date(Date.now() + 30 * 60000).toISOString();
     }
+
+    const meetResult = await meetService.createMeeting(clientCode, {
+      summary:
+        customSummary ||
+        `Consultation: ${doctor.name || "Doctor"} with ${patient.name || "Patient"}`,
+      description:
+        customDescription ||
+        `Appointment ID: ${appointmentId}. Patient Phone: ${patient.phone}`,
+      start: startTime,
+      end: endTime,
+      attendees: participants.map((p) => p.email).filter(Boolean),
+    });
+
+    if (!meetResult.success) {
+      console.error("Failed to generate meet link:", meetResult.error);
+      // We generally still want to return success for the handshake, but maybe without the link?
+      // Or fail? Let's log it and return partial success or fail.
+      // For now, let's proceed but note the failure.
+    }
+
+    const meetLink = meetResult.hangoutLink;
+
+    // 2. Schedule Reminders (Placeholder)
+    // Logic to schedule WhatsApp/Email reminders 1hr and 15min before
+    console.log(
+      `[Marketing] Appointment ${appointmentId} confirmed. Meet: ${meetLink}`,
+    );
+
+    res.status(200).json({
+      success: true,
+      meetLink,
+      eventId: meetResult.eventId,
+      appointmentId,
+    });
+  } catch (error) {
+    console.error("Appointment confirmation error:", error);
+    res.status(500).json({ error: error.message });
   }
-);
+});
 
 export default router;

@@ -5,7 +5,9 @@ import LeadNote from "./crm/leadNote.model.ts";
 import Pipeline from "./crm/pipeline.model.ts";
 import PipelineStage from "./crm/pipelineStage.model.ts";
 import CommunicationWorkflow from "./whatsapp/communication-workflow.model.ts";
-import Conversation, { ConversationSchema } from "./whatsapp/conversation.model.ts";
+import Conversation, {
+  ConversationSchema,
+} from "./whatsapp/conversation.model.ts";
 import Message, { MessageSchema } from "./whatsapp/message.model.ts";
 import Template, { TemplateSchema } from "./whatsapp/template.model.ts";
 
@@ -15,7 +17,7 @@ export {
   Message,
   MessageSchema,
   Template,
-  TemplateSchema
+  TemplateSchema,
 };
 
 export const schemas = {
