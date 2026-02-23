@@ -23,7 +23,10 @@ export const createWorkflowRouter = () => {
   };
 
   /**
-   * List all workflows
+   * @List all workflows
+   * @borrows List all workflows
+   *
+   * @param {listAllWorkflows} - List all workflows
    */
   router.get("/", validateClientKey, async (req: Request, res: Response) => {
     try {
@@ -36,7 +39,10 @@ export const createWorkflowRouter = () => {
   });
 
   /**
-   * Create new workflow
+   * @Create new workflow
+   * @borrows Create new workflow
+   *
+   * @param {createNewWorkflow} - Create new workflow
    */
   router.post("/", validateClientKey, async (req: Request, res: Response) => {
     try {
@@ -49,7 +55,10 @@ export const createWorkflowRouter = () => {
   });
 
   /**
-   * Update workflow
+   * @Update workflow
+   * @borrows Update workflow
+   *
+   * @param {updateWorkflow} - Update workflow
    */
   router.patch(
     "/:id",
@@ -134,73 +143,48 @@ export const createWorkflowRouter = () => {
         }
 
         const { scheduleWorkflow } = await import("../../../lib/queue.ts");
-        const { executeWorkflow } =
-          await import("../../../jobs/saas/workflowWorker.ts");
 
         for (const workflow of activeWorkflows) {
-          if (workflow.delayMinutes === 0) {
-            // Instant Execution
-            await executeWorkflow({
+          let delayMs = 0;
+          const effectiveDelayMinutes =
+            req.body.delayMinutes !== undefined
+              ? req.body.delayMinutes
+              : workflow.delayMinutes;
+
+          if (baseTime) {
+            const targetTime = new Date(
+              new Date(baseTime).getTime() + effectiveDelayMinutes * 60000,
+            );
+            delayMs = targetTime.getTime() - Date.now();
+          } else {
+            delayMs = effectiveDelayMinutes * 60000;
+          }
+
+          // Force delay to 0 if it's negative (immediate catch-up)
+          const finalDelayMs = Math.max(0, delayMs);
+
+          console.log(
+            `[${clientCode}] Scheduling workflow ${workflow.name} with ${finalDelayMs}ms delay`,
+          );
+
+          await scheduleWorkflow(
+            {
               clientCode,
               phone,
               templateName: workflow.templateName,
               variables: variables || [],
               channel: workflow.channel,
               conversationId,
-              callbackUrl: callbackUrl,
-              callbackMetadata: callbackMetadata,
-            });
-          } else {
-            // Scheduled Execution
-            let delayMs = 0;
-            const effectiveDelayMinutes =
-              req.body.delayMinutes !== undefined
-                ? req.body.delayMinutes
-                : workflow.delayMinutes;
-
-            if (baseTime) {
-              const targetTime = new Date(
-                new Date(baseTime).getTime() + effectiveDelayMinutes * 60000,
-              );
-              delayMs = targetTime.getTime() - Date.now();
-            } else {
-              delayMs = effectiveDelayMinutes * 60000;
-            }
-
-            // Apply the user-requested "5 minute safety gap" for scheduled workflows after payment success
-            // If the trigger comes from a payment success event (implied), ensure delay is at least 5 mins
-            // Note: We only do this if it's explicitly required. For now, I'll stick to workflow settings.
-            // But I'll ensure we pass the callback info down.
-
-            if (delayMs > -60000) {
-              // Allow slight past due for immediate catch-up
-              console.log(
-                `[${clientCode}] Scheduling workflow ${workflow.name} with ${delayMs}ms delay`,
-              );
-              await scheduleWorkflow(
-                {
-                  clientCode,
-                  phone,
-                  templateName: workflow.templateName,
-                  variables: variables || [],
-                  channel: workflow.channel,
-                  conversationId,
-                  trigger: workflow.trigger,
-                  callbackUrl,
-                  callbackMetadata: {
-                    ...callbackMetadata,
-                    workflowName: workflow.name,
-                    delayMinutes: effectiveDelayMinutes,
-                  },
-                },
-                delayMs,
-              );
-            } else {
-              console.warn(
-                `[${clientCode}] Skipping workflow ${workflow.name} because target time is too far in the past (${delayMs}ms)`,
-              );
-            }
-          }
+              trigger: workflow.trigger,
+              callbackUrl,
+              callbackMetadata: {
+                ...callbackMetadata,
+                workflowName: workflow.name,
+                delayMinutes: effectiveDelayMinutes,
+              },
+            },
+            finalDelayMs,
+          );
         }
 
         res.json({

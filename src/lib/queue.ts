@@ -4,9 +4,10 @@ import type { AddJobOptions } from "./mongoQueue/types.js";
 const workflowQueue = MongoQueue.getQueue("whatsapp-workflow");
 
 /**
- * Enqueue a workflow job.
- * Replaces the previous per-tenant ScheduledWorkflow.create() approach.
- * Jobs now live in the central services DB and are processor-agnostic.
+ * @Enqueue a workflow job.
+ * @borrows Enqueue a workflow job.
+ *
+ * @param {scheduleWorkflow} - Enqueue a workflow job.
  */
 export const scheduleWorkflow = async (
   data: Record<string, unknown>,
