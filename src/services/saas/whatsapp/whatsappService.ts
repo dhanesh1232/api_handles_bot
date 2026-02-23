@@ -566,7 +566,6 @@ export const createWhatsappService = (io: Server) => {
     const message = await Message.create(messageData);
     console.log(`[${clientCode}] Outbound Message Queued: ${message._id}`);
 
-    // Update Conversation head immediately
     const conv = await Conversation.findByIdAndUpdate(
       conversationId,
       {
@@ -583,6 +582,13 @@ export const createWhatsappService = (io: Server) => {
 
     if (io && conv) {
       io.to(clientCode).emit("conversation_updated", conv.toObject());
+      
+      const ioPayload = {
+        ...conv.toObject(),
+        message: message.toObject(),
+        clientCode,
+      };
+      io.to(clientCode).emit("new_message", ioPayload);
     }
 
     try {

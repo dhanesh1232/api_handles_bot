@@ -2,7 +2,7 @@
   "name": "@ecod/backend",
   "version": "1.0.0",
   "description": "ECOD Backend — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and MongoDB-backed job queuing.",
-  "main": "server.js",
+  "main": "server.ts",
   "type": "module",
   "engines": {
     "node": ">=18.0.0",
