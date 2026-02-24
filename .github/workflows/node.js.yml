@@ -33,3 +33,9 @@ jobs:
     - run: pnpm install
     - run: pnpm run build
     - run: pnpm test
+      env:
+        PORT: 3000
+        MONGODB_URI: "mongodb://localhost:27017/dummy"
+        MONGODB_URI_END: "mongodb://localhost:27017/dummy"
+        CORE_API_KEY: "dummy-key"
+        ENCRYPTION_KEY: "dummy-key-for-smoke-test-only"
