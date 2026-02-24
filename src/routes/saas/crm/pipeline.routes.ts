@@ -193,7 +193,14 @@ router.post(
       const stage = await pipelineService.addStage(
         req.clientCode!,
         req.params.pipelineId as string,
-        { name: name.trim(), color, probability, isWon, isLost, insertAfterOrder },
+        {
+          name: name.trim(),
+          color,
+          probability,
+          isWon,
+          isLost,
+          insertAfterOrder,
+        },
       );
       res.status(201).json({ success: true, data: stage });
     } catch (err: unknown) {
@@ -320,8 +327,8 @@ router.get(
         success: true,
         data: {
           rows,
-          grandTotal,         // weighted expected revenue
-          totalPipeline,      // raw sum of all deals (unweighted)
+          grandTotal, // weighted expected revenue
+          totalPipeline, // raw sum of all deals (unweighted)
         },
       });
     } catch (err: unknown) {

@@ -57,22 +57,31 @@ router.get("/leads/:leadId/activities", async (req: Request, res: Response) => {
  * Log a manual activity (call, meeting, custom).
  * Body: { type, title, body?, metadata?, performedBy? }
  */
-router.post("/leads/:leadId/activities", async (req: Request, res: Response) => {
-  try {
-    const { type, title, body, metadata, performedBy } = req.body;
-    if (!type || !title) {
-      res.status(400).json({ success: false, message: "type and title are required" });
-      return;
+router.post(
+  "/leads/:leadId/activities",
+  async (req: Request, res: Response) => {
+    try {
+      const { type, title, body, metadata, performedBy } = req.body;
+      if (!type || !title) {
+        res
+          .status(400)
+          .json({ success: false, message: "type and title are required" });
+        return;
+      }
+      const activity = await activityService.logActivity(req.clientCode!, {
+        leadId: req.params.leadId as string,
+        type,
+        title,
+        body,
+        metadata,
+        performedBy,
+      });
+      res.status(201).json({ success: true, data: activity });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
     }
-    const activity = await activityService.logActivity(req.clientCode!, {
-      leadId: req.params.leadId as string,
-      type, title, body, metadata, performedBy,
-    });
-    res.status(201).json({ success: true, data: activity });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+  },
+);
 
 /**
  * POST /api/crm/leads/:leadId/calls
@@ -104,7 +113,10 @@ router.post("/leads/:leadId/calls", async (req: Request, res: Response) => {
  */
 router.get("/leads/:leadId/notes", async (req: Request, res: Response) => {
   try {
-    const notes = await activityService.getNotes(req.clientCode!, req.params.leadId as string);
+    const notes = await activityService.getNotes(
+      req.clientCode!,
+      req.params.leadId as string,
+    );
     res.json({ success: true, data: notes });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -123,7 +135,10 @@ router.post("/leads/:leadId/notes", async (req: Request, res: Response) => {
       return;
     }
     const note = await activityService.createNote(
-      req.clientCode!, req.params.leadId as string, content.trim(), createdBy,
+      req.clientCode!,
+      req.params.leadId as string,
+      content.trim(),
+      createdBy,
     );
     res.status(201).json({ success: true, data: note });
   } catch (err: unknown) {
@@ -143,7 +158,11 @@ router.patch("/notes/:noteId", async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: "content is required" });
       return;
     }
-    const note = await activityService.updateNote(req.clientCode!, req.params.noteId as string, content.trim());
+    const note = await activityService.updateNote(
+      req.clientCode!,
+      req.params.noteId as string,
+      content.trim(),
+    );
     if (!note) {
       res.status(404).json({ success: false, message: "Note not found" });
       return;
@@ -160,7 +179,10 @@ router.patch("/notes/:noteId", async (req: Request, res: Response) => {
  */
 router.patch("/notes/:noteId/pin", async (req: Request, res: Response) => {
   try {
-    const note = await activityService.togglePin(req.clientCode!, req.params.noteId as string);
+    const note = await activityService.togglePin(
+      req.clientCode!,
+      req.params.noteId as string,
+    );
     if (!note) {
       res.status(404).json({ success: false, message: "Note not found" });
       return;
@@ -176,7 +198,10 @@ router.patch("/notes/:noteId/pin", async (req: Request, res: Response) => {
  */
 router.delete("/notes/:noteId", async (req: Request, res: Response) => {
   try {
-    await activityService.deleteNote(req.clientCode!, req.params.noteId as string);
+    await activityService.deleteNote(
+      req.clientCode!,
+      req.params.noteId as string,
+    );
     res.json({ success: true, message: "Note deleted" });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });

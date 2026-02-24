@@ -30,7 +30,9 @@ export const createGoogleMeetService = () => {
    * Get OAuth2 Client for a specific client
    * @param clientCode
    */
-  const getAuthClient = async (clientCode: string): Promise<Auth.OAuth2Client> => {
+  const getAuthClient = async (
+    clientCode: string,
+  ): Promise<Auth.OAuth2Client> => {
     const secrets = await ClientSecrets.findOne({ clientCode });
     if (!secrets) throw new Error("Client secrets not found");
 

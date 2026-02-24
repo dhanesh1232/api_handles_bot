@@ -33,7 +33,12 @@ declare global {
   interface LeadListOptions {
     page?: number;
     limit?: number;
-    sortBy?: "score" | "createdAt" | "updatedAt" | "dealValue" | "lastContactedAt";
+    sortBy?:
+      | "score"
+      | "createdAt"
+      | "updatedAt"
+      | "dealValue"
+      | "lastContactedAt";
     sortDir?: "asc" | "desc";
   }
 
@@ -178,31 +183,31 @@ declare global {
   }
 
   type AutomationTrigger =
-    | "stage_enter"      // lead moved into a specific stage
-    | "stage_exit"       // lead moved out of a specific stage
-    | "lead_created"     // new lead added
+    | "stage_enter" // lead moved into a specific stage
+    | "stage_exit" // lead moved out of a specific stage
+    | "lead_created" // new lead added
     | "deal_won"
     | "deal_lost"
-    | "score_above"      // score crosses a threshold
+    | "score_above" // score crosses a threshold
     | "score_below"
-    | "no_contact"       // no activity in N days
+    | "no_contact" // no activity in N days
     | "tag_added"
     | "tag_removed";
 
   type AutomationActionType =
-    | "send_whatsapp"    // send a WA template
-    | "send_email"       // send an email
-    | "move_stage"       // move lead to another stage
-    | "assign_to"        // assign to a team member
+    | "send_whatsapp" // send a WA template
+    | "send_email" // send an email
+    | "move_stage" // move lead to another stage
+    | "assign_to" // assign to a team member
     | "add_tag"
     | "remove_tag"
-    | "webhook_notify"   // POST to client's callbackUrl
+    | "webhook_notify" // POST to client's callbackUrl
     | "create_meeting";
 
   interface IAutomationAction {
     type: AutomationActionType;
-    delayMinutes: number;              // 0 = instant
-    config: Record<string, unknown>;   // templateName, stageId, assignTo, tag, etc.
+    delayMinutes: number; // 0 = instant
+    config: Record<string, unknown>; // templateName, stageId, assignTo, tag, etc.
   }
 
   interface IAutomationCondition {
@@ -216,22 +221,20 @@ declare global {
     name: string;
     trigger: AutomationTrigger;
     triggerConfig: {
-      stageId?: mongoose.Types.ObjectId;  // for stage_enter / stage_exit
+      stageId?: mongoose.Types.ObjectId; // for stage_enter / stage_exit
       pipelineId?: mongoose.Types.ObjectId;
-      scoreThreshold?: number;            // for score_above / score_below
-      tagName?: string;                   // for tag_added / tag_removed
-      inactiveDays?: number;              // for no_contact
+      scoreThreshold?: number; // for score_above / score_below
+      tagName?: string; // for tag_added / tag_removed
+      inactiveDays?: number; // for no_contact
     };
-    condition?: IAutomationCondition;   // optional extra condition on the lead
+    condition?: IAutomationCondition; // optional extra condition on the lead
     actions: IAutomationAction[];
     isActive: boolean;
-    executionCount: number;             // how many times this rule has fired
+    executionCount: number; // how many times this rule has fired
     lastExecutedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
   }
-  
 }
 
-export { };
-
+export {};

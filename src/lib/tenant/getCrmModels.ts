@@ -23,7 +23,11 @@ import { GetURI, tenantDBConnect } from "./connection.ts";
 // Each tenant Connection caches its own compiled models.
 // We reuse them on subsequent calls — no re-compilation overhead.
 
-function getOrCreate<T>(conn: mongoose.Connection, name: string, schema: mongoose.Schema<T>): Model<T> {
+function getOrCreate<T>(
+  conn: mongoose.Connection,
+  name: string,
+  schema: mongoose.Schema<T>,
+): Model<T> {
   if (conn.models[name]) return conn.models[name] as Model<T>;
   return conn.model<T>(name, schema);
 }
@@ -31,11 +35,11 @@ function getOrCreate<T>(conn: mongoose.Connection, name: string, schema: mongoos
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export interface CrmModels {
-  Lead:          Model<ILead>;
-  Pipeline:      Model<IPipeline>;
+  Lead: Model<ILead>;
+  Pipeline: Model<IPipeline>;
   PipelineStage: Model<IPipelineStage>;
-  LeadActivity:  Model<ILeadActivity>;
-  LeadNote:      Model<ILeadNote>;
+  LeadActivity: Model<ILeadActivity>;
+  LeadNote: Model<ILeadNote>;
   AutomationRule: Model<IAutomationRule>;
 }
 
@@ -44,15 +48,27 @@ export interface CrmModels {
  * The connection is cached — subsequent calls for the same clientCode are free.
  */
 export async function getCrmModels(clientCode: string): Promise<CrmModels> {
-  const uri  = await GetURI(clientCode);
+  const uri = await GetURI(clientCode);
   const conn = await tenantDBConnect(uri);
 
   return {
-    Lead:          getOrCreate<ILead>(conn, "Lead", LeadSchema),
-    Pipeline:      getOrCreate<IPipeline>(conn, "Pipeline", PipelineSchema),
-    PipelineStage: getOrCreate<IPipelineStage>(conn, "PipelineStage", PipelineStageSchema),
-    LeadActivity:  getOrCreate<ILeadActivity>(conn, "LeadActivity", LeadActivitySchema),
-    LeadNote:      getOrCreate<ILeadNote>(conn, "LeadNote", LeadNoteSchema),
-    AutomationRule: getOrCreate<IAutomationRule>(conn, "AutomationRule", AutomationRuleSchema),
+    Lead: getOrCreate<ILead>(conn, "Lead", LeadSchema),
+    Pipeline: getOrCreate<IPipeline>(conn, "Pipeline", PipelineSchema),
+    PipelineStage: getOrCreate<IPipelineStage>(
+      conn,
+      "PipelineStage",
+      PipelineStageSchema,
+    ),
+    LeadActivity: getOrCreate<ILeadActivity>(
+      conn,
+      "LeadActivity",
+      LeadActivitySchema,
+    ),
+    LeadNote: getOrCreate<ILeadNote>(conn, "LeadNote", LeadNoteSchema),
+    AutomationRule: getOrCreate<IAutomationRule>(
+      conn,
+      "AutomationRule",
+      AutomationRuleSchema,
+    ),
   };
 }

@@ -64,7 +64,9 @@ router.post("/leads", async (req: Request, res: Response) => {
     const { firstName, phone } = req.body;
 
     if (!firstName?.trim()) {
-      res.status(400).json({ success: false, message: "firstName is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "firstName is required" });
       return;
     }
     if (!phone?.trim()) {
@@ -106,30 +108,42 @@ router.post("/leads", async (req: Request, res: Response) => {
 router.get("/leads", async (req: Request, res: Response) => {
   try {
     const {
-      status, pipelineId, stageId, source, assignedTo,
-      tags, minScore, search,
-      appointmentId, bookingId, orderId, meetingId,
-      page, limit, sortBy, sortDir,
+      status,
+      pipelineId,
+      stageId,
+      source,
+      assignedTo,
+      tags,
+      minScore,
+      search,
+      appointmentId,
+      bookingId,
+      orderId,
+      meetingId,
+      page,
+      limit,
+      sortBy,
+      sortDir,
     } = req.query as Record<string, string>;
 
     const filters: LeadListFilters = {};
-    if (status)        filters.status        = status as LeadStatus;
-    if (pipelineId)    filters.pipelineId    = pipelineId;
-    if (stageId)       filters.stageId       = stageId;
-    if (source)        filters.source        = source as LeadSource;
-    if (assignedTo)    filters.assignedTo    = assignedTo;
-    if (minScore)      filters.minScore      = Number(minScore);
-    if (search)        filters.search        = search;
+    if (status) filters.status = status as LeadStatus;
+    if (pipelineId) filters.pipelineId = pipelineId;
+    if (stageId) filters.stageId = stageId;
+    if (source) filters.source = source as LeadSource;
+    if (assignedTo) filters.assignedTo = assignedTo;
+    if (minScore) filters.minScore = Number(minScore);
+    if (search) filters.search = search;
     if (appointmentId) filters.appointmentId = appointmentId;
-    if (bookingId)     filters.bookingId     = bookingId;
-    if (orderId)       filters.orderId       = orderId;
-    if (meetingId)     filters.meetingId     = meetingId;
-    if (tags)          filters.tags          = tags.split(",").map((t) => t.trim());
+    if (bookingId) filters.bookingId = bookingId;
+    if (orderId) filters.orderId = orderId;
+    if (meetingId) filters.meetingId = meetingId;
+    if (tags) filters.tags = tags.split(",").map((t) => t.trim());
 
     const result = await leadService.listLeads(req.clientCode!, filters, {
-      page:    page    ? Number(page)    : 1,
-      limit:   limit   ? Number(limit)   : 25,
-      sortBy:  sortBy  as any,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 25,
+      sortBy: sortBy as any,
       sortDir: sortDir as any,
     });
 
@@ -140,7 +154,7 @@ router.get("/leads", async (req: Request, res: Response) => {
         total: result.total,
         page: result.page,
         pages: result.pages,
-      }
+      },
     });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -178,7 +192,10 @@ router.get(
  */
 router.get("/leads/:leadId", async (req: Request, res: Response) => {
   try {
-    const lead = await leadService.getLeadById(req.clientCode!, req.params.leadId as string);
+    const lead = await leadService.getLeadById(
+      req.clientCode!,
+      req.params.leadId as string,
+    );
     if (!lead) {
       res.status(404).json({ success: false, message: "Lead not found" });
       return;
@@ -222,31 +239,43 @@ router.get("/leads/phone/:phone", async (req: Request, res: Response) => {
  * Useful when: a payment webhook fires with an appointmentId, and you need
  * to find and update the linked CRM lead.
  */
-router.get("/leads/ref/:refKey/:refValue", async (req: Request, res: Response) => {
-  try {
-    const allowedRefs = ["appointmentId", "bookingId", "orderId", "meetingId"];
-    if (!allowedRefs.includes(req.params.refKey as string)) {
-      res.status(400).json({
-        success: false,
-        message: `refKey must be one of: ${allowedRefs.join(", ")}`,
-      });
-      return;
-    }
+router.get(
+  "/leads/ref/:refKey/:refValue",
+  async (req: Request, res: Response) => {
+    try {
+      const allowedRefs = [
+        "appointmentId",
+        "bookingId",
+        "orderId",
+        "meetingId",
+      ];
+      if (!allowedRefs.includes(req.params.refKey as string)) {
+        res.status(400).json({
+          success: false,
+          message: `refKey must be one of: ${allowedRefs.join(", ")}`,
+        });
+        return;
+      }
 
-    const lead = await leadService.getLeadByRef(
-      req.clientCode!,
-      req.params.refKey as "appointmentId" | "bookingId" | "orderId" | "meetingId",
-      req.params.refValue as string,
-    );
-    if (!lead) {
-      res.status(404).json({ success: false, message: "Lead not found" });
-      return;
+      const lead = await leadService.getLeadByRef(
+        req.clientCode!,
+        req.params.refKey as
+          | "appointmentId"
+          | "bookingId"
+          | "orderId"
+          | "meetingId",
+        req.params.refValue as string,
+      );
+      if (!lead) {
+        res.status(404).json({ success: false, message: "Lead not found" });
+        return;
+      }
+      res.json({ success: true, data: lead });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
     }
-    res.json({ success: true, data: lead });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+  },
+);
 
 // ─── Update lead fields ───────────────────────────────────────────────────────
 /**
@@ -350,7 +379,9 @@ router.post("/leads/:leadId/convert", async (req: Request, res: Response) => {
   try {
     const { outcome, reason } = req.body;
     if (!["won", "lost"].includes(outcome)) {
-      res.status(400).json({ success: false, message: "outcome must be won or lost" });
+      res
+        .status(400)
+        .json({ success: false, message: "outcome must be won or lost" });
       return;
     }
     const lead = await leadService.convertLead(
@@ -392,8 +423,14 @@ router.patch("/leads/:leadId/tags", async (req: Request, res: Response) => {
  */
 router.post("/leads/:leadId/score", async (req: Request, res: Response) => {
   try {
-    await leadService.recalculateScore(req.clientCode!, req.params.leadId as string);
-    const lead = await leadService.getLeadById(req.clientCode!, req.params.leadId as string);
+    await leadService.recalculateScore(
+      req.clientCode!,
+      req.params.leadId as string,
+    );
+    const lead = await leadService.getLeadById(
+      req.clientCode!,
+      req.params.leadId as string,
+    );
     res.json({ success: true, data: lead });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -426,11 +463,15 @@ router.post("/leads/import", async (req: Request, res: Response) => {
   try {
     const { leads } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
-      res.status(400).json({ success: false, message: "leads array is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "leads array is required" });
       return;
     }
     if (leads.length > 1000) {
-      res.status(400).json({ success: false, message: "Max 1000 leads per import" });
+      res
+        .status(400)
+        .json({ success: false, message: "Max 1000 leads per import" });
       return;
     }
     const result = await leadService.bulkUpsertLeads(req.clientCode!, leads);

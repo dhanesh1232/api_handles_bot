@@ -1,11 +1,11 @@
 version: 2
 updates:
   # Maintain dependencies for Node.js/pnpm
-  - package-ecosystem: "npm" 
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly" # Check for outdated packages once a week
-    
+
     # Group all dependency updates into a single PR to reduce noise
     groups:
       all-dependencies:

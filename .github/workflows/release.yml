@@ -3,7 +3,7 @@ name: Generate Release
 on:
   push:
     tags:
-      - 'v*' # Triggers whenever you push a tag like v1.1.0
+      - "v*" # Triggers whenever you push a tag like v1.1.0
 
 jobs:
   release:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Required permission to create the release on your behalf
-      
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

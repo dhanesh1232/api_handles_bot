@@ -58,40 +58,44 @@ const processCrmJob = async (job: IJob): Promise<void> => {
   }
 
   switch (type) {
-
     // ── 1. Delayed automation action ─────────────────────────────────────────
     case "crm.automation_action": {
       const { actionType, actionConfig, leadId } = payload;
 
       switch (actionType) {
-
         case "send_whatsapp": {
-          const { createWhatsappService } = await import(
-            "../../services/saas/whatsapp/whatsappService.ts"
-          );
+          const { createWhatsappService } =
+            await import("../../services/saas/whatsapp/whatsappService.ts");
           const svc = createWhatsappService(globalIo);
           // Find or create a conversation for this phone, then send
-          const {
-            getTenantConnection,
-            getTenantModel,
-          } = await import("../../lib/connectionManager.ts");
+          const { getTenantConnection, getTenantModel } =
+            await import("../../lib/connectionManager.ts");
           const { schemas } = await import("../../model/saas/tenantSchemas.ts");
           const tenantConn = await getTenantConnection(clientCode);
-          const Conversation = getTenantModel(tenantConn, "Conversation", schemas.conversations);
-          let conv = await Conversation.findOne({ clientCode, phone: actionConfig.phone });
+          const Conversation = getTenantModel(
+            tenantConn,
+            "Conversation",
+            schemas.conversations,
+          );
+          let conv = await Conversation.findOne({
+            clientCode,
+            phone: actionConfig.phone,
+          });
           if (!conv) {
             conv = await Conversation.create({
               clientCode,
-              phone:    actionConfig.phone,
+              phone: actionConfig.phone,
               userName: actionConfig.phone,
-              status:   "open",
-              channel:  "whatsapp",
+              status: "open",
+              channel: "whatsapp",
             });
           }
           await svc.sendOutboundMessage(
             clientCode,
             conv._id.toString(),
-            undefined, undefined, undefined,
+            undefined,
+            undefined,
+            undefined,
             "automation",
             actionConfig.templateName,
             actionConfig.language ?? "en_US",
@@ -101,38 +105,43 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         }
 
         case "send_email": {
-          const { createEmailService } = await import(
-            "../../services/saas/mail/emailService.ts"
-          );
+          const { createEmailService } =
+            await import("../../services/saas/mail/emailService.ts");
           const svc = createEmailService();
           await svc.sendEmail(clientCode, {
-            to:      actionConfig.email,
+            to: actionConfig.email,
             subject: actionConfig.subject,
-            html:    actionConfig.htmlBody,
-            text:    actionConfig.textBody,
+            html: actionConfig.htmlBody,
+            text: actionConfig.textBody,
           });
           break;
         }
 
         case "move_stage": {
-          const { moveLead } = await import(
-            "../../services/saas/crm/lead.service.ts"
+          const { moveLead } =
+            await import("../../services/saas/crm/lead.service.ts");
+          await moveLead(
+            clientCode,
+            leadId,
+            actionConfig.stageId,
+            "automation",
           );
-          await moveLead(clientCode, leadId, actionConfig.stageId, "automation");
           break;
         }
 
         case "assign_to": {
-          const Lead = (await import("../../model/saas/crm/lead.model.ts")).default;
-          const { logActivity } = await import("../../services/saas/crm/activity.service.ts");
+          const Lead = (await import("../../model/saas/crm/lead.model.ts"))
+            .default;
+          const { logActivity } =
+            await import("../../services/saas/crm/activity.service.ts");
           await Lead.updateOne(
             { _id: leadId, clientCode },
             { $set: { assignedTo: actionConfig.assignTo } },
           );
           await logActivity(clientCode, {
             leadId,
-            type:        "lead_assigned",
-            title:       `Assigned to ${actionConfig.assignTo}`,
+            type: "lead_assigned",
+            title: `Assigned to ${actionConfig.assignTo}`,
             performedBy: "automation",
           });
           break;
@@ -140,19 +149,21 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
         case "add_tag":
         case "remove_tag": {
-          const { updateTags } = await import("../../services/saas/crm/lead.service.ts");
-          const toAdd    = actionType === "add_tag"    ? [actionConfig.tag] : [];
-          const toRemove = actionType === "remove_tag" ? [actionConfig.tag] : [];
+          const { updateTags } =
+            await import("../../services/saas/crm/lead.service.ts");
+          const toAdd = actionType === "add_tag" ? [actionConfig.tag] : [];
+          const toRemove =
+            actionType === "remove_tag" ? [actionConfig.tag] : [];
           await updateTags(clientCode, leadId, toAdd, toRemove);
           break;
         }
 
         case "webhook_notify": {
           await fetch(actionConfig.callbackUrl, {
-            method:  "POST",
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              event:     actionConfig.event ?? "crm.automation_triggered",
+              event: actionConfig.event ?? "crm.automation_triggered",
               leadId,
               timestamp: new Date().toISOString(),
             }),
@@ -161,62 +172,63 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         }
 
         default:
-          throw new Error(`[crmWorker] Unknown automation actionType: ${actionType}`);
+          throw new Error(
+            `[crmWorker] Unknown automation actionType: ${actionType}`,
+          );
       }
       break;
     }
 
     // ── 2. Email — transactional or bulk ─────────────────────────────────────
     case "crm.email": {
-      const { createEmailService } = await import(
-        "../../services/saas/mail/emailService.ts"
-      );
+      const { createEmailService } =
+        await import("../../services/saas/mail/emailService.ts");
       const svc = createEmailService();
 
       if (payload.bulk === true && Array.isArray(payload.recipients)) {
         // Bulk campaign — iterates internally, tracks errors per recipient
         await svc.sendCampaign(clientCode, {
           recipients: payload.recipients as string[],
-          subject:    payload.subject,
-          html:       payload.html,
+          subject: payload.subject,
+          html: payload.html,
         });
       } else {
         // Single transactional email
         await svc.sendEmail(clientCode, {
-          to:      payload.to,
+          to: payload.to,
           subject: payload.subject,
-          html:    payload.html,
-          text:    payload.text,
+          html: payload.html,
+          text: payload.text,
         });
       }
 
       // Callback if requested
       if (payload.callbackUrl) {
         await fetch(payload.callbackUrl, {
-          method:  "PUT",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ status: "sent", sentAt: new Date() }),
-        }).catch((e: Error) => console.error("[crmWorker] Email callback failed:", e.message));
+          body: JSON.stringify({ status: "sent", sentAt: new Date() }),
+        }).catch((e: Error) =>
+          console.error("[crmWorker] Email callback failed:", e.message),
+        );
       }
       break;
     }
 
     // ── 3. Google Meet creation ───────────────────────────────────────────────
     case "crm.meeting": {
-      const { createGoogleMeetService } = await import(
-        "../../services/saas/googleMeetService.ts"
-      );
-      const { onMeetingCreated } = await import(
-        "../../services/saas/crm/crmHooks.ts"
-      );
+      const { createGoogleMeetService } =
+        await import("../../services/saas/googleMeetService.ts");
+      const { onMeetingCreated } =
+        await import("../../services/saas/crm/crmHooks.ts");
 
-      const svc    = createGoogleMeetService();
+      const svc = createGoogleMeetService();
       const result = await svc.createMeeting(clientCode, {
-        summary:     payload.title,
+        summary: payload.title,
         description: payload.description,
-        attendees:   payload.attendees ?? [],
-        start:       payload.startTime,
-        end:         payload.endTime,
+        attendees: payload.attendees ?? [],
+        start: payload.startTime,
+        end: payload.endTime,
       });
 
       if (!result.success) {
@@ -225,61 +237,69 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
       // Fire CRM hook — logs timeline + updates score
       await onMeetingCreated(clientCode, {
-        phone:           payload.phone,
-        meetLink:        result.hangoutLink ?? "",
+        phone: payload.phone,
+        meetLink: result.hangoutLink ?? "",
         calendarEventId: result.eventId ?? "",
-        title:           payload.title,
-        startTime:       payload.startTime ? new Date(payload.startTime) : undefined,
-        appointmentId:   payload.appointmentId,
-        performedBy:     "system",
+        title: payload.title,
+        startTime: payload.startTime ? new Date(payload.startTime) : undefined,
+        appointmentId: payload.appointmentId,
+        performedBy: "system",
       });
 
       // Notify client with the meet link
       if (payload.callbackUrl) {
         await fetch(payload.callbackUrl, {
-          method:  "PUT",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status:    "created",
-            meetLink:  result.hangoutLink,
-            eventId:   result.eventId,
+            status: "created",
+            meetLink: result.hangoutLink,
+            eventId: result.eventId,
             createdAt: new Date(),
           }),
-        }).catch((e: Error) => console.error("[crmWorker] Meeting callback failed:", e.message));
+        }).catch((e: Error) =>
+          console.error("[crmWorker] Meeting callback failed:", e.message),
+        );
       }
       break;
     }
 
     // ── 4. Reminder — WhatsApp reminder before appointment ───────────────────
     case "crm.reminder": {
-      const { createWhatsappService } = await import(
-        "../../services/saas/whatsapp/whatsappService.ts"
-      );
-      const {
-        getTenantConnection,
-        getTenantModel,
-      } = await import("../../lib/connectionManager.ts");
+      const { createWhatsappService } =
+        await import("../../services/saas/whatsapp/whatsappService.ts");
+      const { getTenantConnection, getTenantModel } =
+        await import("../../lib/connectionManager.ts");
       const { schemas } = await import("../../model/saas/tenantSchemas.ts");
 
       const svc = createWhatsappService(globalIo);
       const tenantConn = await getTenantConnection(clientCode);
-      const Conversation = getTenantModel(tenantConn, "Conversation", schemas.conversations);
+      const Conversation = getTenantModel(
+        tenantConn,
+        "Conversation",
+        schemas.conversations,
+      );
 
-      let conv = await Conversation.findOne({ clientCode, phone: payload.phone });
+      let conv = await Conversation.findOne({
+        clientCode,
+        phone: payload.phone,
+      });
       if (!conv) {
         conv = await Conversation.create({
           clientCode,
-          phone:    payload.phone,
+          phone: payload.phone,
           userName: payload.phone,
-          status:   "open",
-          channel:  "whatsapp",
+          status: "open",
+          channel: "whatsapp",
         });
       }
 
       await svc.sendOutboundMessage(
         clientCode,
         conv._id.toString(),
-        undefined, undefined, undefined,
+        undefined,
+        undefined,
+        undefined,
         "system-reminder",
         payload.templateName,
         payload.language ?? "en_US",
@@ -287,12 +307,13 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       );
 
       // Log reminder to CRM timeline
-      const { logActivity } = await import("../../services/saas/crm/activity.service.ts");
+      const { logActivity } =
+        await import("../../services/saas/crm/activity.service.ts");
       if (payload.leadId) {
         await logActivity(clientCode, {
-          leadId:      payload.leadId,
-          type:        "whatsapp_sent",
-          title:       `Reminder sent: ${payload.templateName}`,
+          leadId: payload.leadId,
+          type: "whatsapp_sent",
+          title: `Reminder sent: ${payload.templateName}`,
           performedBy: "system-reminder",
         });
       }
@@ -301,9 +322,8 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
     // ── 5. Score refresh — background recalculation ──────────────────────────
     case "crm.score_refresh": {
-      const { recalculateScore } = await import(
-        "../../services/saas/crm/lead.service.ts"
-      );
+      const { recalculateScore } =
+        await import("../../services/saas/crm/lead.service.ts");
       await recalculateScore(clientCode, payload.leadId);
       break;
     }
@@ -311,12 +331,14 @@ const processCrmJob = async (job: IJob): Promise<void> => {
     // ── 6. Webhook notify — fire HTTP callback to client server ──────────────
     case "crm.webhook_notify": {
       const res = await fetch(payload.callbackUrl, {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload.event),
+        body: JSON.stringify(payload.event),
       });
       if (!res.ok) {
-        throw new Error(`Webhook notify failed [${res.status}]: ${payload.callbackUrl}`);
+        throw new Error(
+          `Webhook notify failed [${res.status}]: ${payload.callbackUrl}`,
+        );
       }
       break;
     }
@@ -331,9 +353,9 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
 export const startCrmWorker = (): MongoWorker => {
   const worker = new MongoWorker("crm", processCrmJob, {
-    concurrency:    3,        // process 3 jobs in parallel
-    pollIntervalMs: 5_000,    // poll every 5 seconds
-    baseBackoffMs:  10_000,   // retry with 10s base exponential backoff
+    concurrency: 3, // process 3 jobs in parallel
+    pollIntervalMs: 5_000, // poll every 5 seconds
+    baseBackoffMs: 10_000, // retry with 10s base exponential backoff
   });
   worker.start();
   console.log("[crmWorker] ✅ Started — queue: crm, concurrency: 3, poll: 5s");

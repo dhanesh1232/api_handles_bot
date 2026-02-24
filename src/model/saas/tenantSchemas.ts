@@ -18,7 +18,7 @@ export {
   Message,
   MessageSchema,
   Template,
-  TemplateSchema
+  TemplateSchema,
 };
 
 export const schemas: Record<string, Schema<any>> = {

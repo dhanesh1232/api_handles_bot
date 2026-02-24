@@ -19,13 +19,13 @@ import mongoose, { type Model, type Schema } from "mongoose";
 
 const scoreSchema = new mongoose.Schema<ILeadScore>(
   {
-    total:         { type: Number, default: 0, min: 0, max: 100 },
-    recency:       { type: Number, default: 0 },
-    engagement:    { type: Number, default: 0 },
-    stageDepth:    { type: Number, default: 0 },
-    dealSize:      { type: Number, default: 0 },
+    total: { type: Number, default: 0, min: 0, max: 100 },
+    recency: { type: Number, default: 0 },
+    engagement: { type: Number, default: 0 },
+    stageDepth: { type: Number, default: 0 },
+    dealSize: { type: Number, default: 0 },
     sourceQuality: { type: Number, default: 0 },
-    updatedAt:     { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
   },
   { _id: false },
 );
@@ -34,11 +34,11 @@ const scoreSchema = new mongoose.Schema<ILeadScore>(
 const metadataRefsSchema = new mongoose.Schema(
   {
     appointmentId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    bookingId:     { type: mongoose.Schema.Types.ObjectId, default: null },
-    orderId:       { type: mongoose.Schema.Types.ObjectId, default: null },
-    productId:     { type: mongoose.Schema.Types.ObjectId, default: null },
-    serviceId:     { type: mongoose.Schema.Types.ObjectId, default: null },
-    meetingId:     { type: mongoose.Schema.Types.ObjectId, default: null },
+    bookingId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    orderId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    productId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    serviceId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    meetingId: { type: mongoose.Schema.Types.ObjectId, default: null },
   },
   {
     _id: false,
@@ -56,9 +56,9 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
     // Identity
     firstName: { type: String, required: true, trim: true },
-    lastName:  { type: String, trim: true, default: "" },
-    email:     { type: String, trim: true, lowercase: true, default: null },
-    phone:     { type: String, required: true, trim: true },
+    lastName: { type: String, trim: true, default: "" },
+    email: { type: String, trim: true, lowercase: true, default: null },
+    phone: { type: String, required: true, trim: true },
 
     // Pipeline
     pipelineId: {
@@ -82,15 +82,23 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
     // Deal
     dealValue: { type: Number, default: 0 },
-    currency:  { type: String, default: "INR" },
+    currency: { type: String, default: "INR" },
     dealTitle: { type: String, trim: true, default: "" },
 
     // Source & assignment
     source: {
       type: String,
       enum: [
-        "website", "whatsapp", "instagram", "facebook",
-        "referral", "cold_outreach", "phone", "email", "walk_in", "other",
+        "website",
+        "whatsapp",
+        "instagram",
+        "facebook",
+        "referral",
+        "cold_outreach",
+        "phone",
+        "email",
+        "walk_in",
+        "other",
       ],
       default: "other",
     },
@@ -125,7 +133,7 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
     // Business timestamps
     lastContactedAt: { type: Date, default: null },
-    convertedAt:     { type: Date, default: null },
+    convertedAt: { type: Date, default: null },
 
     // Soft delete
     isArchived: { type: Boolean, default: false, index: true },
@@ -149,10 +157,22 @@ leadSchema.index({ clientCode: 1, pipelineId: 1 });
 leadSchema.index({ clientCode: 1, email: 1 }, { sparse: true });
 
 // Metadata ref lookups: find lead by appointmentId, bookingId, etc.
-leadSchema.index({ clientCode: 1, "metadata.refs.appointmentId": 1 }, { sparse: true });
-leadSchema.index({ clientCode: 1, "metadata.refs.bookingId": 1 },     { sparse: true });
-leadSchema.index({ clientCode: 1, "metadata.refs.orderId": 1 },       { sparse: true });
-leadSchema.index({ clientCode: 1, "metadata.refs.meetingId": 1 },     { sparse: true });
+leadSchema.index(
+  { clientCode: 1, "metadata.refs.appointmentId": 1 },
+  { sparse: true },
+);
+leadSchema.index(
+  { clientCode: 1, "metadata.refs.bookingId": 1 },
+  { sparse: true },
+);
+leadSchema.index(
+  { clientCode: 1, "metadata.refs.orderId": 1 },
+  { sparse: true },
+);
+leadSchema.index(
+  { clientCode: 1, "metadata.refs.meetingId": 1 },
+  { sparse: true },
+);
 
 // Score sort
 leadSchema.index({ clientCode: 1, "score.total": -1 });
@@ -165,7 +185,7 @@ leadSchema.virtual("fullName").get(function (this: ILead) {
   return [this.firstName, this.lastName].filter(Boolean).join(" ");
 });
 
-leadSchema.set("toJSON",   { virtuals: true });
+leadSchema.set("toJSON", { virtuals: true });
 leadSchema.set("toObject", { virtuals: true });
 
 // ─── Model ────────────────────────────────────────────────────────────────────
@@ -173,4 +193,5 @@ leadSchema.set("toObject", { virtuals: true });
 const Lead: Model<ILead> =
   mongoose.models.Lead || mongoose.model<ILead>("Lead", leadSchema);
 
-export default Lead;export { leadSchema as LeadSchema };
+export default Lead;
+export { leadSchema as LeadSchema };

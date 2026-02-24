@@ -49,7 +49,7 @@ describe("Backend System Validation (Smoke Tests)", () => {
       "Lead Activities schema should be defined",
     );
     assert.ok(schemas.leadNotes, "Lead Notes schema should be defined");
-    
+
     // Ensure they are actually mongoose schemas
     assert.strictEqual(
       schemas.leads.constructor.name,
@@ -68,7 +68,7 @@ describe("Backend System Validation (Smoke Tests)", () => {
     try {
       // Connect to the 'services' database
       const conn = await dbConnect("services");
-      
+
       // Verify connection state is connected
       assert.strictEqual(
         conn.connection.readyState,
@@ -83,7 +83,6 @@ describe("Backend System Validation (Smoke Tests)", () => {
         count >= 0,
         "Should successfully execute a count query on the services database",
       );
-
     } catch (err: any) {
       assert.fail(`Database validation failed: ${err.message}`);
     }

@@ -44,18 +44,21 @@ export const logActivity = async (
 
   const activity = await LeadActivity.create({
     clientCode,
-    leadId:      input.leadId,
-    type:        input.type,
-    title:       input.title,
-    body:        input.body ?? "",
-    metadata:    input.metadata ?? {},
+    leadId: input.leadId,
+    type: input.type,
+    title: input.title,
+    body: input.body ?? "",
+    metadata: input.metadata ?? {},
     performedBy: input.performedBy ?? "system",
   });
 
   // Update lastContactedAt on the lead for score recalculation
   const contactTypes: ActivityType[] = [
-    "whatsapp_sent", "whatsapp_received",
-    "email_sent", "call_logged", "meeting_created",
+    "whatsapp_sent",
+    "whatsapp_received",
+    "email_sent",
+    "call_logged",
+    "meeting_created",
   ];
   if (contactTypes.includes(input.type)) {
     await Lead.updateOne(
@@ -64,7 +67,9 @@ export const logActivity = async (
     );
     // Trigger score recalculation asynchronously (fire-and-forget)
     import("./lead.service.ts")
-      .then(({ recalculateScore }) => recalculateScore(clientCode, input.leadId))
+      .then(({ recalculateScore }) =>
+        recalculateScore(clientCode, input.leadId),
+      )
       .catch(() => {}); // non-critical
   }
 
@@ -85,7 +90,11 @@ export const getActivities = async (
   if (type) query.type = type;
 
   const [activities, total] = await Promise.all([
-    LeadActivity.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    LeadActivity.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
     LeadActivity.countDocuments(query),
   ]);
 
@@ -106,10 +115,13 @@ export const logCall = async (
 ): Promise<ILeadActivity> => {
   return logActivity(clientCode, {
     leadId,
-    type:  "call_logged",
+    type: "call_logged",
     title: `Call logged — ${input.durationMinutes} min`,
-    body:  input.summary,
-    metadata: { durationMinutes: input.durationMinutes, outcome: input.outcome ?? "connected" },
+    body: input.summary,
+    metadata: {
+      durationMinutes: input.durationMinutes,
+      outcome: input.outcome ?? "connected",
+    },
     performedBy: input.performedBy ?? "user",
   });
 };
@@ -124,14 +136,20 @@ export const createNote = async (
 ): Promise<ILeadNote> => {
   const { LeadNote } = await getCrmModels(clientCode);
 
-  const note = await LeadNote.create({ clientCode, leadId, content, isPinned: false, createdBy });
+  const note = await LeadNote.create({
+    clientCode,
+    leadId,
+    content,
+    isPinned: false,
+    createdBy,
+  });
 
   await logActivity(clientCode, {
     leadId,
-    type:  "note_added",
+    type: "note_added",
     title: "Note added",
-    body:  content.slice(0, 120) + (content.length > 120 ? "…" : ""),
-    metadata:    { noteId: note._id.toString() },
+    body: content.slice(0, 120) + (content.length > 120 ? "…" : ""),
+    metadata: { noteId: note._id.toString() },
     performedBy: createdBy,
   });
 
@@ -140,7 +158,10 @@ export const createNote = async (
 
 // ─── Note: get all for a lead ─────────────────────────────────────────────────
 
-export const getNotes = async (clientCode: string, leadId: string): Promise<ILeadNote[]> => {
+export const getNotes = async (
+  clientCode: string,
+  leadId: string,
+): Promise<ILeadNote[]> => {
   const { LeadNote } = await getCrmModels(clientCode);
   return (await LeadNote.find({ clientCode, leadId })
     .sort({ isPinned: -1, createdAt: -1 })
@@ -150,7 +171,9 @@ export const getNotes = async (clientCode: string, leadId: string): Promise<ILea
 // ─── Note: update content ─────────────────────────────────────────────────────
 
 export const updateNote = async (
-  clientCode: string, noteId: string, content: string,
+  clientCode: string,
+  noteId: string,
+  content: string,
 ): Promise<ILeadNote | null> => {
   const { LeadNote } = await getCrmModels(clientCode);
   return LeadNote.findOneAndUpdate(
@@ -162,17 +185,26 @@ export const updateNote = async (
 
 // ─── Note: toggle pin ─────────────────────────────────────────────────────────
 
-export const togglePin = async (clientCode: string, noteId: string): Promise<ILeadNote | null> => {
+export const togglePin = async (
+  clientCode: string,
+  noteId: string,
+): Promise<ILeadNote | null> => {
   const { LeadNote } = await getCrmModels(clientCode);
   const note = await LeadNote.findOne({ _id: noteId, clientCode });
   if (!note) return null;
-  return LeadNote.findByIdAndUpdate(noteId, { $set: { isPinned: !note.isPinned } }, { new: true })
-    .lean() as Promise<ILeadNote | null>;
+  return LeadNote.findByIdAndUpdate(
+    noteId,
+    { $set: { isPinned: !note.isPinned } },
+    { new: true },
+  ).lean() as Promise<ILeadNote | null>;
 };
 
 // ─── Note: delete ─────────────────────────────────────────────────────────────
 
-export const deleteNote = async (clientCode: string, noteId: string): Promise<void> => {
+export const deleteNote = async (
+  clientCode: string,
+  noteId: string,
+): Promise<void> => {
   const { LeadNote } = await getCrmModels(clientCode);
   await LeadNote.deleteOne({ _id: noteId, clientCode });
 };
@@ -193,17 +225,30 @@ export const getTimeline = async (
     LeadNote.find({ clientCode, leadId }).sort({ createdAt: -1 }).lean(),
   ]);
 
-  const activityItems: TimelineItem[] = (activities as unknown as ILeadActivity[]).map((a) => ({
-    id: a._id.toString(), kind: "activity", type: a.type,
-    title: a.title, body: a.body, metadata: a.metadata,
-    performedBy: a.performedBy, createdAt: a.createdAt,
+  const activityItems: TimelineItem[] = (
+    activities as unknown as ILeadActivity[]
+  ).map((a) => ({
+    id: a._id.toString(),
+    kind: "activity",
+    type: a.type,
+    title: a.title,
+    body: a.body,
+    metadata: a.metadata,
+    performedBy: a.performedBy,
+    createdAt: a.createdAt,
   }));
 
-  const noteItems: TimelineItem[] = (notes as unknown as ILeadNote[]).map((n) => ({
-    id: n._id.toString(), kind: "note",
-    title: "Note", body: n.content,
-    isPinned: n.isPinned, createdBy: n.createdBy, createdAt: n.createdAt,
-  }));
+  const noteItems: TimelineItem[] = (notes as unknown as ILeadNote[]).map(
+    (n) => ({
+      id: n._id.toString(),
+      kind: "note",
+      title: "Note",
+      body: n.content,
+      isPinned: n.isPinned,
+      createdBy: n.createdBy,
+      createdAt: n.createdAt,
+    }),
+  );
 
   const all = [...activityItems, ...noteItems].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),

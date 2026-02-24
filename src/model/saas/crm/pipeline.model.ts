@@ -1,6 +1,5 @@
 import mongoose, { type Model, type Schema } from "mongoose";
 
-
 const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
   {
     clientCode: {
@@ -43,4 +42,5 @@ const Pipeline: Model<IPipeline> =
   mongoose.models.Pipeline ||
   mongoose.model<IPipeline>("Pipeline", pipelineSchema);
 
-export default Pipeline;export { pipelineSchema as PipelineSchema };
+export default Pipeline;
+export { pipelineSchema as PipelineSchema };

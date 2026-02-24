@@ -114,11 +114,12 @@ pnpm run format
 The project is natively configured to deploy on **Render.com**. You can use the included `render.yaml` blueprint or configure it manually via the dashboard:
 
 - **Build Command**: `pnpm install && pnpm run build`
-  - *This installs dependencies and compiles TypeScript to highly optimized JavaScript in the `/dist` folder.*
+  - _This installs dependencies and compiles TypeScript to highly optimized JavaScript in the `/dist` folder._
 - **Start Command**: `pnpm start`
-  - *Executes the compiled JS payload fast and cleanly (`node dist/server.js`).*
+  - _Executes the compiled JS payload fast and cleanly (`node dist/server.js`)._
 
 **Important Render Environment Variables:**
+
 - `NODE_VERSION`: `22.18.0`
 - `PNPM_VERSION`: `10.30.1`
 

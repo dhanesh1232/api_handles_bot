@@ -582,7 +582,7 @@ export const createWhatsappService = (io: Server) => {
 
     if (io && conv) {
       io.to(clientCode).emit("conversation_updated", conv.toObject());
-      
+
       const ioPayload = {
         ...conv.toObject(),
         message: message.toObject(),

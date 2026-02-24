@@ -2,7 +2,11 @@ import dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
 
 import cors from "cors";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import http from "http";
@@ -20,7 +24,6 @@ import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.ts";
 import blogsRouter from "./src/routes/services/blogs.ts";
 import clientsRouter from "./src/routes/services/clients.ts";
 import leadsRouter from "./src/routes/services/leads.ts";
-
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
@@ -50,22 +53,25 @@ const server = http.createServer(app);
  */
 
 const originsUrls = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173", // Vite
-    "https://services.ecodrix.com",
-    "https://www.ecodrix.com",
-    "https://app.ecodrix.com",
-    "https://ecodrix.com",
-    "https://admin.ecodrix.com",
-    "https://portfolio.ecodrix.com",
-    "https://nirvisham.com",
-    "https://www.nirvisham.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173", // Vite
+  "https://services.ecodrix.com",
+  "https://www.ecodrix.com",
+  "https://app.ecodrix.com",
+  "https://ecodrix.com",
+  "https://admin.ecodrix.com",
+  "https://portfolio.ecodrix.com",
+  "https://nirvisham.com",
+  "https://www.nirvisham.com",
 ];
 
 const corsOptions: cors.CorsOptions = {
-  origin: async function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    const allowedOrigins = [...originsUrls, ...await getDynamicOrigins()];
+  origin: async function (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) {
+    const allowedOrigins = [...originsUrls, ...(await getDynamicOrigins())];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -116,7 +122,11 @@ app.use(cors(corsOptions));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   express.json()(req, res, (err: any) => {
-    if (err instanceof SyntaxError && (err as any).status === 400 && "body" in err) {
+    if (
+      err instanceof SyntaxError &&
+      (err as any).status === 400 &&
+      "body" in err
+    ) {
       console.error(`⚠️ JSON Parse Error: ${err.message}`);
       return res.status(400).json({ error: "Invalid JSON format" });
     }
@@ -188,15 +198,15 @@ io.on("connection", (socket: Socket) => {
  * @Start Global Io
  * @borrows Global Io for saas
  * @param {registerGlobalIo} - Register global io
- * 
+ *
  * @Start Workflow Processor
  * @borrows Workflow Processor for saas
  * @param {startWorkflowProcessor} - Start workflow processor
- * 
+ *
  * @Start Cron Jobs
  * @borrows Cron jobs for leads
  * @param {cronJobs} - Cron jobs for leads
- * 
+ *
  */
 
 registerGlobalIo(io);
@@ -270,7 +280,10 @@ const initializeRoutes = async () => {
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error(`❌ Global Error Handler: ${err.message}`, err.stack);
     res.status(err.status || 500).json({
-      error: process.env.NODE_ENV === "production" ? "Internal Server Error" : err.message,
+      error:
+        process.env.NODE_ENV === "production"
+          ? "Internal Server Error"
+          : err.message,
     });
   });
 
@@ -300,7 +313,9 @@ const shutdown = () => {
 
   // Force close after 10 seconds
   setTimeout(() => {
-    console.error("Could not close connections in time, forcefully shutting down");
+    console.error(
+      "Could not close connections in time, forcefully shutting down",
+    );
     process.exit(1);
   }, 10000);
 };

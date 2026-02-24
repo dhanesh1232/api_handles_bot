@@ -54,7 +54,10 @@ export const createEmailService = () => {
   /**
    * Send a single email
    */
-  const sendEmail = async (clientCode: string, { to, subject, html, text }: EmailDetails) => {
+  const sendEmail = async (
+    clientCode: string,
+    { to, subject, html, text }: EmailDetails,
+  ) => {
     try {
       const { transporter, from } = await getTransporter(clientCode);
 
@@ -76,7 +79,10 @@ export const createEmailService = () => {
   /**
    * Send Bulk/Marketing Campaign
    */
-  const sendCampaign = async (clientCode: string, { recipients, subject, html }: CampaignDetails) => {
+  const sendCampaign = async (
+    clientCode: string,
+    { recipients, subject, html }: CampaignDetails,
+  ) => {
     const results = {
       total: recipients.length,
       success: 0,

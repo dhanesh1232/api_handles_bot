@@ -15,8 +15,8 @@ const leadNoteSchema: Schema<ILeadNote> = new mongoose.Schema(
       required: true,
       index: true,
     },
-    content:   { type: String, required: true },
-    isPinned:  { type: Boolean, default: false },
+    content: { type: String, required: true },
+    isPinned: { type: Boolean, default: false },
     createdBy: { type: String, default: "user" },
   },
   { timestamps: true },
@@ -28,4 +28,5 @@ const LeadNote: Model<ILeadNote> =
   mongoose.models.LeadNote ||
   mongoose.model<ILeadNote>("LeadNote", leadNoteSchema);
 
-export default LeadNote;export { leadNoteSchema as LeadNoteSchema };
+export default LeadNote;
+export { leadNoteSchema as LeadNoteSchema };

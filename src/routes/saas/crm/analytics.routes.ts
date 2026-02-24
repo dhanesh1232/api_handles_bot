@@ -35,10 +35,15 @@ router.get("/analytics/funnel", async (req: Request, res: Response) => {
   try {
     const { pipelineId } = req.query as Record<string, string>;
     if (!pipelineId) {
-      res.status(400).json({ success: false, message: "pipelineId is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "pipelineId is required" });
       return;
     }
-    const data = await analyticsService.getFunnelData(req.clientCode!, pipelineId);
+    const data = await analyticsService.getFunnelData(
+      req.clientCode!,
+      pipelineId,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -53,7 +58,10 @@ router.get("/analytics/funnel", async (req: Request, res: Response) => {
 router.get("/analytics/forecast", async (req: Request, res: Response) => {
   try {
     const { pipelineId } = req.query as Record<string, string>;
-    const data = await analyticsService.getRevenueForecast(req.clientCode!, pipelineId);
+    const data = await analyticsService.getRevenueForecast(
+      req.clientCode!,
+      pipelineId,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -68,7 +76,10 @@ router.get("/analytics/forecast", async (req: Request, res: Response) => {
 router.get("/analytics/sources", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
-    const data = await analyticsService.getSourceBreakdown(req.clientCode!, range);
+    const data = await analyticsService.getSourceBreakdown(
+      req.clientCode!,
+      range,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -83,7 +94,10 @@ router.get("/analytics/sources", async (req: Request, res: Response) => {
 router.get("/analytics/team", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
-    const data = await analyticsService.getTeamLeaderboard(req.clientCode!, range);
+    const data = await analyticsService.getTeamLeaderboard(
+      req.clientCode!,
+      range,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -98,7 +112,10 @@ router.get("/analytics/team", async (req: Request, res: Response) => {
 router.get("/analytics/heatmap", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as "30d" | "90d") ?? "30d";
-    const data = await analyticsService.getActivityHeatmap(req.clientCode!, range);
+    const data = await analyticsService.getActivityHeatmap(
+      req.clientCode!,
+      range,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -127,10 +144,15 @@ router.get("/analytics/stage-time", async (req: Request, res: Response) => {
   try {
     const { pipelineId } = req.query as Record<string, string>;
     if (!pipelineId) {
-      res.status(400).json({ success: false, message: "pipelineId is required" });
+      res
+        .status(400)
+        .json({ success: false, message: "pipelineId is required" });
       return;
     }
-    const data = await analyticsService.getAvgTimeInStage(req.clientCode!, pipelineId);
+    const data = await analyticsService.getAvgTimeInStage(
+      req.clientCode!,
+      pipelineId,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });

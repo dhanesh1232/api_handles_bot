@@ -1,6 +1,5 @@
 import mongoose, { type Model, type Schema } from "mongoose";
 
-
 const autoActionSchema = new mongoose.Schema<IAutoAction>(
   {
     type: {
@@ -86,4 +85,5 @@ const PipelineStage: Model<IPipelineStage> =
   mongoose.models.PipelineStage ||
   mongoose.model<IPipelineStage>("PipelineStage", pipelineStageSchema);
 
-export default PipelineStage;export { pipelineStageSchema as PipelineStageSchema };
+export default PipelineStage;
+export { pipelineStageSchema as PipelineStageSchema };

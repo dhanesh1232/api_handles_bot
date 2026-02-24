@@ -2,9 +2,9 @@ name: Backend CI (Build & Lint)
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
 jobs:
   build:
@@ -15,26 +15,26 @@ jobs:
         node-version: [18.x, 20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-        
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        
-    - name: Install Dependencies
-      run: pnpm install
+      - uses: actions/checkout@v4
 
-    - name: Type Check & Build (TSC)
-      run: pnpm run build
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-    - name: Check Formatting (Prettier)
-      run: pnpm exec prettier --check .
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
 
-    - name: Run Linter (ESLint)
-      run: pnpm run lint
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Type Check & Build (TSC)
+        run: pnpm run build
+
+      - name: Check Formatting (Prettier)
+        run: pnpm exec prettier --check .
+
+      - name: Run Linter (ESLint)
+        run: pnpm run lint
