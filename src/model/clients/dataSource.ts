@@ -49,7 +49,7 @@ const ClientDataSourceSchema = new mongoose.Schema<IClientDataSource>(
 const ENCRYPTED_PATTERN = /^[0-9a-fA-F]{32}:[0-9a-fA-F]+$/;
 
 // Middleware to encrypt DB URI
-ClientDataSourceSchema.pre("save", function (next) {
+ClientDataSourceSchema.pre("save", function () {
   // Encrypt if modified AND (not already encrypted based on strict regex)
   if (
     this.isModified("dbUri") &&
@@ -58,7 +58,6 @@ ClientDataSourceSchema.pre("save", function (next) {
   ) {
     this.dbUri = encrypt(this.dbUri) as string;
   }
-  next();
 });
 
 // Helper for decryption

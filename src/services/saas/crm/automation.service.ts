@@ -5,7 +5,7 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import mongoose from "mongoose";
+import mongoose, { FilterQuery } from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
 import { logActivity } from "./activity.service.ts";
 
@@ -27,7 +27,7 @@ export const runAutomations = async (
 ): Promise<void> => {
   const { AutomationRule } = await getCrmModels(clientCode);
 
-  const ruleQuery: mongoose.FilterQuery<IAutomationRule> = {
+  const ruleQuery: FilterQuery<IAutomationRule> = {
     clientCode,
     trigger: ctx.trigger,
     isActive: true,

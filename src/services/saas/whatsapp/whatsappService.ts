@@ -344,10 +344,10 @@ export const createWhatsappService = (io: Server) => {
           direction: "inbound",
           messageType,
           text: finalMsgBody,
-          mediaUrl,
+          mediaUrl: mediaUrl || undefined,
           whatsappMessageId: messagePayload.id,
-          replyTo,
-          replyToWhatsappId,
+          replyTo: replyTo || undefined,
+          replyToWhatsappId: replyToWhatsappId || undefined,
           status: "delivered",
         });
         console.log(

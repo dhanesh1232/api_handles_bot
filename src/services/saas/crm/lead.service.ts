@@ -12,7 +12,7 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import mongoose from "mongoose";
+import mongoose, { FilterQuery } from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
 import { getDefaultPipeline, getDefaultStage } from "./pipeline.service.ts";
 
@@ -179,7 +179,7 @@ export const listLeads = async (
   const { Lead } = await getCrmModels(clientCode);
   const { page = 1, limit = 25, sortBy = "score", sortDir = "desc" } = options;
 
-  const query: mongoose.FilterQuery<ILead> = { clientCode, isArchived: false };
+  const query: FilterQuery<ILead> = { clientCode, isArchived: false };
   if (filters.status) query.status = filters.status;
   if (filters.pipelineId)
     query.pipelineId = new mongoose.Types.ObjectId(filters.pipelineId);
@@ -599,9 +599,9 @@ export const bulkDelete = async (
 
 function buildMetadataRefs(
   refs: Record<string, string | undefined> | undefined,
-): Record<string, mongoose.Types.ObjectId | null> {
+): Record<string, mongoose.Types.ObjectId> {
   if (!refs) return {};
-  const result: Record<string, mongoose.Types.ObjectId | null> = {};
+  const result: Record<string, mongoose.Types.ObjectId> = {};
   for (const [key, value] of Object.entries(refs)) {
     if (!value) continue;
     if (mongoose.Types.ObjectId.isValid(value))

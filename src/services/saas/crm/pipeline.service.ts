@@ -466,7 +466,8 @@ export const getDefaultStage = async (
       clientCode,
       pipelineId,
       isDefault: true,
-    })) ?? PipelineStage.findOne({ clientCode, pipelineId }).sort({ order: 1 })
+    })) ??
+    (await PipelineStage.findOne({ clientCode, pipelineId }).sort({ order: 1 }))
   );
 };
 
@@ -478,7 +479,9 @@ export const getDefaultPipeline = async (
   const { Pipeline } = await getCrmModels(clientCode);
   return (
     (await Pipeline.findOne({ clientCode, isDefault: true, isActive: true })) ??
-    Pipeline.findOne({ clientCode, isActive: true }).sort({ createdAt: 1 })
+    (await Pipeline.findOne({ clientCode, isActive: true }).sort({
+      createdAt: 1,
+    }))
   );
 };
 

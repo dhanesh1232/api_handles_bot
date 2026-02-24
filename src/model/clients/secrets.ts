@@ -101,7 +101,7 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
 const ENCRYPTED_PATTERN = /^[0-9a-fA-F]{32}:[0-9a-fA-F]+$/;
 
 // Middleware to encrypt before saving
-ClientSecretsSchema.pre("save", function (next) {
+ClientSecretsSchema.pre("save", function () {
   const secretFields = [
     "whatsappToken",
     "whatsappInstanceId",
@@ -142,8 +142,6 @@ ClientSecretsSchema.pre("save", function (next) {
       }
     }
   }
-
-  next();
 });
 
 // Helper method to get decrypted secrets
