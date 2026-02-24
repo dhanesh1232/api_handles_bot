@@ -69,12 +69,10 @@ router.post(
       const { name, clientCode, business, plan } = req.body;
 
       if (!name || !clientCode) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Name and ClientCode are required.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Name and ClientCode are required.",
+        });
       }
 
       const existingClient = await Client.findOne({
@@ -355,12 +353,10 @@ router.patch(
       if (newCode !== oldCode) {
         const conflict = await Client.findOne({ clientCode: newCode });
         if (conflict) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "New client code already in use",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "New client code already in use",
+          });
         }
       }
 
