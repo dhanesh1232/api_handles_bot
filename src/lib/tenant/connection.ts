@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import mongoose, { type Connection } from "mongoose";
-import { ClientDataSource } from "../../model/clients/dataSource.js";
-import { dbConnect } from "../config.js";
+import { ClientDataSource } from "../../model/clients/dataSource.ts";
+import { dbConnect } from "../config.ts";
 
 dotenv.config({ path: "./.env" });
 

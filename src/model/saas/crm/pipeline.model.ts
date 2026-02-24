@@ -1,13 +1,5 @@
-import mongoose, { type Document, type Model, type Schema } from "mongoose";
+import mongoose, { type Model, type Schema } from "mongoose";
 
-export interface IPipeline extends Document {
-  clientCode: string;
-  name: string;
-  order: number;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
   {
@@ -19,10 +11,21 @@ const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
     },
     order: {
       type: Number,
       default: 0,
+    },
+    isDefault: {
+      type: Boolean,
+      default: false,
+      // Only one pipeline per client can be default.
+      // Enforced in service layer via setDefault().
     },
     isActive: {
       type: Boolean,
@@ -32,8 +35,12 @@ const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Compound index — fast lookup for a client's pipelines
+pipelineSchema.index({ clientCode: 1, isActive: 1, order: 1 });
+pipelineSchema.index({ clientCode: 1, isDefault: 1 });
+
 const Pipeline: Model<IPipeline> =
   mongoose.models.Pipeline ||
   mongoose.model<IPipeline>("Pipeline", pipelineSchema);
 
-export default Pipeline;
+export default Pipeline;export { pipelineSchema as PipelineSchema };

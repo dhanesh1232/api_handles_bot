@@ -1,16 +1,19 @@
 import type { NextFunction, Request, Response } from "express";
-import { dbConnect } from "../lib/config.js";
+import { dbConnect } from "../lib/config.ts";
 import { Client, type IClient } from "../model/clients/client.ts";
 
-// Extend express Request interface to include clientCode
+// AuthRequest now inherits from the augmented Express.Request
 export interface AuthRequest extends Request {
-  clientCode?: string;
+  // clientCode?: string; // Inherited from augmented Request
 }
 
 /**
  * Middleware: Validate Client API Key
  * Supports finding client by 'clientCode' (body/query) + Key check
  * OR finding client directly by Key.
+ * @param {AuthRequest} req - The request object
+ * @param {Response} res - The response object
+ * @param {NextFunction} next - The next function
  */
 export async function validateClientKey(
   req: AuthRequest,

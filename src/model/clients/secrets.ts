@@ -1,5 +1,5 @@
 import mongoose, { type Document, type Model } from "mongoose";
-import { decrypt, encrypt } from "../../lib/crypto.js";
+import { decrypt, encrypt } from "../../lib/crypto.ts";
 
 export interface IClientSecrets extends Document {
   clientCode: string;

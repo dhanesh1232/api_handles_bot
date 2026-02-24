@@ -1,41 +1,48 @@
-import mongoose, { type Document, type Model, type Schema } from "mongoose";
+/**
+ * leadActivity.model.ts
+ * Auto-generated timeline events. Immutable once created.
+ * Place at: src/model/saas/crm/leadActivity.model.ts
+ */
 
-export interface ILeadActivity extends Document {
-  clientCode: string;
-  leadId: mongoose.Types.ObjectId;
-  type: string;
-  description: string;
-  metadata?: any;
-  createdAt: Date;
-}
+import mongoose, { type Model, type Schema } from "mongoose";
 
-const activitySchema: Schema<ILeadActivity> = new mongoose.Schema({
-  clientCode: {
-    type: String,
-    required: true,
+
+const leadActivitySchema: Schema<ILeadActivity> = new mongoose.Schema(
+  {
+    clientCode: { type: String, required: true, index: true },
+    leadId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Lead",
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: [
+        "whatsapp_sent", "whatsapp_received", "whatsapp_delivered", "whatsapp_read",
+        "email_sent", "email_opened", "email_clicked", "email_bounced",
+        "call_logged", "meeting_created", "meeting_completed", "meeting_cancelled",
+        "stage_change", "deal_won", "deal_lost",
+        "tag_added", "tag_removed", "note_added", "score_updated",
+        "lead_created", "lead_assigned", "automation_triggered", "system",
+      ],
+      required: true,
+    },
+    title:       { type: String, required: true },
+    body:        { type: String, default: "" },
+    metadata:    { type: mongoose.Schema.Types.Mixed, default: {} },
+    performedBy: { type: String, default: "system" },
   },
-  leadId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Lead",
-    required: true,
+  {
+    timestamps: { createdAt: true, updatedAt: false }, // activities are immutable
   },
-  type: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  metadata: mongoose.Schema.Types.Mixed,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+);
+
+leadActivitySchema.index({ clientCode: 1, leadId: 1, createdAt: -1 });
+leadActivitySchema.index({ clientCode: 1, type: 1, createdAt: -1 });
 
 const LeadActivity: Model<ILeadActivity> =
   mongoose.models.LeadActivity ||
-  mongoose.model<ILeadActivity>("LeadActivity", activitySchema);
+  mongoose.model<ILeadActivity>("LeadActivity", leadActivitySchema);
 
-export default LeadActivity;
+export default LeadActivity;export { leadActivitySchema as LeadActivitySchema };

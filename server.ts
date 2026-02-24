@@ -10,7 +10,7 @@ import { Server, type Socket } from "socket.io";
 import { getDynamicOrigins } from "./src/model/cors-origins.ts";
 import googleAuthRouter from "./src/routes/auth/google.ts";
 import corsRouter from "./src/routes/saas/cors.ts";
-import crmRouter from "./src/routes/saas/crm.ts";
+import crmRouter from "./src/routes/saas/crm/crm.router.ts";
 import { createImagesRouter } from "./src/routes/saas/images.ts";
 import marketingRouter from "./src/routes/saas/marketing.ts";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.ts";
@@ -20,6 +20,7 @@ import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.ts";
 import blogsRouter from "./src/routes/services/blogs.ts";
 import clientsRouter from "./src/routes/services/clients.ts";
 import leadsRouter from "./src/routes/services/leads.ts";
+
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
@@ -31,8 +32,10 @@ import leadsRouter from "./src/routes/services/leads.ts";
  */
 
 import { cronJobs } from "./src/jobs/cron.ts";
+import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
 import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
 import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
+import { validateClientKey } from "./src/middleware/saasAuth.ts";
 
 const PORT = process.env.PORT || 4000;
 const app = express();
@@ -200,6 +203,10 @@ registerGlobalIo(io);
 startWorkflowProcessor();
 cronJobs();
 
+// ─── CRM Worker — handles all async CRM jobs (WhatsApp, email, meeting, reminders)
+registerCrmIo(io);
+startCrmWorker();
+
 /**
  * @Start Middleware
  * @borrows Middleware for saas
@@ -235,6 +242,7 @@ app.get("/", (req: Request, res: Response) => {
  * @param {createTemplateRouter} - Template router
  * @param {marketingRouter} - Marketing router
  * @param {crmRouter} - CRM router
+ * @param {validateClientKey} - Validate client key
  * @param {createWorkflowRouter} - Workflow router
  * @param {corsRouter} - CORS router
  * @param {googleAuthRouter} - Google auth router
@@ -251,10 +259,10 @@ const initializeRoutes = async () => {
   app.use("/api/saas/images", createImagesRouter(io));
   app.use("/api/saas/chat/templates", createTemplateRouter(io));
   app.use("/api/saas/marketing", marketingRouter);
-  app.use("/api/saas/crm", crmRouter);
   app.use("/api/saas/workflows", createWorkflowRouter());
   app.use("/api/saas/cors", corsRouter);
   app.use("/api/auth/google", googleAuthRouter);
+  app.use("/api/crm", validateClientKey, crmRouter);
 
   /**
    * @Start Global Error Handler

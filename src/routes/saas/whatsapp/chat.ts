@@ -1,24 +1,24 @@
 import express, { type Request, type Response } from "express";
 import multer from "multer";
 import { Server } from "socket.io";
-import { dbConnect } from "../../../lib/config.js";
+import { dbConnect } from "../../../lib/config.ts";
 import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
-import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.js";
-import { validateClientKey } from "../../../middleware/saasAuth.js";
-import { ClientSecrets } from "../../../model/clients/secrets.js";
-import { schemas } from "../../../model/saas/tenantSchemas.js";
+import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.ts";
+import { validateClientKey } from "../../../middleware/saasAuth.ts";
+import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { schemas } from "../../../model/saas/tenantSchemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type { IMessage } from "../../../model/saas/whatsapp/message.model.ts";
-import { optimizeAndUploadMedia } from "../../../services/saas/mediaService.js";
+import { optimizeAndUploadMedia } from "../../../services/saas/mediaService.ts";
 import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export interface SaasRequest extends Request {
-  clientCode?: string;
+  clientCode: string;
   user?: any;
 }
 

@@ -1,15 +1,31 @@
-import mongoose, { type Document, type Model, type Schema } from "mongoose";
+import mongoose, { type Model, type Schema } from "mongoose";
 
-export interface IPipelineStage extends Document {
-  clientCode: string;
-  pipelineId: mongoose.Types.ObjectId;
-  name: string;
-  order: number;
-  color: string;
-  isDefault: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+
+const autoActionSchema = new mongoose.Schema<IAutoAction>(
+  {
+    type: {
+      type: String,
+      enum: [
+        "send_whatsapp",
+        "send_email",
+        "assign_to",
+        "create_meeting",
+        "add_tag",
+        "webhook_notify",
+      ],
+      required: true,
+    },
+    delayMinutes: {
+      type: Number,
+      default: 0,
+    },
+    config: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+  },
+  { _id: false },
+);
 
 const pipelineStageSchema: Schema<IPipelineStage> = new mongoose.Schema(
   {
@@ -27,6 +43,7 @@ const pipelineStageSchema: Schema<IPipelineStage> = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
     },
     order: {
       type: Number,
@@ -34,18 +51,39 @@ const pipelineStageSchema: Schema<IPipelineStage> = new mongoose.Schema(
     },
     color: {
       type: String,
-      default: "#3b82f6", // Default blue
+      default: "#3b82f6",
     },
     isDefault: {
       type: Boolean,
       default: false,
     },
+    isWon: {
+      type: Boolean,
+      default: false,
+    },
+    isLost: {
+      type: Boolean,
+      default: false,
+    },
+    probability: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    autoActions: {
+      type: [autoActionSchema],
+      default: [],
+    },
   },
   { timestamps: true },
 );
+
+// Fast board load: all stages for a pipeline in order
+pipelineStageSchema.index({ clientCode: 1, pipelineId: 1, order: 1 });
 
 const PipelineStage: Model<IPipelineStage> =
   mongoose.models.PipelineStage ||
   mongoose.model<IPipelineStage>("PipelineStage", pipelineStageSchema);
 
-export default PipelineStage;
+export default PipelineStage;export { pipelineStageSchema as PipelineStageSchema };

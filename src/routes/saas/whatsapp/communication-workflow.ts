@@ -3,8 +3,8 @@ import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
-import { validateClientKey } from "../../../middleware/saasAuth.js";
-import { schemas } from "../../../model/saas/tenantSchemas.js";
+import { validateClientKey } from "../../../middleware/saasAuth.ts";
+import { schemas } from "../../../model/saas/tenantSchemas.ts";
 import type { ICommunicationWorkflow } from "../../../model/saas/whatsapp/communication-workflow.model.ts";
 
 export const createWorkflowRouter = () => {
@@ -104,92 +104,91 @@ export const createWorkflowRouter = () => {
   );
 
   /**
-   * Trigger workflows for an event
+   * Trigger workflows for an event (Supports single object or array for batch processing)
    */
   router.post(
     "/trigger",
     validateClientKey,
     async (req: Request, res: Response) => {
       try {
-        const {
-          trigger,
-          phone,
-          variables,
-          conversationId,
-          metadata,
-          baseTime,
-          callbackUrl,
-          callbackMetadata,
-        } = req.body;
         const clientCode = req.headers["x-client-code"] as string;
-
-        if (!trigger || !phone) {
-          return res
-            .status(400)
-            .json({ success: false, error: "Missing trigger or phone" });
-        }
-
         const Workflow = await getWorkflowModel(req);
-        const activeWorkflows = await Workflow.find({
-          trigger,
-          isActive: true,
-        });
-
-        if (activeWorkflows.length === 0) {
-          return res.json({
-            success: true,
-            message: "No active workflows for this trigger",
-          });
-        }
-
         const { scheduleWorkflow } = await import("../../../lib/queue.ts");
 
-        for (const workflow of activeWorkflows) {
-          let delayMs = 0;
-          const effectiveDelayMinutes =
-            req.body.delayMinutes !== undefined
-              ? req.body.delayMinutes
-              : workflow.delayMinutes;
+        const processSingleTrigger = async (payload: any) => {
+          const {
+            trigger,
+            phone,
+            variables,
+            conversationId,
+            baseTime,
+            callbackUrl,
+            callbackMetadata,
+          } = payload;
 
-          if (baseTime) {
-            const targetTime = new Date(
-              new Date(baseTime).getTime() + effectiveDelayMinutes * 60000,
-            );
-            delayMs = targetTime.getTime() - Date.now();
-          } else {
-            delayMs = effectiveDelayMinutes * 60000;
+          if (!trigger || !phone) {
+            throw new Error("Missing trigger or phone in payload");
           }
 
-          // Force delay to 0 if it's negative (immediate catch-up)
-          const finalDelayMs = Math.max(0, delayMs);
+          const activeWorkflows = await Workflow.find({
+            trigger,
+            isActive: true,
+          });
 
-          console.log(
-            `[${clientCode}] Scheduling workflow ${workflow.name} with ${finalDelayMs}ms delay`,
-          );
+          for (const workflow of activeWorkflows) {
+            let delayMs = 0;
+            const effectiveDelayMinutes =
+              payload.delayMinutes !== undefined
+                ? payload.delayMinutes
+                : workflow.delayMinutes;
 
-          await scheduleWorkflow(
-            {
-              clientCode,
-              phone,
-              templateName: workflow.templateName,
-              variables: variables || [],
-              channel: workflow.channel,
-              conversationId,
-              trigger: workflow.trigger,
-              callbackUrl,
-              callbackMetadata: {
-                ...callbackMetadata,
-                workflowName: workflow.name,
-                delayMinutes: effectiveDelayMinutes,
+            if (baseTime) {
+              const targetTime = new Date(
+                new Date(baseTime).getTime() + effectiveDelayMinutes * 60000,
+              );
+              delayMs = targetTime.getTime() - Date.now();
+            } else {
+              delayMs = effectiveDelayMinutes * 60000;
+            }
+
+            const finalDelayMs = Math.max(0, delayMs);
+
+            console.log(
+              `[${clientCode}] Scheduling workflow ${workflow.name} with ${finalDelayMs}ms delay`,
+            );
+
+            await scheduleWorkflow(
+              {
+                clientCode,
+                phone,
+                templateName: workflow.templateName,
+                variables: variables || [],
+                channel: workflow.channel,
+                conversationId,
+                trigger: workflow.trigger,
+                callbackUrl,
+                callbackMetadata: {
+                  ...callbackMetadata,
+                  workflowName: workflow.name,
+                  delayMinutes: effectiveDelayMinutes,
+                },
               },
-            },
-            finalDelayMs,
-          );
+              finalDelayMs,
+            );
+          }
+          return activeWorkflows.length;
+        };
+
+        const payloads = Array.isArray(req.body) ? req.body : [req.body];
+        let totalTriggered = 0;
+
+        for (const payload of payloads) {
+          totalTriggered += await processSingleTrigger(payload);
         }
 
         res.json({
           success: true,
-          message: `Triggered ${activeWorkflows.length} workflows`,
+          message: `Triggered ${totalTriggered} workflows across ${payloads.length} events`,
         });
       } catch (error: any) {
         console.error("Workflow Trigger Error:", error);

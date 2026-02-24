@@ -2,7 +2,7 @@ import {
   getTenantConnection,
   getTenantModel,
 } from "../../lib/connectionManager.ts";
-import { schemas } from "../../model/saas/tenantSchemas.js";
+import { schemas } from "../../model/saas/tenantSchemas.ts";
 
 let globalIo: any = null;
 
@@ -78,7 +78,7 @@ export const executeWorkflow = async (data: any) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              status: "delivered",
+              status: "sent",
               metadata: callbackMetadata,
               sentAt: new Date(),
             }),

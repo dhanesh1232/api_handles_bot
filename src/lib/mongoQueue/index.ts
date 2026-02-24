@@ -1,6 +1,6 @@
-import Job from "../../model/queue/job.model.js";
-import { dbConnect } from "../config.js";
-import type { AddJobOptions } from "./types.js";
+import Job from "../../model/queue/job.model.ts";
+import { dbConnect } from "../config.ts";
+import type { AddJobOptions } from "./types.ts";
 
 /**
  * MongoQueue — thin wrapper for enqueuing jobs.

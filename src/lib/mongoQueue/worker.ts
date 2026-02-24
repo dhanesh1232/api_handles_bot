@@ -1,6 +1,6 @@
 import type { IJob } from "../../model/queue/job.model.ts";
 import Job from "../../model/queue/job.model.ts";
-import { dbConnect } from "../config.js";
+import { dbConnect } from "../config.ts";
 import type { WorkerOptions } from "./types.ts";
 
 /**

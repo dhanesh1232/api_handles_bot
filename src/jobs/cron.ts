@@ -6,7 +6,7 @@ import {
   followUpLimitJob,
   remindersJob,
   researchJob,
-} from "./index.js";
+} from "./index.ts";
 
 /**
  * @borrows Cron Jobs for leads

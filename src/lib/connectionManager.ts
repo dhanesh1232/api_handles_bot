@@ -1,6 +1,6 @@
 import mongoose, { type Connection, type Model, type Schema } from "mongoose";
-import { ClientDataSource } from "../model/clients/dataSource.js";
-import { dbConnect } from "./config.js";
+import { ClientDataSource } from "../model/clients/dataSource.ts";
+import { dbConnect } from "./config.ts";
 
 export const connectionCache = new Map<string, Connection>();
 

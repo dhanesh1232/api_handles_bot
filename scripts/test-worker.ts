@@ -17,9 +17,9 @@ import "dotenv/config";
  */
 
 import { parseArgs } from "node:util";
-import { dbConnect } from "../src/lib/config.js";
-import { MongoQueue } from "../src/lib/mongoQueue/index.js";
-import Job from "../src/model/queue/job.model.js";
+import { dbConnect } from "../src/lib/config.ts";
+import { MongoQueue } from "../src/lib/mongoQueue/index.ts";
+import Job from "../src/model/queue/job.model.ts";
 
 const { values } = parseArgs({
   args: process.argv.slice(2),

@@ -3,13 +3,13 @@ import FormData from "form-data";
 import mongoose, { type Connection, type Model } from "mongoose";
 import path from "path";
 import { Server } from "socket.io";
-import { dbConnect } from "../../../lib/config.js";
+import { dbConnect } from "../../../lib/config.ts";
 import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.js";
-import { schemas } from "../../../model/saas/tenantSchemas.js";
+import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { schemas } from "../../../model/saas/tenantSchemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type {
   IMessage,
@@ -152,7 +152,7 @@ export const createWhatsappService = (io: Server) => {
       });
 
       // 3. Optimize & Upload
-      const { optimizeAndUploadMedia } = await import("../mediaService.js");
+      const { optimizeAndUploadMedia } = await import("../mediaService.ts");
 
       const result = await optimizeAndUploadMedia(
         response.data,

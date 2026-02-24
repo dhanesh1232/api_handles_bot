@@ -1,5 +1,5 @@
-import { MongoQueue } from "./mongoQueue/index.js";
-import type { AddJobOptions } from "./mongoQueue/types.js";
+import { MongoQueue } from "./mongoQueue/index.ts";
+import type { AddJobOptions } from "./mongoQueue/types.ts";
 
 const workflowQueue = MongoQueue.getQueue("whatsapp-workflow");
 
