@@ -1,6 +1,4 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-name: Node.js CI (pnpm)
+name: Backend CI (Build & Lint)
 
 on:
   push:
@@ -19,16 +17,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # Needs a specific step to install pnpm first
     - name: Install pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: 9 # Matches your engine requirement
+        version: 9
         
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         
-    - run: pnpm install
-    - run: pnpm run build
+    - name: Install Dependencies
+      run: pnpm install
+
+    - name: Type Check & Build (TSC)
+      run: pnpm run build
+
+    - name: Check Formatting (Prettier)
+      run: pnpm exec prettier --check .
+
+    - name: Run Linter (ESLint)
+      run: pnpm run lint
