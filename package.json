@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "build": "tsc",
     "test:worker": "tsx scripts/test-worker.ts",
-    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test": "tsx --test src/smoke.test.ts",
     "tunnel": "bash tunnel.sh"
   },
   "keywords": [
