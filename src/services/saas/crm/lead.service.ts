@@ -12,7 +12,7 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
 import { getDefaultPipeline, getDefaultStage } from "./pipeline.service.ts";
 
@@ -179,7 +179,7 @@ export const listLeads = async (
   const { Lead } = await getCrmModels(clientCode);
   const { page = 1, limit = 25, sortBy = "score", sortDir = "desc" } = options;
 
-  const query: FilterQuery<ILead> = { clientCode, isArchived: false };
+  const query: Record<string, any> = { clientCode, isArchived: false };
   if (filters.status) query.status = filters.status;
   if (filters.pipelineId)
     query.pipelineId = new mongoose.Types.ObjectId(filters.pipelineId);
