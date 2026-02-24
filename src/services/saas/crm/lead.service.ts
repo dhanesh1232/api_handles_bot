@@ -99,7 +99,7 @@ export const createLead = async (
     clientCode,
     firstName: input.firstName,
     lastName: input.lastName ?? "",
-    email: input.email ?? null,
+    email: input.email || undefined,
     phone: input.phone,
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
     stageId: new mongoose.Types.ObjectId(stageId),
@@ -108,7 +108,7 @@ export const createLead = async (
     currency: input.currency ?? "INR",
     dealTitle: input.dealTitle ?? "",
     source: input.source ?? "other",
-    assignedTo: input.assignedTo ?? null,
+    assignedTo: input.assignedTo || undefined,
     tags: input.tags ?? [],
     metadata: { refs: metadataRefs, extra: input.metadata?.extra ?? {} },
   });
