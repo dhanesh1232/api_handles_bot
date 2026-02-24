@@ -29,9 +29,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'pnpm' # Cache pnpm instead of npm
         
-    # Use pnpm equivalents
-    - run: pnpm install --frozen-lockfile
+    - run: pnpm install
     - run: pnpm run build --if-present
     - run: pnpm test
