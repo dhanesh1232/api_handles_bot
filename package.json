@@ -47,16 +47,16 @@
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "http": "^0.0.1-security",
-    "mongoose": "^8.18.2",
+    "mongoose": "^9.2.2",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
-    "openai": "^5.22.1",
+    "openai": "^6.25.0",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "uuid": "^11.1.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -67,10 +67,10 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.4",
     "@types/uuid": "^11.0.0",
-    "eslint": "^8.57.0",
+    "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "globals": "^16.5.0",
+    "globals": "^17.3.0",
     "nodemon": "^3.1.11",
     "prettier": "^3.7.4"
   }
