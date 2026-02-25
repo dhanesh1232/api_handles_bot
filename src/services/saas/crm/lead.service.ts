@@ -13,8 +13,24 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { getDefaultPipeline, getDefaultStage } from "./pipeline.service.ts";
+
+// Lazy import to avoid circular-dependency at module load time.
+// automation.service imports lead.service, so we import it dynamically only when needed.
+const fireAutomations = async (
+  clientCode: string,
+  ctx: Parameters<
+    (typeof import("./automation.service.ts"))["runAutomations"]
+  >[1],
+) => {
+  try {
+    const { runAutomations } = await import("./automation.service.ts");
+    await runAutomations(clientCode, ctx);
+  } catch {
+    // Automation failures must NEVER break the primary DB operation.
+  }
+};
 
 // ─── Population config ────────────────────────────────────────────────────────
 
@@ -122,7 +138,18 @@ export const createLead = async (
     performedBy: "system",
   });
 
-  return getLeadById(clientCode, lead._id.toString()) as Promise<ILead>;
+  const freshLead = (await getLeadById(
+    clientCode,
+    lead._id.toString(),
+  )) as ILead;
+
+  // Fire automation — non-blocking, never throws
+  void fireAutomations(clientCode, {
+    trigger: "lead_created",
+    lead: freshLead,
+  });
+
+  return freshLead;
 };
 
 // ─── 2. Get one lead by _id ───────────────────────────────────────────────────
@@ -397,6 +424,34 @@ export const moveLead = async (
     performedBy,
   });
 
+  // Fire stage automations — non-blocking, never throws
+  if (updated) {
+    void Promise.allSettled([
+      fireAutomations(clientCode, {
+        trigger: "stage_exit",
+        lead: updated as unknown as ILead,
+        stageId: previousStageId,
+      }),
+      fireAutomations(clientCode, {
+        trigger: "stage_enter",
+        lead: updated as unknown as ILead,
+        stageId: newStageId,
+      }),
+      stage.isWon
+        ? fireAutomations(clientCode, {
+            trigger: "deal_won",
+            lead: updated as unknown as ILead,
+          })
+        : Promise.resolve(),
+      stage.isLost
+        ? fireAutomations(clientCode, {
+            trigger: "deal_lost",
+            lead: updated as unknown as ILead,
+          })
+        : Promise.resolve(),
+    ]);
+  }
+
   return updated as ILead | null;
 };
 
@@ -445,12 +500,38 @@ export const updateTags = async (
   const update: mongoose.UpdateQuery<ILead> = {};
   if (add.length) update.$addToSet = { tags: { $each: add } };
   if (remove.length) update.$pull = { tags: { $in: remove } };
-  return Lead.findOneAndUpdate({ _id: leadId, clientCode }, update, {
-    new: true,
-  })
+  const result = (await Lead.findOneAndUpdate(
+    { _id: leadId, clientCode },
+    update,
+    {
+      new: true,
+    },
+  )
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
-    .lean({ virtuals: true }) as Promise<ILead | null>;
+    .lean({ virtuals: true })) as ILead | null;
+
+  // Fire tag automations — non-blocking, never throws
+  if (result) {
+    void Promise.allSettled([
+      ...add.map((tag) =>
+        fireAutomations(clientCode, {
+          trigger: "tag_added",
+          lead: result,
+          tagName: tag,
+        }),
+      ),
+      ...remove.map((tag) =>
+        fireAutomations(clientCode, {
+          trigger: "tag_removed",
+          lead: result,
+          tagName: tag,
+        }),
+      ),
+    ]);
+  }
+
+  return result;
 };
 
 // ─── 12. Recalculate score ────────────────────────────────────────────────────
@@ -506,6 +587,27 @@ export const recalculateScore = async (
       },
     },
   );
+
+  // Fire score automations — non-blocking, never throws
+  const finalScore = Math.min(100, total);
+  const freshLead = (await Lead.findOne({
+    _id: leadId,
+    clientCode,
+  }).lean()) as ILead | null;
+  if (freshLead) {
+    void Promise.allSettled([
+      fireAutomations(clientCode, {
+        trigger: "score_above",
+        lead: freshLead,
+        score: finalScore,
+      }),
+      fireAutomations(clientCode, {
+        trigger: "score_below",
+        lead: freshLead,
+        score: finalScore,
+      }),
+    ]);
+  }
 };
 
 // ─── 13. Archive (soft delete) ────────────────────────────────────────────────

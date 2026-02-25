@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsapp.service.ts";
 
 export interface SaasRequest extends Request {
   clientCode: string;

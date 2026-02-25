@@ -9,7 +9,7 @@ import { ClientSecrets } from "../../model/clients/secrets.ts";
 import {
   listObjectsFromR2,
   optimizeAndUploadMedia,
-} from "../../services/saas/mediaService.ts";
+} from "../../services/saas/media/media.service.ts";
 
 const upload = multer({
   storage: multer.memoryStorage(),

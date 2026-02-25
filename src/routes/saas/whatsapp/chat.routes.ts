@@ -9,11 +9,11 @@ import {
 import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { schemas } from "../../../model/saas/tenantSchemas.ts";
+import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type { IMessage } from "../../../model/saas/whatsapp/message.model.ts";
-import { optimizeAndUploadMedia } from "../../../services/saas/mediaService.ts";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
+import { optimizeAndUploadMedia } from "../../../services/saas/media/media.service.ts";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsapp.service.ts";
 
 const upload = multer({ storage: multer.memoryStorage() });
 

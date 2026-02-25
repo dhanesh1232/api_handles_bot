@@ -1,8 +1,8 @@
 import {
-  getTenantConnection,
-  getTenantModel,
+    getTenantConnection,
+    getTenantModel,
 } from "../../lib/connectionManager.ts";
-import { schemas } from "../../model/saas/tenantSchemas.ts";
+import { schemas } from "../../model/saas/tenant.schemas.ts";
 
 let globalIo: any = null;
 
@@ -29,7 +29,7 @@ export const executeWorkflow = async (data: any) => {
   } = data;
 
   const { createWhatsappService } =
-    await import("../../services/saas/whatsapp/whatsappService.ts");
+    await import("../../services/saas/whatsapp/whatsapp.service.ts");
   const whatsappService = createWhatsappService(globalIo);
 
   try {

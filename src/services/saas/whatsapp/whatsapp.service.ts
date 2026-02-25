@@ -9,7 +9,7 @@ import {
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { schemas } from "../../../model/saas/tenantSchemas.ts";
+import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type {
   IMessage,
@@ -152,7 +152,7 @@ export const createWhatsappService = (io: Server) => {
       });
 
       // 3. Optimize & Upload
-      const { optimizeAndUploadMedia } = await import("../mediaService.ts");
+      const { optimizeAndUploadMedia } = await import("../media/media.service.ts");
 
       const result = await optimizeAndUploadMedia(
         response.data,

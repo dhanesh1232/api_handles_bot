@@ -160,4 +160,162 @@ router.post(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * POST /api/crm/automations/events
+ *
+ * Universal event hook — the single endpoint any external client app calls
+ * to fire a named automation trigger.  A client never has to know which
+ * WhatsApp template, email, or stage move to run; the configured
+ * AutomationRules handle all of that.
+ *
+ * Authentication: standard x-client-code + x-api-key (validateClientKey
+ * is applied at the router mount point in server.ts).
+ *
+ * Body:
+ *   {
+ *     "trigger":            "appointment_confirmed",   // required — any trigger enum value
+ *     "phone":              "+919876543210",           // required — identifies the lead
+ *     "variables":          { "name": "Ravi" },        // optional — passed to action configs
+ *     "createLeadIfMissing": true,                    // optional — auto-create lead if new contact
+ *     "leadData": {                                   // optional — used only when creating a new lead
+ *       "firstName": "Ravi",
+ *       "source": "website"
+ *     }
+ *   }
+ *
+ * Example — Nirvisham fires after an appointment is confirmed:
+ *   POST /api/crm/automations/events
+ *   x-client-code: nirvisham
+ *   { "trigger": "appointment_confirmed", "phone": "+91...", "variables": { "name": "Ravi", "time": "3 PM" } }
+ *
+ * Example — an e-commerce app fires after a product purchase:
+ *   POST /api/crm/automations/events
+ *   x-client-code: store_client
+ *   { "trigger": "product_purchased", "phone": "+91...", "variables": { "product": "Plan A" }, "createLeadIfMissing": true }
+ */
+router.post("/events", async (req: Request, res: Response) => {
+  try {
+    const clientCode = req.clientCode!;
+    const {
+      trigger,
+      phone,
+      variables,
+      stageId,
+      tagName,
+      score,
+      createLeadIfMissing = false,
+      leadData,
+      delaySeconds = 0,
+    } = req.body as {
+      trigger: string;
+      phone: string;
+      variables?: Record<string, string>;
+      stageId?: string;
+      tagName?: string;
+      score?: number;
+      createLeadIfMissing?: boolean;
+      /** Fire this trigger N seconds in the future. Default: 0 (immediate). */
+      delaySeconds?: number;
+      leadData?: {
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        source?: string;
+      };
+    };
+
+    if (!trigger || !phone) {
+      res.status(400).json({
+        success: false,
+        message: "'trigger' and 'phone' are required",
+      });
+      return;
+    }
+
+    // Find the lead by phone
+    const { getLeadByPhone, createLead } =
+      await import("../../../services/saas/crm/lead.service.ts");
+    let lead = await getLeadByPhone(clientCode, phone);
+
+    // Optionally auto-create the lead if it doesn't exist
+    if (!lead) {
+      if (!createLeadIfMissing) {
+        res.status(404).json({
+          success: false,
+          message: `No lead found for phone ${phone}. Pass createLeadIfMissing: true to auto-create.`,
+        });
+        return;
+      }
+      lead = await createLead(clientCode, {
+        firstName: leadData?.firstName ?? phone,
+        lastName: leadData?.lastName,
+        email: leadData?.email,
+        phone,
+        source: (leadData?.source as any) ?? "other",
+      });
+    }
+
+    const leadId = (lead as any)._id?.toString();
+
+    // ── Delayed event: queue it, don't run now ──────────────────────────────
+    if (delaySeconds > 0) {
+      const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+      await crmQueue.add(
+        {
+          clientCode,
+          type: "crm.automation_event",
+          payload: { trigger, leadId, phone, variables, stageId, tagName, score },
+        },
+        { delayMs: delaySeconds * 1000 },
+      );
+      res.json({
+        success: true,
+        leadId,
+        scheduled: true,
+        scheduledIn: `${delaySeconds}s`,
+        message: `Trigger '${trigger}' scheduled in ${delaySeconds}s`,
+      });
+      return;
+    }
+
+    // ── Immediate event: fire runAutomations now ────────────────────────────
+    const { runAutomations } =
+      await import("../../../services/saas/crm/automation.service.ts");
+
+    let rulesTriggered = 0;
+    try {
+      const { getCrmModels } =
+        await import("../../../lib/tenant/get.crm.model.ts");
+      const { AutomationRule } = await getCrmModels(clientCode);
+      rulesTriggered = await AutomationRule.countDocuments({
+        clientCode,
+        trigger,
+        isActive: true,
+      });
+    } catch {
+      /* non-critical — continue */
+    }
+
+    await runAutomations(clientCode, {
+      trigger: trigger as IAutomationRule["trigger"],
+      lead: lead as ILead,
+      stageId,
+      tagName,
+      score,
+      variables,
+    });
+
+    res.json({
+      success: true,
+      leadId,
+      rulesTriggered,
+      message: `Trigger '${trigger}' fired — ${rulesTriggered} rule(s) matched`,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
+
 export default router;

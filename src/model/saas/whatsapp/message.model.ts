@@ -1,4 +1,4 @@
-import mongoose, { type Document, type Model } from "mongoose";
+import mongoose, { type Document } from "mongoose";
 
 export interface IMessageReaction {
   emoji: string;
@@ -127,7 +127,6 @@ export const MessageSchema = new mongoose.Schema<IMessage>(
 MessageSchema.index({ conversationId: 1, createdAt: -1 });
 MessageSchema.index({ whatsappMessageId: 1 });
 
-const Message: Model<IMessage> =
-  mongoose.models.Message || mongoose.model<IMessage>("Message", MessageSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default Message;
+export default MessageSchema;

@@ -6,7 +6,7 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { logActivity } from "./activity.service.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,6 +17,8 @@ export interface AutomationContext {
   stageId?: string;
   tagName?: string;
   score?: number;
+  /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
+  variables?: Record<string, string>;
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ const executeAction = async (
   switch (action.type) {
     case "send_whatsapp": {
       const { createWhatsappService } =
-        await import("../whatsapp/whatsappService.ts");
+        await import("../whatsapp/whatsapp.service.ts");
       const service = createWhatsappService(null as any);
       const cfg = action.config as {
         templateName: string;
@@ -119,7 +121,7 @@ const executeAction = async (
       break;
     }
     case "send_email": {
-      const { createEmailService } = await import("../mail/emailService.ts");
+      const { createEmailService } = await import("../mail/email.service.ts");
       const service = createEmailService();
       const cfg = action.config as { subject: string; htmlBody: string };
       await service.sendEmail(clientCode, {
@@ -193,7 +195,7 @@ const executeAction = async (
     }
     case "create_meeting": {
       const { createGoogleMeetService } =
-        await import("../googleMeetService.ts");
+        await import("../meet/google.meet.service.ts");
       const service = createGoogleMeetService();
       await service.createMeeting(clientCode, {
         summary: `Meeting with ${lead.firstName}`,
@@ -213,13 +215,22 @@ const enqueueDelayedAction = async (
   ruleId: string,
 ): Promise<void> => {
   const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+
+  // Merge phone into actionConfig so crmWorker can find/create a conversation
+  // for send_whatsapp delayed jobs without needing a separate lookup.
+  const actionConfig: Record<string, unknown> = {
+    ...(action.config as Record<string, unknown>),
+    phone: (action.config as any).phone ?? lead.phone,
+    email: (action.config as any).email ?? lead.email ?? "",
+  };
+
   await crmQueue.add(
     {
       clientCode,
       type: "crm.automation_action",
       payload: {
         actionType: action.type,
-        actionConfig: action.config,
+        actionConfig,
         leadId: lead._id.toString(),
         ruleId,
       },

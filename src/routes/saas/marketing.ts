@@ -4,9 +4,9 @@ import {
   validateClientKey,
   type AuthRequest,
 } from "../../middleware/saasAuth.ts";
-import { schemas } from "../../model/saas/tenantSchemas.ts";
-import { createGoogleMeetService } from "../../services/saas/googleMeetService.ts";
-import { createEmailService } from "../../services/saas/mail/emailService.ts";
+import { schemas } from "../../model/saas/tenant.schemas.ts";
+import { createEmailService } from "../../services/saas/mail/email.service.ts";
+import { createGoogleMeetService } from "../../services/saas/meet/google.meet.service.ts";
 
 const router = express.Router();
 const meetService = createGoogleMeetService();

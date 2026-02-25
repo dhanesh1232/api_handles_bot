@@ -1,5 +1,5 @@
 import { google, type Auth } from "googleapis";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
+import { ClientSecrets } from "../../../model/clients/secrets.ts";
 
 /**
  * Google Meet Integration Service

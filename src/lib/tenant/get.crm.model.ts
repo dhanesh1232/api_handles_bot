@@ -1,10 +1,10 @@
 /**
- * getCrmModels.ts
+ * @host get.crm.model.ts
  *
  * Returns all 6 CRM Mongoose models bound to the client's tenant DB connection.
  * Every CRM service function should call this helper at the top:
  *
- *   const { Lead, Pipeline, ... } = await getCrmModels(clientCode);
+ * const { Lead, Pipeline, ... } = await getCrmModels(clientCode);
  *
  * All subsequent reads/writes will go to that client's own MongoDB, not the
  * central services DB.

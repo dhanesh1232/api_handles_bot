@@ -1,4 +1,4 @@
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
   {
@@ -38,9 +38,7 @@ const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(
 pipelineSchema.index({ clientCode: 1, isActive: 1, order: 1 });
 pipelineSchema.index({ clientCode: 1, isDefault: 1 });
 
-const Pipeline: Model<IPipeline> =
-  mongoose.models.Pipeline ||
-  mongoose.model<IPipeline>("Pipeline", pipelineSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default Pipeline;
 export { pipelineSchema as PipelineSchema };
+export default pipelineSchema;

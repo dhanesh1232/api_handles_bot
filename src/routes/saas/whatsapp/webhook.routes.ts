@@ -2,7 +2,7 @@ import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsappService.ts";
+import { createWhatsappService } from "../../../services/saas/whatsapp/whatsapp.service.ts";
 
 export const createWebhookRouter = async (io: Server) => {
   await dbConnect("services");

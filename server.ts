@@ -2,25 +2,20 @@ import dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
 
 import cors from "cors";
-import express, {
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
-import { rateLimit } from "express-rate-limit";
+import type { NextFunction, Request, Response } from "express";
+import express from "express";
 import helmet from "helmet";
 import http from "http";
 import { Server, type Socket } from "socket.io";
 import { getDynamicOrigins } from "./src/model/cors-origins.ts";
 import googleAuthRouter from "./src/routes/auth/google.ts";
-import corsRouter from "./src/routes/saas/cors.ts";
+import corsRouter from "./src/routes/saas/cors/cors.routes.ts";
 import crmRouter from "./src/routes/saas/crm/crm.router.ts";
 import { createImagesRouter } from "./src/routes/saas/images.ts";
 import marketingRouter from "./src/routes/saas/marketing.ts";
-import { createChatRouter } from "./src/routes/saas/whatsapp/chat.ts";
-import { createWorkflowRouter } from "./src/routes/saas/whatsapp/communication-workflow.ts";
-import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.ts";
-import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.ts";
+import { createChatRouter } from "./src/routes/saas/whatsapp/chat.routes.ts";
+import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.routes.ts";
+import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.routes.ts";
 import blogsRouter from "./src/routes/services/blogs.ts";
 import clientsRouter from "./src/routes/services/clients.ts";
 import leadsRouter from "./src/routes/services/leads.ts";
@@ -38,6 +33,7 @@ import { cronJobs } from "./src/jobs/cron.ts";
 import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
 import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
 import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
+import { limiter } from "./src/middleware/rate-limit.ts";
 import { validateClientKey } from "./src/middleware/saasAuth.ts";
 
 const PORT = process.env.PORT || 4000;
@@ -94,15 +90,12 @@ const corsOptions: cors.CorsOptions = {
  */
 app.use(helmet());
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-  standardHeaders: "draft-7", // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-  message: { error: "Too many requests, please try again later." },
-});
-
-// Apply rate limiting to all /api routes
+/**
+ * @Start Rate Limiting
+ * @borrows Rate limiting for saas
+ *
+ * @param {limiter} - Rate limiting for saas
+ */
 app.use("/api", limiter);
 
 /**
@@ -269,7 +262,6 @@ const initializeRoutes = async () => {
   app.use("/api/saas/images", createImagesRouter(io));
   app.use("/api/saas/chat/templates", createTemplateRouter(io));
   app.use("/api/saas/marketing", marketingRouter);
-  app.use("/api/saas/workflows", createWorkflowRouter());
   app.use("/api/saas/cors", corsRouter);
   app.use("/api/auth/google", googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);

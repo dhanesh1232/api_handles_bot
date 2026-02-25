@@ -6,7 +6,7 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/getCrmModels.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 
 // ─── Helper: date range ───────────────────────────────────────────────────────
 

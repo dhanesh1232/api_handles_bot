@@ -13,7 +13,7 @@
  * - Every query must include clientCode for tenant isolation.
  */
 
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -190,8 +190,5 @@ leadSchema.set("toObject", { virtuals: true });
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
-const Lead: Model<ILead> =
-  mongoose.models.Lead || mongoose.model<ILead>("Lead", leadSchema);
-
-export default Lead;
 export { leadSchema as LeadSchema };
+export default leadSchema;

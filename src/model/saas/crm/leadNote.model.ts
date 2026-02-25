@@ -4,7 +4,7 @@
  * Place at: src/model/saas/crm/leadNote.model.ts
  */
 
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 const leadNoteSchema: Schema<ILeadNote> = new mongoose.Schema(
   {
@@ -24,9 +24,7 @@ const leadNoteSchema: Schema<ILeadNote> = new mongoose.Schema(
 
 leadNoteSchema.index({ clientCode: 1, leadId: 1, isPinned: -1, createdAt: -1 });
 
-const LeadNote: Model<ILeadNote> =
-  mongoose.models.LeadNote ||
-  mongoose.model<ILeadNote>("LeadNote", leadNoteSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default LeadNote;
 export { leadNoteSchema as LeadNoteSchema };
+export default leadNoteSchema;

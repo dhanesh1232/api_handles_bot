@@ -1,4 +1,4 @@
-import mongoose, { type Document, type Model } from "mongoose";
+import mongoose, { type Document } from "mongoose";
 
 export interface IConversation extends Document {
   leadId?: mongoose.Types.ObjectId;
@@ -88,8 +88,6 @@ export const ConversationSchema = new mongoose.Schema<IConversation>(
 ConversationSchema.index({ leadId: 1 });
 ConversationSchema.index({ phone: 1 });
 
-const Conversation: Model<IConversation> =
-  mongoose.models.Conversation ||
-  mongoose.model<IConversation>("Conversation", ConversationSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default Conversation;
+export default ConversationSchema;

@@ -27,42 +27,34 @@ The **API Bot** is the core backend engine for ECOD, responsible for handling re
 ## 📚 Documentation
 
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)**: Guidelines for code standards, branching, and pull requests.
-- **[.env.example](./.env.example)**: Reference for required environment variables.
 
 ---
 
-## 🏗 Key Components & Logic Flow
+## 🏗 Key Components & Architecture
 
-### 1. WebHook Handler (`src/routes/saas/whatsapp/webhook.ts`)
+For a deep dive into the technical design, see the **[Architecture Guide](./ARCHITECTURE.md)**.
 
-- **Verification**: Handles Meta's verification challenge using client-specific tokens.
-- **Ingestion**: Receives incoming JSON payloads from WhatsApp.
-- **Matching**: Decrypts stored `whatsappPhoneNumberId` to identify which client the message belongs to.
-- **Asynchronous Processing**: Responds with `200 OK` immediately and processes the message logic asynchronously to avoid blocking Meta's retries.
+### 1. Unified CRM Automation (`src/routes/saas/crm/automation.routes.ts`)
+- **Event-Driven**: Trigger workflows via `POST /api/crm/automations/events`.
+- **Intelligent Routing**: Rules stored in the tenant DB define how to react to appointment confirms, payments, or lead changes.
+- **Unified Jobs**: Actions (WhatsApp, Email, Meet) are enqueued into a central `services.jobs` collection for reliable background processing.
 
-### 2. WhatsApp Service (`src/services/saas/whatsapp/whatsappService.ts`)
+### 2. Multi-Tenant Communication Layer
+- **WhatsApp Webhooks**: Managed in `src/routes/saas/whatsapp/webhook.routes.ts`.
+- **Core Service**: `src/services/saas/whatsapp/whatsapp.service.ts` handles all outbound/inbound logic.
+- **Identity Matching**: Decrypts client tokens to route payloads to the correct tenant database.
 
-- **Message Parsing**: Handles Text, Images, Video, Documents, and Interactive Button Replies.
-- **Reactions**: Managed via a priority-based status system to avoid out-of-order updates.
-- **Outbound Engine**: Supports sending templates, media, and free-form text.
-
-### 3. Connection Manager (`src/lib/connectionManager.ts` & `tenantDb.ts`)
-
-- Ensures that client data is strictly isolated.
-- Connections are cached to optimize performance while maintaining the ability to route requests across hundreds of different database URIs.
-
-### 4. Automated Jobs (`src/jobs/`)
-
-- `firstContactJob`: Flags leads that haven't been contacted within the required timeframe.
-- `tenantRemindersJob`: Polls tenant databases for upcoming appointments and sends automated WhatsApp reminders using templates.
+### 3. Connection Manager (`src/lib/connectionManager.ts`)
+- Dynamically creates and caches tenant-specific MongoDB connections.
+- **Data Isolation**: All CRM operations must use `get.crm.model.ts` to ensure data never leaks into the central DB.
 
 ---
 
 ## 🔒 Security & Auth
 
-- **Encrypted Secrets**: Sensitive keys (WhatsApp tokens, R2 credentials) are stored as encrypted strings using AES-256.
-- **Middleware**: `validateClientKey` ensures only requests with a valid `x-api-key` and matching `x-client-code` can access tenant data.
-- **JSON Guard**: `server.js` contains a custom parser to catch malformed JSON/Multipart requests gracefully.
+- **Encrypted Secrets**: Sensitive keys are AES-256 encrypted in the `services` database.
+- **Middleware**: `verifyCoreToken` ensures requests provide a valid `x-api-key` and `x-client-code`.
+- **JSON Guard**: Built-in protection against malformed or oversized payloads.
 
 ---
 
@@ -70,14 +62,14 @@ The **API Bot** is the core backend engine for ECOD, responsible for handling re
 
 ```text
 ├── src/
-│   ├── jobs/           # Scheduled background tasks
-│   ├── lib/            # Shared utilities (DB, WhatsApp, Encryption)
-│   ├── middleware/     # Auth and validation logic
-│   ├── model/          # Mongoose schemas (Services vs. Tenant)
-│   ├── routes/         # API Endpoints (SaaS, Chat, Webhooks)
-│   └── services/       # Business logic (WhatsApp, Media, Leads)
-├── server.js           # Entry point (Express + Socket.io + Cron)
-└── .env                # Core environment configurations
+│   ├── jobs/           # Unified background workers (crmWorker.ts)
+│   ├── lib/            # Auth, Connection Manager, Encryption
+│   ├── model/          # Schemas (Tenant-isolated CRM vs. Central Services)
+│   ├── routes/         # API Endpoints (CRM, WhatsApp, Clients)
+│   └── services/       # Core Logic (CRM, WhatsApp, Meet, Mail)
+├── server.ts           # Entry point (Express + Socket.io + Cron + Workers)
+├── ARCHITECTURE.md     # Technical Deep Dive
+└── README.md           # This file
 ```
 
 ---
@@ -132,193 +124,60 @@ This project uses **ESLint** (Flat Config) and **Prettier** to maintain code qua
 
 ---
 
-## 🔁 Workflow Trigger System
+## 🔁 Unified CRM Automation System
 
-The backend includes a **MongoDB-backed job queue** (no Redis required) that handles delayed WhatsApp automations across all tenants.
+The backend includes a **Centralized Job Queue** (MongoQueue) that handles multi-tenant automations.
 
 ### How it works
 
-1. **Client project** fires a `POST /api/saas/workflows/trigger` request when an event occurs (payment success, booking, enrollment, etc.)
-2. **Backend** looks up the active `CommunicationWorkflow` rules for that trigger in the client's tenant DB
-3. **Instant workflows** (`delayMinutes: 0`) → executed immediately
-4. **Delayed workflows** → job stored in the central `services` DB, worker picks it up at the right time
-5. After execution, the backend optionally calls back the client's `callbackUrl` to update state
-
-### Client Setup (per project)
-
-Add these to the client Next.js project `.env`:
-
-```env
-ERIX_SOCKET_URL=https://your-ecod-backend.com
-ERIX_CLIENT_CODE=CLIENTNAME          # unique code per client (uppercase)
-ERIX_CLIENT_API_KEY=their-api-key    # stored in ECOD ClientSecrets collection
-```
-
-In ECOD backend (one-time per client):
-
-1. Create `ClientDataSource` pointing to their MongoDB URI
-2. Create `ClientSecrets` with their `whatsappToken` + `whatsappPhoneNumberId`
-3. Create `CommunicationWorkflow` rules in their tenant DB (via the workflow API or directly)
+1. **Client project** fires a `POST /api/crm/automations/events` request.
+2. **Backend** looks up active `AutomationRule` documents in the specific tenant's database.
+3. **Execution**:
+   - **Internal Updates** (Stage changes, tags): Handled instantly.
+   - **External Actions** (WhatsApp, Meetings, Emails): Enqueued into the `services` DB as jobs.
+4. **CRM Worker**: The `crmWorker.ts` polls the central queue and executes actions while switching DB context per-job.
 
 ### Trigger API
 
 ```
-POST /api/saas/workflows/trigger
+POST /api/crm/automations/events
 Headers:
   x-api-key: <ERIX_CLIENT_API_KEY>
   x-client-code: <ERIX_CLIENT_CODE>
   Content-Type: application/json
 ```
 
-#### Payload
+#### Payload Example
 
-```jsonc
+```json
 {
-  "trigger": "appointment_confirmed", // see Trigger Events below
-  "phone": "918143963821", // E.164 format, digits only
-  "variables": ["Dhanesh", "Dr. Arjun", "Monday 10AM", "abc-xyz"], // WhatsApp template vars
-  "conversationId": "optional-id", // skip to auto-create conversation
-
-  // For delayed/scheduled workflows (optional)
-  "baseTime": "2026-02-23T10:00:00Z", // reference timestamp
-  "delayMinutes": -60, // relative to baseTime (-60 = 1h before)
-
-  // Callback — backend will PUT this URL after execution (optional)
-  "callbackUrl": "https://yoursite.com/api/workflows/callback",
-  "callbackMetadata": {
-    "moduleId": "appt_id_here",
-    "moduleType": "Appointment",
-    "reminderKey": "1h",
-  },
-}
-```
-
-#### Trigger Events
-
-| Event                     | When to fire                                        |
-| ------------------------- | --------------------------------------------------- |
-| `appointment_confirmed`   | After appointment is booked and paid                |
-| `appointment_reminder`    | Use with `delayMinutes: -60` or `-15` for reminders |
-| `appointment_cancelled`   | When appointment is cancelled                       |
-| `appointment_rescheduled` | When appointment time changes                       |
-| `product_purchased`       | After order payment is confirmed                    |
-| `service_enrolled`        | After service enrollment payment is confirmed       |
-| `lead_captured`           | When a new lead fills a form                        |
-
-#### Example — appointment confirmation + reminder chain
-
-```ts
-const headers = {
-  "Content-Type": "application/json",
-  "x-api-key": process.env.ERIX_CLIENT_API_KEY,
-  "x-client-code": process.env.ERIX_CLIENT_CODE,
-};
-
-const callbackUrl = `${process.env.NEXT_PUBLIC_WEBSITE_URL}/api/workflows/callback`;
-const variables = [patientName, doctorName, `${date} at ${timeSlot}`, meetCode];
-
-// 1. Instant confirmation
-await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
-  method: "POST",
-  headers,
-  body: JSON.stringify({
-    trigger: "appointment_confirmed",
-    phone: patientPhone,
-    variables,
-    callbackUrl,
-    callbackMetadata: {
-      moduleId,
-      moduleType: "Appointment",
-      reminderKey: "confirmed",
-    },
-  }),
-});
-
-// 2. 1-hour reminder (fires automatically 1h before appointment)
-await fetch(`${process.env.ERIX_SOCKET_URL}/api/saas/workflows/trigger`, {
-  method: "POST",
-  headers,
-  body: JSON.stringify({
-    trigger: "appointment_reminder",
-    phone: patientPhone,
-    baseTime: appointmentDate, // ISO date string
-    delayMinutes: -60,
-    variables,
-    callbackUrl,
-    callbackMetadata: {
-      moduleId,
-      moduleType: "Appointment",
-      reminderKey: "1h",
-    },
-  }),
-});
-```
-
-#### Callback endpoint (client side)
-
-The backend will make a `PUT` request to your `callbackUrl` after execution:
-
-```ts
-// app/api/workflows/callback/route.ts
-export async function PUT(req: Request) {
-  const { status, metadata } = await req.json();
-  const { moduleId, moduleType, reminderKey } = metadata;
-
-  if (moduleType === "Appointment") {
-    await Appointment.findByIdAndUpdate(moduleId, {
-      $set: { [`remindersSent.${reminderKey}`]: true },
-    });
-  }
-  return Response.json({ success: true });
-}
-```
-
-### CommunicationWorkflow Rules
-
-Workflows must be configured per client in their tenant DB. Example document:
-
-```jsonc
-{
-  "name": "Appointment Confirmation",
   "trigger": "appointment_confirmed",
-  "channel": "whatsapp",
-  "templateName": "appointment_confirmed_v2", // must exist in Meta template library
-  "delayMinutes": 0, // 0 = instant
-  "isActive": true,
+  "phone": "918143963821",
+  "variables": {
+    "patientName": "Dhanesh",
+    "doctorName": "Dr. Arjun",
+    "time": "Monday 10AM"
+  },
+  "createLeadIfMissing": true,
+  "leadData": { "source": "website" }
 }
 ```
 
-### Test via CLI
+#### Supported Trigger Events
 
-```bash
-# Instant send
-pnpm test:worker \
-  --clientCode ERIX_CLNT1 \
-  --phone 918143963821 \
-  --template appointment_confirmed \
-  --watch
+| Event | Description |
+| :--- | :--- |
+| `appointment_confirmed` | Fires after a billing/booking success. |
+| `product_purchased` | Fires when an e-commerce order is paid. |
+| `service_enrolled` | Fires on successful enrollment. |
+| `form_submitted` | Fires when a public landing page form is filled. |
+| `appointment_reminder` | Used for scheduled follow-ups. |
+| `deal_won` / `deal_lost` | Triggered when a lead is moved to a win/loss stage. |
+| `tag_added` / `tag_removed` | Triggered during lead segmentation. |
 
-# Delayed (5 minutes)
-pnpm test:worker \
-  --clientCode ERIX_CLNT1 \
-  --phone 918143963821 \
-  --template appointment_confirmed \
-  --delay 300 \
-  --watch
-```
+### Background Worker Configuration
 
-`--watch` polls the job status every 3s until `completed` or `failed`.
-
-### Worker Configuration
-
-The worker runs automatically when the server starts (`server.js` → `startWorkflowProcessor()`).
-
-| Setting          | Default  | Description                            |
-| ---------------- | -------- | -------------------------------------- |
-| `concurrency`    | 3        | Max parallel jobs                      |
-| `pollIntervalMs` | 10,000ms | How often DB is polled                 |
-| `baseBackoffMs`  | 5,000ms  | Base for exponential retry (5s × 2ⁿ)   |
-| `maxAttempts`    | 3        | Attempts before job is marked `failed` |
+The worker runs automatically on server start (`crmWorker.ts`). It polls the `services.jobs` collection every 5 seconds (default) and processes jobs with a concurrency of 3.
 
 Jobs are stored in the `services` DB → `jobs` collection and visible for debugging.
 

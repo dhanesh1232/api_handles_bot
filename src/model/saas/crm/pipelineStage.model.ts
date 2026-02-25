@@ -1,4 +1,4 @@
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 const autoActionSchema = new mongoose.Schema<IAutoAction>(
   {
@@ -81,9 +81,7 @@ const pipelineStageSchema: Schema<IPipelineStage> = new mongoose.Schema(
 // Fast board load: all stages for a pipeline in order
 pipelineStageSchema.index({ clientCode: 1, pipelineId: 1, order: 1 });
 
-const PipelineStage: Model<IPipelineStage> =
-  mongoose.models.PipelineStage ||
-  mongoose.model<IPipelineStage>("PipelineStage", pipelineStageSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default PipelineStage;
 export { pipelineStageSchema as PipelineStageSchema };
+export default pipelineStageSchema;

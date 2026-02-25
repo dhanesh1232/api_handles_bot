@@ -4,7 +4,7 @@
  * Place at: src/model/saas/crm/automationRule.model.ts
  */
 
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 const conditionSchema = new mongoose.Schema<IAutomationCondition>(
   {
@@ -41,13 +41,14 @@ const actionSchema = new mongoose.Schema<IAutomationAction>(
   { _id: false },
 );
 
-const automationRuleSchema: Schema<IAutomationRule> = new mongoose.Schema(
+export const AutomationRuleSchema: Schema<IAutomationRule> = new mongoose.Schema(
   {
     clientCode: { type: String, required: true, index: true },
     name: { type: String, required: true },
     trigger: {
       type: String,
       enum: [
+        // ── Internal CRM lifecycle (fired automatically by lead.service.ts) ──
         "stage_enter",
         "stage_exit",
         "lead_created",
@@ -58,6 +59,14 @@ const automationRuleSchema: Schema<IAutomationRule> = new mongoose.Schema(
         "no_contact",
         "tag_added",
         "tag_removed",
+        // ── External business events (fired by client apps via POST /api/crm/automations/events) ──
+        "appointment_confirmed",
+        "appointment_cancelled",
+        "appointment_reminder",
+        "product_purchased",
+        "service_enrolled",
+        "payment_captured",
+        "form_submitted",
       ],
       required: true,
     },
@@ -77,12 +86,7 @@ const automationRuleSchema: Schema<IAutomationRule> = new mongoose.Schema(
   { timestamps: true },
 );
 
-automationRuleSchema.index({ clientCode: 1, trigger: 1, isActive: 1 });
-automationRuleSchema.index({ clientCode: 1, "triggerConfig.stageId": 1 });
+AutomationRuleSchema.index({ clientCode: 1, trigger: 1, isActive: 1 });
+AutomationRuleSchema.index({ clientCode: 1, "triggerConfig.stageId": 1 });
 
-const AutomationRule: Model<IAutomationRule> =
-  mongoose.models.AutomationRule ||
-  mongoose.model<IAutomationRule>("AutomationRule", automationRuleSchema);
-
-export default AutomationRule;
-export { automationRuleSchema as AutomationRuleSchema };
+export default AutomationRuleSchema;

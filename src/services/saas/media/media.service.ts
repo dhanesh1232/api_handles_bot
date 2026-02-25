@@ -9,7 +9,7 @@ import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import type { IClientSecrets } from "../../model/clients/secrets.ts";
+import type { IClientSecrets } from "../../../model/clients/secrets.ts";
 
 // Set FFmpeg path
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath as unknown as string);

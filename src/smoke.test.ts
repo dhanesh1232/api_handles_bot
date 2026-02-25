@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { after, describe, test } from "node:test";
 import { dbConnect } from "./lib/config.ts";
 import { ClientDataSource } from "./model/clients/dataSource.ts";
-import { schemas } from "./model/saas/tenantSchemas.ts"; // Note: .js for node execution
+import { schemas } from "./model/saas/tenant.schemas.ts"; // Note: .js for node execution
 
 describe("Backend System Validation (Smoke Tests)", () => {
   after(async () => {

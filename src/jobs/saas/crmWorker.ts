@@ -7,6 +7,7 @@
  *
  * Job types handled:
  *   crm.automation_action  — delayed automation step (send_whatsapp, send_email, move_stage, assign_to, add_tag, webhook_notify)
+ *   crm.automation_event   — delayed external trigger (fires runAutomations after a delay)
  *   crm.email              — transactional or bulk email send
  *   crm.meeting            — async Google Meet creation → fires onMeetingCreated hook
  *   crm.reminder           — appointment/follow-up WhatsApp reminder
@@ -36,6 +37,7 @@ export const registerCrmIo = (io: any): void => {
 
 type CrmJobType =
   | "crm.automation_action"
+  | "crm.automation_event"
   | "crm.email"
   | "crm.meeting"
   | "crm.reminder"
@@ -65,12 +67,12 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       switch (actionType) {
         case "send_whatsapp": {
           const { createWhatsappService } =
-            await import("../../services/saas/whatsapp/whatsappService.ts");
+            await import("../../services/saas/whatsapp/whatsapp.service.ts");
           const svc = createWhatsappService(globalIo);
           // Find or create a conversation for this phone, then send
           const { getTenantConnection, getTenantModel } =
             await import("../../lib/connectionManager.ts");
-          const { schemas } = await import("../../model/saas/tenantSchemas.ts");
+          const { schemas } = await import("../../model/saas/tenant.schemas.ts");
           const tenantConn = await getTenantConnection(clientCode);
           const Conversation = getTenantModel(
             tenantConn,
@@ -106,7 +108,7 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
         case "send_email": {
           const { createEmailService } =
-            await import("../../services/saas/mail/emailService.ts");
+            await import("../../services/saas/mail/email.service.ts");
           const svc = createEmailService();
           await svc.sendEmail(clientCode, {
             to: actionConfig.email,
@@ -130,10 +132,13 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         }
 
         case "assign_to": {
-          const Lead = (await import("../../model/saas/crm/lead.model.ts"))
-            .default;
-          const { logActivity } =
-            await import("../../services/saas/crm/activity.service.ts");
+          const { getCrmModels } = await import(
+            "../../lib/tenant/get.crm.model.ts"
+          );
+          const { Lead } = await getCrmModels(clientCode);
+          const { logActivity } = await import(
+            "../../services/saas/crm/activity.service.ts"
+          );
           await Lead.updateOne(
             { _id: leadId, clientCode },
             { $set: { assignedTo: actionConfig.assignTo } },
@@ -179,10 +184,35 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       break;
     }
 
-    // ── 2. Email — transactional or bulk ─────────────────────────────────────
+    // ── 2. Delayed external event (from POST /api/crm/automations/events with delaySeconds > 0) ──
+    case "crm.automation_event": {
+      const { trigger, leadId, variables, stageId, tagName, score } = payload;
+      const { getCrmModels } =
+        await import("../../lib/tenant/get.crm.model.ts");
+      const { Lead } = await getCrmModels(clientCode);
+      const lead = await Lead.findById(leadId).lean();
+      if (!lead) {
+        throw new Error(
+          `[crmWorker] crm.automation_event: lead ${leadId} not found for client ${clientCode}`,
+        );
+      }
+      const { runAutomations } =
+        await import("../../services/saas/crm/automation.service.ts");
+      await runAutomations(clientCode, {
+        trigger,
+        lead: lead as any,
+        stageId,
+        tagName,
+        score,
+        variables,
+      });
+      break;
+    }
+
+    // ── 3. Email — transactional or bulk ─────────────────────────────────────
     case "crm.email": {
       const { createEmailService } =
-        await import("../../services/saas/mail/emailService.ts");
+        await import("../../services/saas/mail/email.service.ts");
       const svc = createEmailService();
 
       if (payload.bulk === true && Array.isArray(payload.recipients)) {
@@ -218,7 +248,7 @@ const processCrmJob = async (job: IJob): Promise<void> => {
     // ── 3. Google Meet creation ───────────────────────────────────────────────
     case "crm.meeting": {
       const { createGoogleMeetService } =
-        await import("../../services/saas/googleMeetService.ts");
+        await import("../../services/saas/meet/google.meet.service.ts");
       const { onMeetingCreated } =
         await import("../../services/saas/crm/crmHooks.ts");
 
@@ -267,10 +297,10 @@ const processCrmJob = async (job: IJob): Promise<void> => {
     // ── 4. Reminder — WhatsApp reminder before appointment ───────────────────
     case "crm.reminder": {
       const { createWhatsappService } =
-        await import("../../services/saas/whatsapp/whatsappService.ts");
+        await import("../../services/saas/whatsapp/whatsapp.service.ts");
       const { getTenantConnection, getTenantModel } =
         await import("../../lib/connectionManager.ts");
-      const { schemas } = await import("../../model/saas/tenantSchemas.ts");
+      const { schemas } = await import("../../model/saas/tenant.schemas.ts");
 
       const svc = createWhatsappService(globalIo);
       const tenantConn = await getTenantConnection(clientCode);

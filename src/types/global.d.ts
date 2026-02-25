@@ -183,25 +183,32 @@ declare global {
   }
 
   type AutomationTrigger =
-    | "stage_enter" // lead moved into a specific stage
-    | "stage_exit" // lead moved out of a specific stage
-    | "lead_created" // new lead added
+    | "stage_enter"
+    | "stage_exit"
+    | "lead_created"
     | "deal_won"
     | "deal_lost"
-    | "score_above" // score crosses a threshold
+    | "score_above"
     | "score_below"
-    | "no_contact" // no activity in N days
+    | "no_contact"
     | "tag_added"
-    | "tag_removed";
+    | "tag_removed"
+    | "appointment_confirmed"
+    | "appointment_cancelled"
+    | "appointment_reminder"
+    | "product_purchased"
+    | "service_enrolled"
+    | "payment_captured"
+    | "form_submitted";
 
   type AutomationActionType =
-    | "send_whatsapp" // send a WA template
-    | "send_email" // send an email
-    | "move_stage" // move lead to another stage
-    | "assign_to" // assign to a team member
+    | "send_whatsapp"
+    | "send_email"
+    | "move_stage"
+    | "assign_to"
     | "add_tag"
     | "remove_tag"
-    | "webhook_notify" // POST to client's callbackUrl
+    | "webhook_notify"
     | "create_meeting";
 
   interface IAutomationAction {

@@ -91,8 +91,6 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
 // Unique index on name + language + channel
 TemplateSchema.index({ name: 1, language: 1, channel: 1 }, { unique: true });
 
-const Template: Model<ITemplate> =
-  mongoose.models.Template ||
-  mongoose.model<ITemplate>("Template", TemplateSchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default Template;
+export default TemplateSchema;

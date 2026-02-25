@@ -4,7 +4,7 @@
  * Place at: src/model/saas/crm/leadActivity.model.ts
  */
 
-import mongoose, { type Model, type Schema } from "mongoose";
+import mongoose, { type Schema } from "mongoose";
 
 const leadActivitySchema: Schema<ILeadActivity> = new mongoose.Schema(
   {
@@ -57,9 +57,7 @@ const leadActivitySchema: Schema<ILeadActivity> = new mongoose.Schema(
 leadActivitySchema.index({ clientCode: 1, leadId: 1, createdAt: -1 });
 leadActivitySchema.index({ clientCode: 1, type: 1, createdAt: -1 });
 
-const LeadActivity: Model<ILeadActivity> =
-  mongoose.models.LeadActivity ||
-  mongoose.model<ILeadActivity>("LeadActivity", leadActivitySchema);
+// ─── Model ────────────────────────────────────────────────────────────────────
 
-export default LeadActivity;
 export { leadActivitySchema as LeadActivitySchema };
+export default leadActivitySchema;
