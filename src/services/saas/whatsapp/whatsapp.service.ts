@@ -152,7 +152,8 @@ export const createWhatsappService = (io: Server) => {
       });
 
       // 3. Optimize & Upload
-      const { optimizeAndUploadMedia } = await import("../media/media.service.ts");
+      const { optimizeAndUploadMedia } =
+        await import("../media/media.service.ts");
 
       const result = await optimizeAndUploadMedia(
         response.data,

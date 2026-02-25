@@ -72,7 +72,8 @@ const processCrmJob = async (job: IJob): Promise<void> => {
           // Find or create a conversation for this phone, then send
           const { getTenantConnection, getTenantModel } =
             await import("../../lib/connectionManager.ts");
-          const { schemas } = await import("../../model/saas/tenant.schemas.ts");
+          const { schemas } =
+            await import("../../model/saas/tenant.schemas.ts");
           const tenantConn = await getTenantConnection(clientCode);
           const Conversation = getTenantModel(
             tenantConn,
@@ -132,13 +133,11 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         }
 
         case "assign_to": {
-          const { getCrmModels } = await import(
-            "../../lib/tenant/get.crm.model.ts"
-          );
+          const { getCrmModels } =
+            await import("../../lib/tenant/get.crm.model.ts");
           const { Lead } = await getCrmModels(clientCode);
-          const { logActivity } = await import(
-            "../../services/saas/crm/activity.service.ts"
-          );
+          const { logActivity } =
+            await import("../../services/saas/crm/activity.service.ts");
           await Lead.updateOne(
             { _id: leadId, clientCode },
             { $set: { assignedTo: actionConfig.assignTo } },

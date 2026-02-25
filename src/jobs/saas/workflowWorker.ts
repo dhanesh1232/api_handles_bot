@@ -1,6 +1,6 @@
 import {
-    getTenantConnection,
-    getTenantModel,
+  getTenantConnection,
+  getTenantModel,
 } from "../../lib/connectionManager.ts";
 import { schemas } from "../../model/saas/tenant.schemas.ts";
 

@@ -35,16 +35,19 @@ The **API Bot** is the core backend engine for ECOD, responsible for handling re
 For a deep dive into the technical design, see the **[Architecture Guide](./ARCHITECTURE.md)**.
 
 ### 1. Unified CRM Automation (`src/routes/saas/crm/automation.routes.ts`)
+
 - **Event-Driven**: Trigger workflows via `POST /api/crm/automations/events`.
 - **Intelligent Routing**: Rules stored in the tenant DB define how to react to appointment confirms, payments, or lead changes.
 - **Unified Jobs**: Actions (WhatsApp, Email, Meet) are enqueued into a central `services.jobs` collection for reliable background processing.
 
 ### 2. Multi-Tenant Communication Layer
+
 - **WhatsApp Webhooks**: Managed in `src/routes/saas/whatsapp/webhook.routes.ts`.
 - **Core Service**: `src/services/saas/whatsapp/whatsapp.service.ts` handles all outbound/inbound logic.
 - **Identity Matching**: Decrypts client tokens to route payloads to the correct tenant database.
 
 ### 3. Connection Manager (`src/lib/connectionManager.ts`)
+
 - Dynamically creates and caches tenant-specific MongoDB connections.
 - **Data Isolation**: All CRM operations must use `get.crm.model.ts` to ensure data never leaks into the central DB.
 
@@ -165,15 +168,15 @@ Headers:
 
 #### Supported Trigger Events
 
-| Event | Description |
-| :--- | :--- |
-| `appointment_confirmed` | Fires after a billing/booking success. |
-| `product_purchased` | Fires when an e-commerce order is paid. |
-| `service_enrolled` | Fires on successful enrollment. |
-| `form_submitted` | Fires when a public landing page form is filled. |
-| `appointment_reminder` | Used for scheduled follow-ups. |
-| `deal_won` / `deal_lost` | Triggered when a lead is moved to a win/loss stage. |
-| `tag_added` / `tag_removed` | Triggered during lead segmentation. |
+| Event                       | Description                                         |
+| :-------------------------- | :-------------------------------------------------- |
+| `appointment_confirmed`     | Fires after a billing/booking success.              |
+| `product_purchased`         | Fires when an e-commerce order is paid.             |
+| `service_enrolled`          | Fires on successful enrollment.                     |
+| `form_submitted`            | Fires when a public landing page form is filled.    |
+| `appointment_reminder`      | Used for scheduled follow-ups.                      |
+| `deal_won` / `deal_lost`    | Triggered when a lead is moved to a win/loss stage. |
+| `tag_added` / `tag_removed` | Triggered during lead segmentation.                 |
 
 ### Background Worker Configuration
 

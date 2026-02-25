@@ -265,7 +265,15 @@ router.post("/events", async (req: Request, res: Response) => {
         {
           clientCode,
           type: "crm.automation_event",
-          payload: { trigger, leadId, phone, variables, stageId, tagName, score },
+          payload: {
+            trigger,
+            leadId,
+            phone,
+            variables,
+            stageId,
+            tagName,
+            score,
+          },
         },
         { delayMs: delaySeconds * 1000 },
       );
@@ -316,6 +324,5 @@ router.post("/events", async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
-
 
 export default router;

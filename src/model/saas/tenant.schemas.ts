@@ -10,9 +10,15 @@ import MessageSchema from "./whatsapp/message.model.ts";
 import TemplateSchema from "./whatsapp/template.model.ts";
 
 export {
-  AutomationRuleSchema, ConversationSchema, LeadActivitySchema,
-  LeadNoteSchema, LeadSchema, MessageSchema, PipelineSchema,
-  PipelineStageSchema, TemplateSchema
+  AutomationRuleSchema,
+  ConversationSchema,
+  LeadActivitySchema,
+  LeadNoteSchema,
+  LeadSchema,
+  MessageSchema,
+  PipelineSchema,
+  PipelineStageSchema,
+  TemplateSchema,
 };
 
 export const schemas: Record<string, Schema<any>> = {
