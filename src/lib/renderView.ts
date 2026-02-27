@@ -6,14 +6,11 @@
  * • Safe for production: no eval, no loops on the FS per request.
  */
 import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// src/lib/ → src/views/
-const VIEWS_DIR = join(__dirname, "../views");
+// Always locate views relative to the project root (where server.ts/package.json live)
+// This works in both dev (tsx) and prod (node dist/server.js)
+const VIEWS_DIR = join(process.cwd(), "src", "views");
 
 // In-memory template cache (populated at first render, not at import time)
 const cache = new Map<string, string>();
