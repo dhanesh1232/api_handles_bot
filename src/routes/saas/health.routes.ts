@@ -26,58 +26,63 @@ router.get("/health", (req: Request, res: Response) => {
  * GET /api/saas/health/client
  * Client-specific health — requires validateClientKey
  */
-router.get("/health/client", validateClientKey, async (req: Request, res: Response) => {
-  try {
-    const clientCode = (req as any).clientCode as string;
-    await dbConnect("services");
-
-    const { ClientSecrets } = await import("../../model/clients/secrets.ts");
-    const { default: Job } = await import("../../model/queue/job.model.ts");
-    const { getCrmModels } = await import("../../lib/tenant/get.crm.model.ts");
-
-    const [secrets, queueDepth] = await Promise.all([
-      ClientSecrets.findOne({ clientCode }),
-      Job.countDocuments({
-        "data.clientCode": clientCode,
-        status: "waiting",
-      }),
-    ]);
-
-    // Check which services are configured
-    const whatsappToken = secrets?.getDecrypted("whatsappToken");
-    const smtpHost = secrets?.getDecrypted("smtpHost");
-    const emailApiKey = secrets?.getDecrypted("emailApiKey");
-    const googleRefreshToken = secrets?.getDecrypted("googleRefreshToken");
-
-    let activeAutomations = 0;
+router.get(
+  "/health/client",
+  validateClientKey,
+  async (req: Request, res: Response) => {
     try {
-      const { AutomationRule } = await getCrmModels(clientCode);
-      activeAutomations = await AutomationRule.countDocuments({
-        clientCode,
-        isActive: true,
-      });
-    } catch {
-      // tenant DB might not be reachable — non-fatal
-    }
+      const clientCode = (req as any).clientCode as string;
+      await dbConnect("services");
 
-    res.json({
-      success: true,
-      data: {
-        clientCode,
-        services: {
-          whatsapp: whatsappToken ? "connected" : "not_configured",
-          email: smtpHost || emailApiKey ? "configured" : "not_configured",
-          googleMeet: googleRefreshToken ? "configured" : "not_configured",
+      const { ClientSecrets } = await import("../../model/clients/secrets.ts");
+      const { default: Job } = await import("../../model/queue/job.model.ts");
+      const { getCrmModels } =
+        await import("../../lib/tenant/get.crm.model.ts");
+
+      const [secrets, queueDepth] = await Promise.all([
+        ClientSecrets.findOne({ clientCode }),
+        Job.countDocuments({
+          "data.clientCode": clientCode,
+          status: "waiting",
+        }),
+      ]);
+
+      // Check which services are configured
+      const whatsappToken = secrets?.getDecrypted("whatsappToken");
+      const smtpHost = secrets?.getDecrypted("smtpHost");
+      const emailApiKey = secrets?.getDecrypted("emailApiKey");
+      const googleRefreshToken = secrets?.getDecrypted("googleRefreshToken");
+
+      let activeAutomations = 0;
+      try {
+        const { AutomationRule } = await getCrmModels(clientCode);
+        activeAutomations = await AutomationRule.countDocuments({
+          clientCode,
+          isActive: true,
+        });
+      } catch {
+        // tenant DB might not be reachable — non-fatal
+      }
+
+      res.json({
+        success: true,
+        data: {
+          clientCode,
+          services: {
+            whatsapp: whatsappToken ? "connected" : "not_configured",
+            email: smtpHost || emailApiKey ? "configured" : "not_configured",
+            googleMeet: googleRefreshToken ? "configured" : "not_configured",
+          },
+          activeAutomations,
+          queueDepth,
+          timestamp: new Date().toISOString(),
         },
-        activeAutomations,
-        queueDepth,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+      });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
 
 /**
  * GET /api/saas/jobs/status/:jobId

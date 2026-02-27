@@ -75,6 +75,7 @@ export async function executeStep(
   clientCode: string,
   enrollmentId: string,
   stepNumber: number,
+  io?: any,
 ): Promise<void> {
   const tenantConn = await getTenantConnection(clientCode);
   const SequenceEnrollment = getTenantModel<any>(
@@ -146,7 +147,12 @@ export async function executeStep(
   }
 
   try {
-    const result = await executeStepAction(clientCode, step.action, context);
+    const result = await executeStepAction(
+      clientCode,
+      step.action,
+      context,
+      io,
+    );
     enrollment.stepResults.push({
       stepNumber,
       status: "completed",
@@ -229,6 +235,7 @@ async function executeStepAction(
   clientCode: string,
   action: any,
   context: any,
+  io?: any,
 ): Promise<any> {
   switch (action.type) {
     case "send_whatsapp": {
@@ -260,7 +267,7 @@ async function executeStepAction(
         });
       }
 
-      const svc = createWhatsappService(null);
+      const svc = createWhatsappService(io || null);
       await svc.sendOutboundMessage(
         clientCode,
         conv._id.toString(),

@@ -21,7 +21,10 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
+      if (!clientCode)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const conn = await getTenantConnection(clientCode);
       const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
@@ -43,7 +46,10 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
+      if (!clientCode)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const { id } = req.params;
       const { status } = req.body;
@@ -72,7 +78,10 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
+      if (!clientCode)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const result = await meetService.createMeeting(clientCode, req.body);
       res.status(result.success ? 201 : 400).json(result); // result already has { success, ... }
@@ -91,12 +100,17 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
+      if (!clientCode)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const { recipients, subject, html } = req.body;
 
       if (!recipients || !Array.isArray(recipients)) {
-        return res.status(400).json({ success: false, message: "Recipients must be an array" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Recipients must be an array" });
       }
 
       const result = await emailService.sendCampaign(clientCode, {
@@ -121,7 +135,10 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
+      if (!clientCode)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const { durationCredentials, payload } = req.body;
 

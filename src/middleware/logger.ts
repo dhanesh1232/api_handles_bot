@@ -10,7 +10,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
     const status = res.statusCode;
     const level = status >= 500 ? "ERROR" : status >= 400 ? "WARN" : "INFO";
     console.log(
-      `[${level}] ${method} ${url} ${status} ${ms}ms client=${clientCode}`
+      `[${level}] ${method} ${url} ${status} ${ms}ms client=${clientCode}`,
     );
   });
 

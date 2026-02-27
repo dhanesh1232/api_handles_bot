@@ -1,22 +1,22 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
 import {
-    getTenantConnection,
-    getTenantModel,
+  getTenantConnection,
+  getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 import {
-    createTemplate,
-    detectOutdatedMappings,
-    getCollectionFields,
-    getTenantCollections,
-    resolveTemplateVariables,
-    saveVariableMapping,
-    syncTemplatesFromMeta,
-    validateMappingCompleteness,
+  createTemplate,
+  detectOutdatedMappings,
+  getCollectionFields,
+  getTenantCollections,
+  resolveTemplateVariables,
+  saveVariableMapping,
+  syncTemplatesFromMeta,
+  validateMappingCompleteness,
 } from "../../../services/saas/whatsapp/template.service.ts";
 
 export interface SaasRequest extends Request {
@@ -77,7 +77,9 @@ export const createTemplateRouter = (io: Server) => {
 
         const secrets = await ClientSecrets.findOne({ clientCode });
         if (!secrets)
-          return res.status(404).json({ success: false, message: "Client secrets not found" });
+          return res
+            .status(404)
+            .json({ success: false, message: "Client secrets not found" });
 
         const token = secrets.getDecrypted("whatsappToken");
         const wabaId = secrets.getDecrypted("whatsappBusinessId");
@@ -85,7 +87,10 @@ export const createTemplateRouter = (io: Server) => {
         if (!token || !wabaId) {
           return res
             .status(400)
-            .json({ success: false, message: "WhatsApp credentials not configured" });
+            .json({
+              success: false,
+              message: "WhatsApp credentials not configured",
+            });
         }
 
         const tenantConn = await getTenantConnection(clientCode);
@@ -96,7 +101,10 @@ export const createTemplateRouter = (io: Server) => {
         console.error("Sync error:", error);
         res
           .status(500)
-          .json({ success: false, message: error.message || "Failed to sync templates" });
+          .json({
+            success: false,
+            message: error.message || "Failed to sync templates",
+          });
       }
     },
   );
@@ -126,7 +134,9 @@ export const createTemplateRouter = (io: Server) => {
       res.json({ success: true, data: templates });
     } catch (error: any) {
       console.error("Fetch templates error:", error);
-      res.status(500).json({ success: false, message: "Failed to fetch templates" });
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to fetch templates" });
     }
   });
 
@@ -149,12 +159,16 @@ export const createTemplateRouter = (io: Server) => {
 
         const template = await Template.findOne({ name: templateName });
         if (!template)
-          return res.status(404).json({ success: false, message: "Template not found" });
+          return res
+            .status(404)
+            .json({ success: false, message: "Template not found" });
 
         res.json({ success: true, data: template });
       } catch (error: any) {
         console.error("Fetch template error:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch template" });
+        res
+          .status(500)
+          .json({ success: false, message: "Failed to fetch template" });
       }
     },
   );
@@ -289,7 +303,10 @@ export const createTemplateRouter = (io: Server) => {
       console.error("Create template error:", error);
       res
         .status(500)
-        .json({ success: false, message: error.message || "Failed to create template" });
+        .json({
+          success: false,
+          message: error.message || "Failed to create template",
+        });
     }
   });
 

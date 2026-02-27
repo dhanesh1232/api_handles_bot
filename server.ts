@@ -266,19 +266,32 @@ app.use("/api", clientsRouter);
 // Using top-level await pattern natively or wrap carefully.
 // Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router
 const initializeRoutes = async () => {
-  app.use("/api/saas/whatsapp", await createWebhookRouter(io));
-  app.use("/api/saas/chat", createChatRouter(io));
-  app.use("/api/saas/images", createImagesRouter(io));
-  app.use("/api/saas/chat/templates", createTemplateRouter(io));
-  app.use("/api/saas/marketing", marketingRouter);
-  app.use("/api/saas/cors", corsRouter);
-  app.use("/api/auth/google", googleAuthRouter);
+  app.use(
+    "/api/saas/whatsapp",
+    validateClientKey,
+    await createWebhookRouter(io),
+  );
+  app.use("/api/saas/chat", validateClientKey, createChatRouter(io));
+  app.use("/api/saas/images", validateClientKey, createImagesRouter(io));
+  app.use(
+    "/api/saas/chat/templates",
+    validateClientKey,
+    createTemplateRouter(io),
+  );
+  app.use("/api/saas/marketing", validateClientKey, marketingRouter);
+  app.use("/api/saas/cors", validateClientKey, corsRouter);
+  app.use("/api/auth/google", validateClientKey, googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);
   app.use("/api/saas", validateClientKey, healthRouter);
   app.use("/api/saas", validateClientKey, eventLogRouter);
-  
+
   // Override for trigger endpoint (stricter limit)
-  app.use("/api/saas/workflows", validateClientKey, triggerLimiter, triggerRouter);
+  app.use(
+    "/api/saas/workflows",
+    validateClientKey,
+    triggerLimiter,
+    triggerRouter,
+  );
 
   /**
    * @Start Global Error Handler

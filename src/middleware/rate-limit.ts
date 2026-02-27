@@ -6,7 +6,10 @@ export const limiter = rateLimit({
   limit: 200,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { success: false, message: "Too many requests, please try again later." },
+  message: {
+    success: false,
+    message: "Too many requests, please try again later.",
+  },
   keyGenerator: (req) => {
     // Rate limit per clientCode if authenticated, otherwise per IP
     return (req as any).clientCode || req.ip || "unknown";
@@ -19,6 +22,9 @@ export const triggerLimiter = rateLimit({
   limit: 60,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { success: false, message: "Trigger rate limit exceeded. Max 60 events/minute." },
+  message: {
+    success: false,
+    message: "Trigger rate limit exceeded. Max 60 events/minute.",
+  },
   keyGenerator: (req) => (req as any).clientCode || req.ip || "unknown",
 });

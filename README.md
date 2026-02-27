@@ -4,45 +4,51 @@ Multi-tenant business automation engine. Clients integrate via REST API.
 Think Twilio/SendGrid — API engine, not a dashboard product.
 
 ## Authentication
+
 All API calls require:
-  x-api-key: <client_api_key>
-  x-client-code: <client_code>
+x-api-key: <client_api_key>
+x-client-code: <client_code>
 
 ## Core Endpoint
+
 POST /api/saas/workflows/trigger
-  Fire a named event. ECODrIx runs matching automations.
-  Supports: Google Meet generation, callbacks, delayed execution,
-  multi-step sequences, WhatsApp templates, email.
+Fire a named event. ECODrIx runs matching automations.
+Supports: Google Meet generation, callbacks, delayed execution,
+multi-step sequences, WhatsApp templates, email.
 
 ## Monitoring
-GET /api/saas/health                → public health check
-GET /api/saas/health/client         → client service status (auth required)
-GET /api/saas/events/logs           → automation event history
-GET /api/saas/events/stats          → summary statistics
-GET /api/saas/callbacks/logs        → callback delivery history
-GET /api/saas/jobs/status/:jobId    → specific job status
+
+GET /api/saas/health → public health check
+GET /api/saas/health/client → client service status (auth required)
+GET /api/saas/events/logs → automation event history
+GET /api/saas/events/stats → summary statistics
+GET /api/saas/callbacks/logs → callback delivery history
+GET /api/saas/jobs/status/:jobId → specific job status
 
 ## CRM
-GET  /api/crm/leads                 → leads list (filter/sort/paginate)
-GET  /api/crm/leads/:id/timeline    → lead activity timeline
-GET  /api/crm/analytics/overview    → KPIs
-POST /api/crm/automations           → create automation rule
-GET  /api/crm/automations           → list rules
+
+GET /api/crm/leads → leads list (filter/sort/paginate)
+GET /api/crm/leads/:id/timeline → lead activity timeline
+GET /api/crm/analytics/overview → KPIs
+POST /api/crm/automations → create automation rule
+GET /api/crm/automations → list rules
 
 ## WhatsApp
-GET  /api/saas/chat/conversations   → inbox
-GET  /api/saas/chat/conversations/:id/messages → messages
-POST /api/saas/chat/send            → send message
-POST /api/saas/chat/broadcast       → bulk broadcast
+
+GET /api/saas/chat/conversations → inbox
+GET /api/saas/chat/conversations/:id/messages → messages
+POST /api/saas/chat/send → send message
+POST /api/saas/chat/broadcast → bulk broadcast
 
 ## Callback Verification (for client websites)
+
 ECODrIx signs all callbacks with HMAC-SHA256:
-  const sig = req.headers['x-ecodrix-signature']; // "sha256=<hex>"
-  const expected = 'sha256=' + crypto
-    .createHmac('sha256', YOUR_WEBHOOK_SECRET)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-  if (sig === expected) { /* verified */ }
+const sig = req.headers['x-ecodrix-signature']; // "sha256=<hex>"
+const expected = 'sha256=' + crypto
+.createHmac('sha256', YOUR_WEBHOOK_SECRET)
+.update(JSON.stringify(req.body))
+.digest('hex');
+if (sig === expected) { /_ verified _/ }
 
 ---
 
@@ -91,7 +97,7 @@ This project uses **ESLint** (Flat Config) and **Prettier** to maintain code qua
 
 ---
 
-##  License
+## License
 
 This software is proprietary and confidential.
 
