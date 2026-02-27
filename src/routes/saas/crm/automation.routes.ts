@@ -194,135 +194,36 @@ router.post(
  *   x-client-code: store_client
  *   { "trigger": "product_purchased", "phone": "+91...", "variables": { "product": "Plan A" }, "createLeadIfMissing": true }
  */
-router.post("/events", async (req: Request, res: Response) => {
-  try {
-    const clientCode = req.clientCode!;
-    const {
-      trigger,
-      phone,
-      variables,
-      stageId,
-      tagName,
-      score,
-      createLeadIfMissing = false,
-      leadData,
-      delaySeconds = 0,
-    } = req.body as {
-      trigger: string;
-      phone: string;
-      variables?: Record<string, string>;
-      stageId?: string;
-      tagName?: string;
-      score?: number;
-      createLeadIfMissing?: boolean;
-      /** Fire this trigger N seconds in the future. Default: 0 (immediate). */
-      delaySeconds?: number;
-      leadData?: {
-        firstName?: string;
-        lastName?: string;
-        email?: string;
-        source?: string;
-      };
-    };
-
-    if (!trigger || !phone) {
-      res.status(400).json({
-        success: false,
-        message: "'trigger' and 'phone' are required",
-      });
-      return;
-    }
-
-    // Find the lead by phone
-    const { getLeadByPhone, createLead } =
-      await import("../../../services/saas/crm/lead.service.ts");
-    let lead = await getLeadByPhone(clientCode, phone);
-
-    // Optionally auto-create the lead if it doesn't exist
-    if (!lead) {
-      if (!createLeadIfMissing) {
-        res.status(404).json({
-          success: false,
-          message: `No lead found for phone ${phone}. Pass createLeadIfMissing: true to auto-create.`,
-        });
-        return;
-      }
-      lead = await createLead(clientCode, {
-        firstName: leadData?.firstName ?? phone,
-        lastName: leadData?.lastName,
-        email: leadData?.email,
-        phone,
-        source: (leadData?.source as any) ?? "other",
-      });
-    }
-
-    const leadId = (lead as any)._id?.toString();
-
-    // ── Delayed event: queue it, don't run now ──────────────────────────────
-    if (delaySeconds > 0) {
-      const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
-      await crmQueue.add(
-        {
-          clientCode,
-          type: "crm.automation_event",
-          payload: {
-            trigger,
-            leadId,
-            phone,
-            variables,
-            stageId,
-            tagName,
-            score,
-          },
-        },
-        { delayMs: delaySeconds * 1000 },
-      );
-      res.json({
-        success: true,
-        leadId,
-        scheduled: true,
-        scheduledIn: `${delaySeconds}s`,
-        message: `Trigger '${trigger}' scheduled in ${delaySeconds}s`,
-      });
-      return;
-    }
-
-    // ── Immediate event: fire runAutomations now ────────────────────────────
-    const { runAutomations } =
-      await import("../../../services/saas/crm/automation.service.ts");
-
-    let rulesTriggered = 0;
-    try {
-      const { getCrmModels } =
-        await import("../../../lib/tenant/get.crm.model.ts");
-      const { AutomationRule } = await getCrmModels(clientCode);
-      rulesTriggered = await AutomationRule.countDocuments({
-        clientCode,
-        trigger,
-        isActive: true,
-      });
-    } catch {
-      /* non-critical — continue */
-    }
-
-    await runAutomations(clientCode, {
-      trigger: trigger as IAutomationRule["trigger"],
-      lead: lead as ILead,
-      stageId,
-      tagName,
-      score,
-      variables,
-    });
-
-    res.json({
-      success: true,
-      leadId,
-      rulesTriggered,
-      message: `Trigger '${trigger}' fired — ${rulesTriggered} rule(s) matched`,
-    });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
+/**
+ * POST /api/crm/automations/events
+ * @deprecated — Use POST /api/saas/workflows/trigger instead.
+ *
+ * This endpoint is kept to avoid hard failures for any existing integrations
+ * but new features (Meet, EventLog, callbacks, delayMinutes) are NOT available here.
+ */
+router.post("/events", (_req: Request, res: Response) => {
+  res.status(301).json({
+    success: false,
+    message:
+      "This endpoint is deprecated. Use POST /api/saas/workflows/trigger instead.",
+    newEndpoint: "POST /api/saas/workflows/trigger",
+    migration: {
+      same: [
+        "trigger",
+        "phone",
+        "variables",
+        "createLeadIfMissing",
+        "leadData",
+      ],
+      added: [
+        "requiresMeet",
+        "meetConfig",
+        "callbackUrl",
+        "data",
+        "delayMinutes",
+      ],
+    },
+  });
 });
 
 /**

@@ -2,68 +2,202 @@
   <img src="https://pub-236715f1b7584858b15e16f74eeaacb8.r2.dev/logo.png" alt="ECODrIx Logo" width="200" />
 </div>
 
-# Contributing to ECOD Backend
+# Contributing to ECODrIx Backend
 
-Thank you for your interest in contributing to the ECOD Logic Engine! This document provides guidelines for developers to maintain high code quality and consistency.
-
-## 🛠 Development Workflow
-
-1. **Environment Setup**:
-   - Ensure you have **Node.js v22+** installed.
-   - Use **pnpm** for package management (mandatory).
-   - Copy `.env.example` to `.env` and fill in the required secrets.
-
-2. **Branching Strategy**:
-   - Create feature branches from `master`.
-   - Name branches descriptively (e.g., `feat/whatsapp-polling` or `fix/lead-scoring`).
-
-3. **Development Mode**:
-   - Run `pnpm dev` for standard development.
-   - Run `pnpm dev:ts` if you are working on TypeScript modules and want automatic reloading.
-
-## 📝 Coding Standards
-
-### 1. TypeScript & ESM
-
-- Always prefer **TypeScript** for new modules.
-- Use **ESM (ECMAScript Modules)** syntax (`import`/`export`).
-- For Mongoose and interface imports, use `import type { ... }` to ensure ESM compatibility.
-- Ensure all TypeScript modules pass `pnpm run type-check`.
-
-### 2. Multi-tenancy
-
-- Never hardcode database URIs.
-- Use `getTenantConnection(clientCode)` and `getTenantModel(clientCode, modelName, schema)` for data isolation.
-- Always validate the `clientCode` before accessing tenant-specific data via `validateClientKey` middleware.
-- **CRITICAL**: Never export `services` database models (like `EventLog`, `Client`, `Job`) in the `tenant.schemas.ts` registry. They must remain globally scoped.
-
-### 3. API Response Format
-
-- All new endpoints MUST use the unified response formatting:
-  ```json
-  { "success": boolean, "data"?: any, "message"?: string, "code"?: string }
-  ```
-- Always return HTTP status codes matching the context (400 for validation, 401 for auth, 404 for missing resources, 500 for internal errors).
-- Do not invent custom response schemas per route.
-
-### 4. Error Handling
-
-- Use `try/catch` blocks for all asynchronous operations, especially those involving external APIs (Meta, Google, DB).
-- Log errors descriptive with `console.error` including context (e.g., specific tenant or job ID).
-
-## 🧪 Testing & Verification
-
-- **Smoke Tests**: Run `pnpm run test` before committing to ensure basic schema integrity and environment setup.
-- **Type Checking**: Run `pnpm run type-check` to catch potential type mismatches.
-- **Linting**: We use ESLint and Prettier. Run `pnpm run format` to automatically fix style issues.
-
-## 🚀 Pull Request Process
-
-1. Ensure all tests and type checks pass.
-2. Update `README.md` if you introduce new features or change configurations.
-3. Request a review from the maintainers.
-4. Once approved, the PR will be merged into `master`.
+This guide ensures all contributors maintain the standards required for a production-grade multi-tenant system.
 
 ---
 
-Stay productive and keep the code boring (readable and maintainable)!
+## Setup
+
+```bash
+# Clone and install
+pnpm install
+
+# Copy env
+cp .env.example .env
+
+# Start with hot reload
+pnpm run dev
+
+# Type check
+pnpm run type-check
+
+# Format
+pnpm run format
+```
+
+---
+
+## Core Rules
+
+### 1. Tenant Isolation — Non-Negotiable
+
+**Always** use `getCrmModels(clientCode)` for CRM data. **Never** use the default Mongoose connection for tenant data.
+
+```typescript
+// ✅ Correct
+const { Lead } = await getCrmModels(clientCode);
+const lead = await Lead.findById(id);
+
+// ❌ Wrong — this writes to the central "services" DB
+import { Lead } from "../model/saas/crm/lead.model.ts";
+const lead = await Lead.findById(id);
+```
+
+### 2. Every Tenant Query Must Include `clientCode`
+
+```typescript
+// ✅ Safe
+await Lead.findOne({ _id: id, clientCode });
+
+// ❌ Dangerous — could return another tenant's data
+await Lead.findById(id);
+```
+
+### 3. Automation Failures Must Never Crash Core Flows
+
+```typescript
+// ✅ Safe — automation is non-blocking
+void fireAutomations(clientCode, ctx);
+
+// ❌ Dangerous — if automation throws, lead creation fails too
+await runAutomations(clientCode, ctx);
+```
+
+### 4. Schema Files Export Schemas, Not Models
+
+```typescript
+// ✅ Export schema only
+export const ConversationSchema = new Schema({ ... });
+
+// ❌ Never export a compiled model from tenant.schemas.ts
+export const Conversation = mongoose.model("Conversation", schema);
+// ^ This would bind to the default connection, not the tenant's
+```
+
+---
+
+## API Response Format
+
+All routes must return the unified envelope. No exceptions.
+
+```typescript
+// Success
+res.json({ success: true, data: result });
+
+// Created
+res.status(201).json({ success: true, data: result });
+
+// Validation error
+res.status(400).json({ success: false, message: "fieldName is required" });
+
+// Not found
+res.status(404).json({ success: false, message: "Resource not found" });
+
+// Server error
+res.status(500).json({ success: false, message: err.message });
+```
+
+---
+
+## Adding a New Route
+
+1. **Create the route file** in `src/routes/saas/` or `src/routes/services/`
+2. **Use JSDoc comments** above every handler with endpoint path, method, body shape, and response example
+3. **Mount it in `server.ts`** with the correct middleware:
+   - Tenant route → `validateClientKey`
+   - Admin route → `verifyCoreToken`
+4. **Document it in README.md** under the correct section
+
+**Route handler template:**
+
+```typescript
+/**
+ * POST /api/crm/example
+ * Brief description.
+ * Body: { field: string }
+ */
+router.post("/example", async (req: Request, res: Response) => {
+  try {
+    const clientCode = req.clientCode!;
+    const { field } = req.body;
+
+    if (!field) {
+      res.status(400).json({ success: false, message: "field is required" });
+      return;
+    }
+
+    const result = await myService.doThing(clientCode, field);
+    res.status(201).json({ success: true, data: result });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+```
+
+---
+
+## Adding a Background Job
+
+Jobs are dispatched via `crmQueue.add()` and handled in `crmWorker.ts`.
+
+```typescript
+// Dispatch (from a route or service)
+await crmQueue.add({
+  clientCode,
+  type: "crm.my_new_job",
+  payload: { leadId: "...", data: "..." },
+});
+
+// Handle (in crmWorker.ts — add a new case)
+case "crm.my_new_job": {
+  const { leadId } = job.payload;
+  await myService.doHeavyWork(clientCode, leadId);
+  break;
+}
+```
+
+> [!IMPORTANT]
+> All job handlers must be idempotent — the queue may retry a job on failure.
+
+---
+
+## Commit Message Convention
+
+```
+feat(crm): add stage time analytics endpoint
+fix(trigger): surface meet creation failure in response
+refactor(lead): auto-create default pipeline for new tenants
+docs(readme): add pipeline and scoring API reference
+chore(deps): upgrade express-rate-limit to 8.2.1
+```
+
+---
+
+## API Surface Quick Reference
+
+The following modules exist. See `README.md` for detailed endpoint docs.
+
+| Module                 | Base Path                  | Auth                         |
+| ---------------------- | -------------------------- | ---------------------------- |
+| Workflow Triggers      | `/api/saas/workflows`      | `validateClientKey`          |
+| CRM Leads              | `/api/crm`                 | `validateClientKey`          |
+| CRM Pipelines & Stages | `/api/crm`                 | `validateClientKey`          |
+| CRM Activities & Notes | `/api/crm`                 | `validateClientKey`          |
+| CRM Automations        | `/api/crm`                 | `validateClientKey`          |
+| CRM Analytics          | `/api/crm`                 | `validateClientKey`          |
+| Lead Scoring           | `/api/crm`                 | `validateClientKey`          |
+| WhatsApp Chat          | `/api/saas/chat`           | `validateClientKey`          |
+| WhatsApp Templates     | `/api/saas/chat/templates` | `validateClientKey`          |
+| WhatsApp Webhooks      | `/api/saas/whatsapp`       | `validateClientKey`          |
+| Event Logs             | `/api/saas/events`         | `validateClientKey`          |
+| Callback Logs          | `/api/saas/callbacks`      | `validateClientKey`          |
+| Health                 | `/api/saas/health`         | Public / `validateClientKey` |
+| Admin Clients          | `/api/clients`             | `verifyCoreToken`            |
+
+---
+
+## License
+
+Copyright © 2026 ECODrIx. All rights reserved.

@@ -14,7 +14,11 @@
 
 import mongoose from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { getDefaultPipeline, getDefaultStage } from "./pipeline.service.ts";
+import {
+  createPipeline,
+  getDefaultPipeline,
+  getDefaultStage,
+} from "./pipeline.service.ts";
 
 // Lazy import to avoid circular-dependency at module load time.
 // automation.service imports lead.service, so we import it dynamically only when needed.
@@ -94,12 +98,23 @@ export const createLead = async (
   let stageId = input.stageId;
 
   if (!pipelineId) {
-    const defaultPipeline = await getDefaultPipeline(clientCode);
-    if (!defaultPipeline)
-      throw new Error(
-        "No default pipeline found. Create a pipeline first via POST /api/crm/pipelines",
+    let defaultPipeline = await getDefaultPipeline(clientCode);
+    if (!defaultPipeline) {
+      // Auto-bootstrap a default pipeline for brand-new clients.
+      // This prevents the trigger endpoint from crashing on a fresh tenant.
+      console.log(
+        `[leadService] No pipeline found for ${clientCode} — auto-creating default.`,
       );
-    pipelineId = defaultPipeline._id.toString();
+      const { pipeline } = await createPipeline(
+        clientCode,
+        { name: "Default Pipeline", isDefault: true, stages: [] },
+        "sales",
+      );
+      defaultPipeline = pipeline;
+    }
+    pipelineId = (
+      defaultPipeline as NonNullable<typeof defaultPipeline>
+    )._id.toString();
   }
 
   if (!stageId) {

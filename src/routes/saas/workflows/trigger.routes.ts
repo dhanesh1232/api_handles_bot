@@ -108,6 +108,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
 
     // Step 4 — Generate Google Meet if requiresMeet: true
     let meetLink: string | null = null;
+    let meetWarning: string | undefined;
     if (requiresMeet) {
       const meetService = createGoogleMeetService();
       const meetResult = await meetService.createMeeting(clientCode, {
@@ -122,6 +123,12 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
 
       if (meetResult.success && meetResult.hangoutLink) {
         meetLink = meetResult.hangoutLink;
+      } else {
+        // Don't fail the whole request but surface the reason to the caller.
+        meetWarning = (meetResult as any).error ?? "Meet creation failed";
+        console.warn(
+          `[trigger] Meet creation failed for ${clientCode}: ${meetWarning}`,
+        );
       }
       // Update eventLog with meetLink
       await EventLog.findByIdAndUpdate(eventLog._id, { meetLink });
@@ -210,6 +217,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
         trigger,
         leadId: lead._id.toString(),
         meetLink,
+        ...(meetWarning ? { meetWarning } : {}),
         rulesMatched,
         scheduled: (delayMinutes ?? 0) > 0,
       },
