@@ -5,20 +5,39 @@ import { validateClientKey } from "../../middleware/saasAuth.ts";
 
 const router = Router();
 
+// Read version from npm/pnpm runtime env (set automatically when started via package.json scripts)
+// Falls back to "unknown" if run directly without pnpm
+const VERSION: string = process.env.npm_package_version ?? "unknown";
+
 /**
  * GET /api/saas/health
+ * Public — no auth required. Used by load balancer health checks and monitoring.
  */
-router.get("/health", (req: Request, res: Response) => {
+router.get("/health", async (req: Request, res: Response) => {
   const dbState = mongoose.connection.readyState;
   let dbStatus = "disconnected";
   if (dbState === 1) dbStatus = "connected";
   else if (dbState === 2) dbStatus = "connecting";
   else if (dbState === 3) dbStatus = "disconnecting";
 
+  let queueDepth = 0;
+  try {
+    const { default: Job } = await import("../../model/queue/job.model.ts");
+    queueDepth = await Job.countDocuments({ status: { $in: ["pending", "processing"] } });
+  } catch {
+    // Non-fatal — queue depth is best-effort
+  }
+
   res.json({
-    status: "ok",
-    db: dbStatus,
-    uptime: process.uptime(),
+    success: true,
+    data: {
+      status: "ok",
+      version: VERSION,
+      env: process.env.NODE_ENV ?? "development",
+      uptime: Math.floor(process.uptime()),
+      db: dbStatus,
+      queueDepth,
+    },
   });
 });
 
