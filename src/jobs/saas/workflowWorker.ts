@@ -113,21 +113,17 @@ export const executeWorkflow = async (data: any) => {
       // Handle Callback if provided
       if (callbackUrl) {
         console.log(`[Callback] Triggering callback to ${callbackUrl}`);
-        try {
-          await fetch(callbackUrl, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              status: "sent",
-              metadata: callbackMetadata,
-              sentAt: new Date(),
-            }),
-          });
-        } catch (cbErr: any) {
-          console.error(`[Callback] Failed to notify client:`, cbErr.message);
-        }
+        const { sendCallbackWithRetry } =
+          await import("../../lib/callbackSender.ts");
+        void sendCallbackWithRetry({
+          clientCode,
+          callbackUrl,
+          payload: {
+            status: "sent",
+            metadata: callbackMetadata,
+            sentAt: new Date(),
+          },
+        });
       }
     } else {
       throw new Error(

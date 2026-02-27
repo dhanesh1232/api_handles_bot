@@ -3,7 +3,12 @@ import mongoose, { type Document } from "mongoose";
 export interface IBroadcast extends Document {
   name: string;
   templateId: mongoose.Types.ObjectId;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed';
+  status:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "failed"
+    | "partially_failed";
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
@@ -26,7 +31,13 @@ export const BroadcastSchema = new mongoose.Schema<IBroadcast>(
     },
     status: {
       type: String,
-      enum: ["pending", "processing", "completed", "failed", "partially_failed"],
+      enum: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "partially_failed",
+      ],
       default: "pending",
     },
     totalRecipients: {
@@ -45,7 +56,7 @@ export const BroadcastSchema = new mongoose.Schema<IBroadcast>(
       type: Date,
     },
   },
-  { timestamps: true, collection: "broadcasts" }
+  { timestamps: true, collection: "broadcasts" },
 );
 
 // Indexes

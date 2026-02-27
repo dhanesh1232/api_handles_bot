@@ -11,11 +11,14 @@ import { getDynamicOrigins } from "./src/model/cors-origins.ts";
 import googleAuthRouter from "./src/routes/auth/google.ts";
 import corsRouter from "./src/routes/saas/cors/cors.routes.ts";
 import crmRouter from "./src/routes/saas/crm/crm.router.ts";
+import eventLogRouter from "./src/routes/saas/eventLog.routes.ts";
+import healthRouter from "./src/routes/saas/health.routes.ts";
 import { createImagesRouter } from "./src/routes/saas/images.ts";
 import marketingRouter from "./src/routes/saas/marketing.ts";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.routes.ts";
 import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.routes.ts";
 import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.routes.ts";
+import triggerRouter from "./src/routes/saas/workflows/trigger.routes.ts";
 import blogsRouter from "./src/routes/services/blogs.ts";
 import clientsRouter from "./src/routes/services/clients.ts";
 import leadsRouter from "./src/routes/services/leads.ts";
@@ -265,6 +268,9 @@ const initializeRoutes = async () => {
   app.use("/api/saas/cors", corsRouter);
   app.use("/api/auth/google", googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);
+  app.use("/api/saas", healthRouter);
+  app.use("/api/saas", eventLogRouter);
+  app.use("/api/saas/workflows", triggerRouter);
 
   /**
    * @Start Global Error Handler

@@ -16,6 +16,7 @@ import analyticsRouter from "./analytics.routes.ts";
 import automationRouter from "./automation.routes.ts";
 import leadRouter from "./lead.routes.ts";
 import pipelineRouter from "./pipeline.routes.ts";
+import scoringRouter from "./scoring.routes.ts";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use(pipelineRouter);
 router.use(activityRouter);
 router.use(automationRouter);
 router.use(analyticsRouter);
+router.use(scoringRouter);
 
 export default router;

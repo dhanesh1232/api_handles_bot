@@ -6,14 +6,14 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { logActivity } from "./activity.service.ts";
 import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { ConversationSchema } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
+import { logActivity } from "./activity.service.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,20 @@ export const runAutomations = async (
   if (rules.length === 0) return;
 
   await Promise.allSettled(
-    rules.map((rule) => executeRule(clientCode, rule, ctx)),
+    rules.map(async (rule) => {
+      if (rule.isSequence && rule.steps && rule.steps.length > 0) {
+        const { enrollInSequence } =
+          await import("../automation/sequenceEngine.service.ts");
+        await enrollInSequence(
+          clientCode,
+          (rule as any)._id.toString(),
+          ctx.lead,
+          ctx.variables,
+        );
+      } else {
+        await executeRule(clientCode, rule, ctx);
+      }
+    }),
   );
 };
 
@@ -158,6 +171,47 @@ export const executeAction = async (
         );
       }
 
+      // Build lead context matching what resolveTemplateVariables expects
+      const context = {
+        lead: {
+          firstName: lead.firstName,
+          lastName: lead.lastName,
+          email: lead.email,
+          phone: lead.phone,
+          dealValue: lead.dealValue,
+          dealTitle: lead.dealTitle,
+          source: lead.source,
+          score: (lead.score as any)?.total,
+          "metadata.refs.appointmentId": (
+            lead.metadata?.refs as any
+          )?.appointmentId?.toString(),
+          "metadata.refs.bookingId": (
+            lead.metadata?.refs as any
+          )?.bookingId?.toString(),
+          "metadata.refs.orderId": (
+            lead.metadata?.refs as any
+          )?.orderId?.toString(),
+        },
+        // Merge any event variables client sent (e.g. { name: "Ravi", time: "3pm" })
+        ...(ctx?.variables ? { event: ctx.variables } : {}),
+      };
+
+      // Try smart resolution first, fall back to static variables
+      let finalVariables: string[] = cfg.variables ?? [];
+      try {
+        const { resolveTemplateVariables } =
+          await import("../whatsapp/template.service.ts");
+        finalVariables = await resolveTemplateVariables(
+          tenantConn,
+          cfg.templateName,
+          context,
+        );
+      } catch (err: any) {
+        console.warn(
+          `[executeAction] Template resolution failed for ${cfg.templateName}, using static variables: ${err.message}`,
+        );
+      }
+
       await service.sendOutboundMessage(
         clientCode,
         conv._id.toString(),
@@ -167,7 +221,7 @@ export const executeAction = async (
         "automation",
         cfg.templateName,
         "en_US",
-        cfg.variables ?? [],
+        finalVariables,
       );
       break;
     }

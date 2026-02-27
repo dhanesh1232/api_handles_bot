@@ -236,6 +236,11 @@ declare global {
     };
     condition?: IAutomationCondition; // optional extra condition on the lead
     actions: IAutomationAction[];
+    steps?: any[];
+    isSequence?: boolean;
+    totalEnrollments?: number;
+    activeEnrollments?: number;
+    completedEnrollments?: number;
     isActive: boolean;
     executionCount: number; // how many times this rule has fired
     lastExecutedAt?: Date;

@@ -19,7 +19,7 @@ const conditionSchema = new mongoose.Schema<IAutomationCondition>(
   { _id: false },
 );
 
-const actionSchema = new mongoose.Schema<IAutomationAction>(
+const actionSchema = new mongoose.Schema<any>(
   {
     type: {
       type: String,
@@ -37,6 +37,72 @@ const actionSchema = new mongoose.Schema<IAutomationAction>(
     },
     delayMinutes: { type: Number, default: 0 },
     config: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false },
+);
+
+const stepConditionSchema = new mongoose.Schema<any>(
+  {
+    field: { type: String },
+    operator: {
+      type: String,
+      enum: [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "less_than",
+        "contains",
+        "exists",
+        "not_exists",
+      ],
+    },
+    value: { type: mongoose.Schema.Types.Mixed },
+  },
+  { _id: false },
+);
+
+const stepExitConditionSchema = new mongoose.Schema<any>(
+  {
+    field: { type: String },
+    operator: { type: String },
+    value: { type: mongoose.Schema.Types.Mixed },
+  },
+  { _id: false },
+);
+
+const sequenceStepSchema = new mongoose.Schema<any>(
+  {
+    stepNumber: { type: Number, required: true },
+    name: { type: String },
+    delayMinutes: { type: Number, default: 0 },
+    delayReference: {
+      type: String,
+      enum: ["trigger_time", "previous_step"],
+      default: "previous_step",
+    },
+    action: {
+      type: {
+        type: String,
+        enum: [
+          "send_whatsapp",
+          "send_email",
+          "generate_meet",
+          "callback_client",
+          "update_lead",
+          "tag_lead",
+          "move_pipeline_stage",
+          "http_webhook",
+        ],
+      },
+      config: { type: mongoose.Schema.Types.Mixed },
+    },
+    conditions: { type: [stepConditionSchema], default: [] },
+    exitSequenceIf: { type: [stepExitConditionSchema], default: [] },
+    onFailure: {
+      type: String,
+      enum: ["continue", "stop", "retry"],
+      default: "continue",
+    },
   },
   { _id: false },
 );
@@ -80,6 +146,11 @@ export const AutomationRuleSchema: Schema<IAutomationRule> =
       },
       condition: { type: conditionSchema, default: null },
       actions: { type: [actionSchema], required: true, default: [] },
+      steps: { type: [sequenceStepSchema], default: [] },
+      isSequence: { type: Boolean, default: false },
+      totalEnrollments: { type: Number, default: 0 },
+      activeEnrollments: { type: Number, default: 0 },
+      completedEnrollments: { type: Number, default: 0 },
       isActive: { type: Boolean, default: true },
       executionCount: { type: Number, default: 0 },
       lastExecutedAt: { type: Date, default: null },

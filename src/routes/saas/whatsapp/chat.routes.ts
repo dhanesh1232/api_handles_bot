@@ -142,7 +142,10 @@ export const createChatRouter = (io: Server) => {
           });
 
           // Emit to socket so sidebar updates everywhere
-          io.to(clientCode).emit("conversation_updated", conversation.toObject());
+          io.to(clientCode).emit(
+            "conversation_updated",
+            conversation.toObject(),
+          );
         }
 
         res.json(conversation);
@@ -152,7 +155,7 @@ export const createChatRouter = (io: Server) => {
       }
     },
   );
- 
+
   // 4a. Delete Conversation
   router.delete(
     "/conversations/:id",
@@ -162,7 +165,7 @@ export const createChatRouter = (io: Server) => {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
- 
+
         const conn = await getTenantConnection(clientCode);
         const ConversationModel = getTenantModel<IConversation>(
           conn,
@@ -174,13 +177,13 @@ export const createChatRouter = (io: Server) => {
           "Message",
           schemas.messages,
         );
- 
+
         await MessageModel.deleteMany({ conversationId: id });
         await ConversationModel.findByIdAndDelete(id);
- 
+
         // Notify all clients
         io.to(clientCode).emit("conversation_deleted", { conversationId: id });
- 
+
         res.json({ success: true });
       } catch (err) {
         console.error("Error deleting conversation:", err);
@@ -188,7 +191,7 @@ export const createChatRouter = (io: Server) => {
       }
     },
   );
- 
+
   // 5. Upload Media to R2
   router.post(
     "/upload",
@@ -398,7 +401,11 @@ export const createChatRouter = (io: Server) => {
           "Broadcast",
           schemas.broadcasts,
         );
-        const TemplateModel = getTenantModel(conn, "Template", schemas.templates);
+        const TemplateModel = getTenantModel(
+          conn,
+          "Template",
+          schemas.templates,
+        );
 
         const template = await TemplateModel.findOne({
           name: templateName,
@@ -459,7 +466,9 @@ export const createChatRouter = (io: Server) => {
           schemas.broadcasts,
         );
 
-        const broadcasts = await BroadcastModel.find({}).sort({ createdAt: -1 });
+        const broadcasts = await BroadcastModel.find({}).sort({
+          createdAt: -1,
+        });
         res.json(broadcasts);
       } catch (err) {
         console.error("Error fetching broadcasts:", err);

@@ -49,7 +49,36 @@ export function cronJobs() {
     try {
       await templateSyncJob();
     } catch (err) {
-      console.error("❌ 2 AM jobs failed:", err);
+      console.error("❌ 2 AM templateSyncJob failed:", err);
+    }
+
+    try {
+      const { crmQueue } = await import("./saas/crmWorker.ts");
+      const mongoose = (await import("mongoose")).default;
+      const db = mongoose.connection.useDb("saas_services", { useCache: true });
+      const Tenant =
+        db.models.Tenant ||
+        db.model(
+          "Tenant",
+          new mongoose.Schema(
+            { clientCode: String, status: String },
+            { strict: false },
+          ),
+        );
+      const tenants = await Tenant.find({ status: "active" });
+
+      for (const tenant of tenants) {
+        await crmQueue.add({
+          clientCode: tenant.clientCode,
+          type: "crm.score_refresh",
+          payload: { batch: true },
+        });
+      }
+      console.log(
+        `[cron] Enqueued nightly score recalculation for ${tenants.length} tenants.`,
+      );
+    } catch (err) {
+      console.error("❌ Nightly score recalculation failed:", err);
     }
   });
 }

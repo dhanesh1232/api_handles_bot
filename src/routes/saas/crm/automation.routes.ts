@@ -325,4 +325,197 @@ router.post("/events", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/crm/automations/:ruleId/enrollments
+ */
+router.get("/:ruleId/enrollments", async (req: Request, res: Response) => {
+  try {
+    const clientCode = req.clientCode!;
+    const { ruleId } = req.params;
+    const { status, page = 1, limit = 20, startDate, endDate } = req.query;
+
+    const { getTenantConnection, getTenantModel } =
+      await import("../../../lib/connectionManager.ts");
+    const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
+    const tenantConn = await getTenantConnection(clientCode);
+    const SequenceEnrollment = getTenantModel<any>(
+      tenantConn,
+      "SequenceEnrollment",
+      schemas.sequenceEnrollments,
+    );
+
+    const query: any = { clientCode, ruleId };
+    if (status) query.status = status;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate as string);
+      if (endDate) query.createdAt.$lte = new Date(endDate as string);
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [enrollments, total] = await Promise.all([
+      SequenceEnrollment.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit)),
+      SequenceEnrollment.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: enrollments,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)),
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
+/**
+ * GET /api/crm/automations/enrollments/:enrollmentId
+ */
+router.get(
+  "/enrollments/:enrollmentId",
+  async (req: Request, res: Response) => {
+    try {
+      const clientCode = req.clientCode!;
+      const { enrollmentId } = req.params;
+
+      const { getTenantConnection, getTenantModel } =
+        await import("../../../lib/connectionManager.ts");
+      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
+      const tenantConn = await getTenantConnection(clientCode);
+      const SequenceEnrollment = getTenantModel<any>(
+        tenantConn,
+        "SequenceEnrollment",
+        schemas.sequenceEnrollments,
+      );
+
+      const enrollment = await SequenceEnrollment.findOne({
+        _id: enrollmentId,
+        clientCode,
+      });
+      if (!enrollment) {
+        res
+          .status(404)
+          .json({ success: false, message: "Enrollment not found" });
+        return;
+      }
+
+      res.json({ success: true, data: enrollment });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
+
+/**
+ * POST /api/crm/automations/:ruleId/enrollments/:enrollmentId/pause
+ */
+router.post(
+  "/:ruleId/enrollments/:enrollmentId/pause",
+  async (req: Request, res: Response) => {
+    try {
+      const clientCode = req.clientCode!;
+      const { ruleId, enrollmentId } = req.params;
+
+      const { getTenantConnection, getTenantModel } =
+        await import("../../../lib/connectionManager.ts");
+      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
+      const tenantConn = await getTenantConnection(clientCode);
+      const SequenceEnrollment = getTenantModel<any>(
+        tenantConn,
+        "SequenceEnrollment",
+        schemas.sequenceEnrollments,
+      );
+
+      const enrollment = await SequenceEnrollment.findOneAndUpdate(
+        { _id: enrollmentId, ruleId, clientCode },
+        { $set: { status: "paused" } },
+        { new: true },
+      );
+
+      if (!enrollment) {
+        res
+          .status(404)
+          .json({ success: false, message: "Enrollment not found" });
+        return;
+      }
+
+      res.json({ success: true, data: enrollment });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
+
+/**
+ * POST /api/crm/automations/:ruleId/enrollments/:enrollmentId/resume
+ */
+router.post(
+  "/:ruleId/enrollments/:enrollmentId/resume",
+  async (req: Request, res: Response) => {
+    try {
+      const clientCode = req.clientCode!;
+      const { ruleId, enrollmentId } = req.params;
+
+      const { getTenantConnection, getTenantModel } =
+        await import("../../../lib/connectionManager.ts");
+      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
+      const tenantConn = await getTenantConnection(clientCode);
+      const SequenceEnrollment = getTenantModel<any>(
+        tenantConn,
+        "SequenceEnrollment",
+        schemas.sequenceEnrollments,
+      );
+
+      const enrollment = await SequenceEnrollment.findOne({
+        _id: enrollmentId,
+        ruleId,
+        clientCode,
+      });
+      if (!enrollment) {
+        res
+          .status(404)
+          .json({ success: false, message: "Enrollment not found" });
+        return;
+      }
+
+      if (enrollment.status === "paused") {
+        enrollment.status = "active";
+        await enrollment.save();
+
+        // Enqueue next step
+        const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+        let delayMs = 0;
+        if (
+          enrollment.nextStepAt &&
+          new Date(enrollment.nextStepAt).getTime() > Date.now()
+        ) {
+          delayMs = new Date(enrollment.nextStepAt).getTime() - Date.now();
+        }
+
+        await crmQueue.add(
+          {
+            clientCode,
+            type: "crm.sequence_step",
+            payload: {
+              enrollmentId: enrollment._id.toString(),
+              stepNumber: enrollment.currentStep,
+            },
+          },
+          { delayMs },
+        );
+      }
+
+      res.json({ success: true, data: enrollment });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
+
 export default router;

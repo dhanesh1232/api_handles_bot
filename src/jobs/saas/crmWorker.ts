@@ -45,7 +45,8 @@ type CrmJobType =
   | "crm.reminder"
   | "crm.score_refresh"
   | "crm.webhook_notify"
-  | "crm.whatsapp_broadcast";
+  | "crm.whatsapp_broadcast"
+  | "crm.sequence_step";
 
 interface CrmJobData {
   clientCode: string;
@@ -146,13 +147,14 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
       // Callback if requested
       if (payload.callbackUrl) {
-        await fetch(payload.callbackUrl, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "sent", sentAt: new Date() }),
-        }).catch((e: Error) =>
-          console.error("[crmWorker] Email callback failed:", e.message),
-        );
+        const { sendCallbackWithRetry } =
+          await import("../../lib/callbackSender.ts");
+        void sendCallbackWithRetry({
+          clientCode,
+          callbackUrl: payload.callbackUrl,
+          payload: { status: "sent", sentAt: new Date() },
+          jobId: job._id?.toString(),
+        });
       }
       break;
     }
@@ -190,18 +192,19 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
       // Notify client with the meet link
       if (payload.callbackUrl) {
-        await fetch(payload.callbackUrl, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const { sendCallbackWithRetry } =
+          await import("../../lib/callbackSender.ts");
+        void sendCallbackWithRetry({
+          clientCode,
+          callbackUrl: payload.callbackUrl,
+          payload: {
             status: "created",
             meetLink: result.hangoutLink,
             eventId: result.eventId,
             createdAt: new Date(),
-          }),
-        }).catch((e: Error) =>
-          console.error("[crmWorker] Meeting callback failed:", e.message),
-        );
+          },
+          jobId: job._id?.toString(),
+        });
       }
       break;
     }
@@ -272,16 +275,15 @@ const processCrmJob = async (job: IJob): Promise<void> => {
 
     // ── 6. Webhook notify — fire HTTP callback to client server ──────────────
     case "crm.webhook_notify": {
-      const res = await fetch(payload.callbackUrl, {
+      const { sendCallbackWithRetry } =
+        await import("../../lib/callbackSender.ts");
+      void sendCallbackWithRetry({
+        clientCode,
+        callbackUrl: payload.callbackUrl,
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload.event),
+        payload: payload.event,
+        jobId: job._id?.toString(),
       });
-      if (!res.ok) {
-        throw new Error(
-          `Webhook notify failed [${res.status}]: ${payload.callbackUrl}`,
-        );
-      }
       break;
     }
 
@@ -290,12 +292,10 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       const { broadcastId, phone, templateName, templateLanguage, variables } =
         payload;
 
-      const { createWhatsappService } = await import(
-        "../../services/saas/whatsapp/whatsapp.service.ts"
-      );
-      const { getTenantConnection, getTenantModel } = await import(
-        "../../lib/connectionManager.ts"
-      );
+      const { createWhatsappService } =
+        await import("../../services/saas/whatsapp/whatsapp.service.ts");
+      const { getTenantConnection, getTenantModel } =
+        await import("../../lib/connectionManager.ts");
       const { schemas } = await import("../../model/saas/tenant.schemas.ts");
 
       const svc = createWhatsappService(globalIo);
@@ -377,6 +377,14 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         }
       }
 
+      break;
+    }
+
+    // ── 8. Sequence Engine execution step ─────────────────────────────────────
+    case "crm.sequence_step": {
+      const { executeStep } =
+        await import("../../services/saas/automation/sequenceEngine.service.ts");
+      await executeStep(clientCode, payload.enrollmentId, payload.stepNumber);
       break;
     }
 

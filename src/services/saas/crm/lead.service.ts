@@ -540,74 +540,8 @@ export const recalculateScore = async (
   clientCode: string,
   leadId: string,
 ): Promise<void> => {
-  const { Lead, PipelineStage } = await getCrmModels(clientCode);
-  const lead = await Lead.findOne({ _id: leadId, clientCode });
-  if (!lead) return;
-
-  const stage = await PipelineStage.findById(lead.stageId);
-
-  let recency = 0;
-  if (lead.lastContactedAt) {
-    const hoursAgo = (Date.now() - lead.lastContactedAt.getTime()) / 3600000;
-    if (hoursAgo < 2) recency = 25;
-    else if (hoursAgo < 24) recency = 20;
-    else if (hoursAgo < 72) recency = 12;
-    else if (hoursAgo < 168) recency = 5;
-  }
-  const stageDepth = Math.min(25, (stage?.probability ?? 0) / 4);
-  const dealSize =
-    lead.dealValue && lead.dealValue > 0
-      ? Math.min(25, Math.floor(Math.log10(lead.dealValue + 1) * 6))
-      : 0;
-  const sourceMap: Record<string, number> = {
-    referral: 25,
-    walk_in: 22,
-    whatsapp: 20,
-    website: 18,
-    phone: 16,
-    instagram: 12,
-    facebook: 10,
-    email: 10,
-    cold_outreach: 5,
-    other: 5,
-  };
-  const sourceQuality = sourceMap[lead.source] ?? 5;
-  const total = Math.round(recency + stageDepth + dealSize + sourceQuality);
-
-  await Lead.updateOne(
-    { _id: leadId },
-    {
-      $set: {
-        "score.total": Math.min(100, total),
-        "score.recency": recency,
-        "score.stageDepth": stageDepth,
-        "score.dealSize": dealSize,
-        "score.sourceQuality": sourceQuality,
-        "score.updatedAt": new Date(),
-      },
-    },
-  );
-
-  // Fire score automations — non-blocking, never throws
-  const finalScore = Math.min(100, total);
-  const freshLead = (await Lead.findOne({
-    _id: leadId,
-    clientCode,
-  }).lean()) as ILead | null;
-  if (freshLead) {
-    void Promise.allSettled([
-      fireAutomations(clientCode, {
-        trigger: "score_above",
-        lead: freshLead,
-        score: finalScore,
-      }),
-      fireAutomations(clientCode, {
-        trigger: "score_below",
-        lead: freshLead,
-        score: finalScore,
-      }),
-    ]);
-  }
+  const { recalculateLeadScore } = await import("./scoring.service.ts");
+  await recalculateLeadScore(clientCode, leadId);
 };
 
 // ─── 13. Archive (soft delete) ────────────────────────────────────────────────

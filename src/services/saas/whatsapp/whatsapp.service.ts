@@ -37,9 +37,9 @@ interface WhatsAppServiceContext {
 
 /**
  * WhatsApp Service Factory
- * @param {Server} io - Socket.io instance
+ * @param {Server | null} io - Socket.io instance
  */
-export const createWhatsappService = (io: Server) => {
+export const createWhatsappService = (io: Server | null) => {
   /**
    * Helper to get tenant context: Connection, Models, Secrets
    */
@@ -134,12 +134,15 @@ export const createWhatsappService = (io: Server) => {
       const profilePicture = contacts?.profile?.profile_picture;
 
       // --- Lead Syncing Logic ---
-      const { getCrmModels } = await import(
-        "../../../lib/tenant/get.crm.model.ts"
-      );
+      const { getCrmModels } =
+        await import("../../../lib/tenant/get.crm.model.ts");
       const { Lead } = await getCrmModels(clientCode);
 
-      let lead: any = await Lead.findOne({ phone, clientCode, isArchived: false }).lean();
+      let lead: any = await Lead.findOne({
+        phone,
+        clientCode,
+        isArchived: false,
+      }).lean();
       if (!lead) {
         // Create a new lead automatically
         const { createLead } = await import("../crm/lead.service.ts");
@@ -152,7 +155,10 @@ export const createWhatsappService = (io: Server) => {
           });
           console.log(`[${clientCode}] Auto-created Lead for ${phone}`);
         } catch (err: any) {
-          console.warn(`[${clientCode}] Failed to auto-create lead:`, err.message);
+          console.warn(
+            `[${clientCode}] Failed to auto-create lead:`,
+            err.message,
+          );
         }
       }
 
