@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="https://pub-236715f1b7584858b15e16f74eeaacb8.r2.dev/logo.png" alt="ECODrIx Logo" width="200" />
+</div>
+
 # Contributing to ECOD Backend
 
 Thank you for your interest in contributing to the ECOD Logic Engine! This document provides guidelines for developers to maintain high code quality and consistency.
@@ -30,9 +34,19 @@ Thank you for your interest in contributing to the ECOD Logic Engine! This docum
 
 - Never hardcode database URIs.
 - Use `getTenantConnection(clientCode)` and `getTenantModel(clientCode, modelName, schema)` for data isolation.
-- Always validate the `clientCode` before accessing tenant-specific data.
+- Always validate the `clientCode` before accessing tenant-specific data via `validateClientKey` middleware.
+- **CRITICAL**: Never export `services` database models (like `EventLog`, `Client`, `Job`) in the `tenant.schemas.ts` registry. They must remain globally scoped.
 
-### 3. Error Handling
+### 3. API Response Format
+
+- All new endpoints MUST use the unified response formatting:
+  ```json
+  { "success": boolean, "data"?: any, "message"?: string, "code"?: string }
+  ```
+- Always return HTTP status codes matching the context (400 for validation, 401 for auth, 404 for missing resources, 500 for internal errors).
+- Do not invent custom response schemas per route.
+
+### 4. Error Handling
 
 - Use `try/catch` blocks for all asynchronous operations, especially those involving external APIs (Meta, Google, DB).
 - Log errors descriptive with `console.error` including context (e.g., specific tenant or job ID).

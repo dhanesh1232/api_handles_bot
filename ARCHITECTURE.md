@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="https://pub-236715f1b7584858b15e16f74eeaacb8.r2.dev/logo.png" alt="ECODrIx Logo" width="200" />
+</div>
+
 # ECOD Backend Architecture Guide
 
 This document outlines the core technical architecture of the ECOD backend, focusing on multi-tenancy, automation engine, and background job processing.
@@ -44,6 +48,10 @@ const { Lead } = await getCrmModels(clientCode);
 const lead = await Lead.findById(...);
 ```
 
+#### Shared Service Models (Warning)
+
+System-wide models (like `EventLog`, `CallbackLog`, `ClientSecrets`) must **never** be exported alongside tenant schemas inside `tenant.schemas.ts`. They must strictly use the default mongoose connection to ensure telemetry logs never leak into tenant databases.
+
 ---
 
 ## 3. CRM & Automation Engine
@@ -68,19 +76,21 @@ The automation engine is a unified system that reacts to events and executes mul
 
 We use a custom, robust polling queue called **MongoQueue**.
 
-### Why Centralized Jobs?
+### All Core Jobs are Centralized
 
-All jobs across all 100+ tenants are stored in the **central `services.jobs` collection**.
+We have consolidated the background infrastructure into a **single, unified MongoWorker** (`queue: "crm"`) managed via `crmWorker.ts`.
 
-- **Efficiency**: A single worker cluster can poll one collection instead of 100+.
+- **Efficiency**: A single worker cluster polls one centralized `services.jobs` collection to execute tasks for all 100+ tenants rather than spawning redundant idle queues.
 - **Monitoring**: Admins can see the global health of the system from one place.
 
 ### The `crmWorker.ts` Flow
 
-1. **Poll**: The worker finds a waiting job in `services.jobs`.
+1. **Poll**: The worker checks `services.jobs` (configured currently for 3 concurrent workers, polling every 5000ms).
 2. **Context Load**: The worker extracts the `clientCode` from the job payload.
-3. **Tenant Connect**: The worker establishes a connection to the specific tenant's DB.
-4. **Execute**: It performs the action (Send WhatsApp, Create Meeting, etc.).
+3. **Tenant Routing**: Connection established to the specific tenant's dynamic DB route.
+4. **Execute**: It performs the action reliably (Send WhatsApp, Create Google Meet, Fire Automation Rule steps, Send Bulk Emails).
+
+_(Note: Legacy individual queues like `whatsapp-workflow` have been intentionally sunset to conserve memory footprint.)_
 
 ---
 

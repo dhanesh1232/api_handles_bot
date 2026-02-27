@@ -1,114 +1,209 @@
-# ECODrIx Backend API
+<div align="center">
+  <img src="https://pub-236715f1b7584858b15e16f74eeaacb8.r2.dev/logo.png" alt="ECODrIx Logo" width="200" />
+</div>
 
-Multi-tenant business automation engine. Clients integrate via REST API.
-Think Twilio/SendGrid — API engine, not a dashboard product.
+# ECODrIx Backend API Engine
 
-## Authentication
+ECODrIx is a **Multi-tenant Business Automation Engine**. It is an API-first platform built for client websites to integrate directly via REST API. Think of it like Twilio or SendGrid — a powerful backend engine, not a dashboard product.
 
-All API calls require:
+---
+
+## 🔐 Authentication
+
+All API calls to operational endpoints require strict tenant authentication headers:
+
+```http
 x-api-key: <client_api_key>
 x-client-code: <client_code>
-
-## Core Endpoint
-
-POST /api/saas/workflows/trigger
-Fire a named event. ECODrIx runs matching automations.
-Supports: Google Meet generation, callbacks, delayed execution,
-multi-step sequences, WhatsApp templates, email.
-
-## Monitoring
-
-```
-GET /api/saas/health → public health check
-GET /api/saas/health/client → client service status (auth required)
-GET /api/saas/events/logs → automation event history
-GET /api/saas/events/stats → summary statistics
-GET /api/saas/callbacks/logs → callback delivery history
-GET /api/saas/jobs/status/:jobId → specific job status
 ```
 
-## CRM
+> [!IMPORTANT]
+> The `x-client-code` forces the system to securely route your request to your isolated tenant database. Always keep your `x-api-key` secret in your server environment variables.
 
-```
-GET /api/crm/leads → leads list (filter/sort/paginate)
-GET /api/crm/leads/:id/timeline → lead activity timeline
-GET /api/crm/analytics/overview → KPIs
-POST /api/crm/automations → create automation rule
-GET /api/crm/automations → list rules
-```
+---
 
-## WhatsApp
+## 🚀 Core Features & API Reference
 
-```
-GET /api/saas/chat/conversations → inbox
-GET /api/saas/chat/conversations/:id/messages → messages
-POST /api/saas/chat/send → send message
-POST /api/saas/chat/broadcast → bulk broadcast
+All successful API responses follow a strict, unified JSON format:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Optional success message"
+}
 ```
 
-## Callback Verification (for client websites)
+Errors are consistently formatted:
 
-ECODrIx signs all callbacks with HMAC-SHA256:
+```json
+{
+  "success": false,
+  "message": "Human-readable error description",
+  "code": "ERROR_CODE"
+}
+```
+
+### 1. Trigger Automation Workflows
+
+Fire a named event from your client application. ECODrIx will automatically run matching automations (e.g., sending WhatsApp messages, generating Google Meet links, delaying execution).
+
+**Endpoint:** `POST /api/saas/workflows/trigger`  
+_(Rate Limited: 60 requests / minute / tenant)_
+
+**Request Payload Example:**
+
+```json
+{
+  "trigger": "form_submitted",
+  "phone": "919876543210",
+  "email": "user@example.com",
+  "delayMinutes": 0,
+  "requiresMeet": true,
+  "meetConfig": {
+    "title": "Consultation",
+    "durationMinutes": 30
+  },
+  "variables": {
+    "name": "John Doe",
+    "source": "website_pricing_page"
+  },
+  "callbackUrl": "https://your-server.com/webhook"
+}
+```
+
+**Response Example:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "eventLogId": "65b2...",
+    "trigger": "form_submitted",
+    "leadId": "65b2...",
+    "meetLink": "https://meet.google.com/abc-defg-hij",
+    "rulesMatched": 2,
+    "scheduled": false
+  }
+}
+```
+
+### 2. Monitoring & Health
+
+Query telemetry to monitor your live API usage, callbacks, and system configurations.
+
+- **`GET /api/saas/health/client`**
+  Check the status of your connected integrations (WhatsApp, Email Provider, Google Meet) and current background queue depth.
+- **`GET /api/saas/events/logs`**
+  Fetch a paginated history of automation events triggered manually or externally.
+- **`GET /api/saas/events/stats`**
+  Summary statistics of processed triggers vs. failures.
+- **`GET /api/saas/callbacks/logs`**
+  Validate the delivery history of callbacks sent to your configured `callbackUrl`.
+
+### 3. Messaging (WhatsApp)
+
+Interact directly with your isolated WhatsApp inbox and dispatch outbound messages.
+
+- **`POST /api/saas/chat/send`**
+  Send an outbound message or template to a phone number.
+- **`POST /api/saas/chat/broadcast`**
+  Dispatch mass marketing campaigns to thousands of users simultaneously via the background worker.
+- **`GET /api/saas/chat/conversations`**
+  Fetch your shared inbox conversations.
+- **`GET /api/saas/chat/conversations/:id/messages`**
+  Load the message history for a specific conversation.
+
+### 4. Headless CRM
+
+Manage the isolated CRM entities for your tenant programmatically.
+
+- **`GET /api/crm/leads`** → List, filter, sort, and paginate CRM contacts.
+- **`GET /api/crm/leads/:id/timeline`** → View the complete timeline of a lead's activity.
+- **`GET /api/crm/analytics/overview`** → Fetch KPIs and pipeline stage distributions.
+- **`GET /api/crm/automations`** → List currently active automation schemas.
+
+---
+
+## 🔗 Client Integration Example (Next.js / Node.js)
+
+Here is how you would securely trigger an ECODrIx automation from your own server backend after a user submits a form on your site:
 
 ```javascript
-const sig = req.headers["x-ecodrix-signature"]; // "sha256=<hex>"
-const expected =
-  "sha256=" +
-  crypto
-    .createHmac("sha256", YOUR * WEBHOOK_SECRET)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
-if (sig === expected) {
-  /* verified \_/*/
+// Example in a Next.js API Route or Express controller
+export async function POST(request) {
+  const userForm = await request.json();
+
+  const response = await fetch(
+    "https://api.ecodrix.com/api/saas/workflows/trigger",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ECODRIX_API_KEY,
+        "x-client-code": process.env.ECODRIX_CLIENT_CODE,
+      },
+      body: JSON.stringify({
+        trigger: "new_signup",
+        phone: userForm.phone,
+        email: userForm.email,
+        variables: {
+          firstName: userForm.firstName,
+        },
+      }),
+    },
+  );
+
+  const exactMapping = await response.json();
+  if (!exactMapping.success) {
+    console.error("Failed to trigger flow:", exactMapping.message);
+  }
+
+  return Response.json({ status: "ok" });
+}
+```
+
+### Callback Verification (Webhooks)
+
+If you provide a `callbackUrl` in your trigger, ECODrIx will POST updates back to your server. ECODrIx strictly signs all callbacks with HMAC-SHA256 to ensure authenticity:
+
+```javascript
+import crypto from "crypto";
+
+function verifyEcodrixWebhook(req) {
+  const signature = req.headers["x-ecodrix-signature"]; // Format: "sha256=<hex>"
+  const webhookSecret = process.env.ECODRIX_WEBHOOK_SECRET;
+
+  const expectedSignature =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", webhookSecret)
+      .update(JSON.stringify(req.body))
+      .digest("hex");
+
+  return signature === expectedSignature;
 }
 ```
 
 ---
 
-## 🚀 Core Responsibilities
-
-1.  **Multi-tenant Webhook Handling**: Receives and routes WhatsApp messages from Meta Cloud API to the correct client database.
-2.  **Advanced CRM (Multi-tenant)**: Each client has their own isolated Leads and Contacts management system.
-3.  **Google Meet Integration**: Automated generation of meeting links for consultations and appointments.
-4.  **Email Marketing & Campaigns**: Bulk email delivery using client-specific SMTP settings.
-5.  **Real-time Synchronization**: Uses Socket.io to push updates instantly to dashboards.
-6.  **Dynamic Database Routing**: Automatically establishes connections to tenant-specific MongoDB databases on demand.
-7.  **Automated Workflows**: Manages lead follow-ups and appointment reminders via CRON jobs.
-8.  **Media Processing**: Downloads and optimizes WhatsApp media for R2 storage.
-
 ## 🛠 Tech Stack
 
-```markdown
-- **Runtime**: Node.js (ES Modules)
+- **Runtime**: Node.js v22 (ES Modules / TypeScript Native via `tsx`)
 - **Framework**: Express.js
-- **Real-time**: Socket.io
-- **Database**: MongoDB with Mongoose (Dual-layer: Services DB + Tenant DBs)
-- **Storage**: Cloudflare R2 (via S3 SDK)
-- **Task Scheduling**: node-cron
-```
+- **Real-time Engine**: Socket.io
+- **Database Architecture**: Multi-Tenant MongoDB (Mongoose) with Dynamic Routing
+- **Background Jobs**: Centralized `MongoQueue` Worker Layer
+- **Media Optimization**: Sharp & FFmpeg direct to Cloudflare R2 object storage
 
 ---
 
-## ☁️ Deployment (Render)
-
-The project is natively configured to deploy on **Render.com**. You can use the included `render.yaml` blueprint or configure it manually via the dashboard:
-
-- **Build Command**: `pnpm install && pnpm run build`
-  - _This installs dependencies and compiles TypeScript to highly optimized JavaScript in the `/dist` folder._
-- **Start Command**: `pnpm start`
-  - _Executes the compiled JS payload fast and cleanly (`node dist/server.js`)._
-
-**Important Render Environment Variables:**
-
-- `NODE_VERSION`: `22.18.0`
-- `PNPM_VERSION`: `10.30.1`
-
 ## 🧹 Linting & Formatting
 
-This project uses **ESLint** (Flat Config) and **Prettier** to maintain code quality and consistent style.
+This project enforces strong typing and unified formatting using tools specifically geared for enterprise scale:
 
-- **Linting**: Checks for potential errors and unused variables.
-- **Formatting**: Automatically fixes indentation, quotes, and spacing.
+- `pnpm run type-check`: Verifies the entire TS node map natively (`tsc --noEmit`).
+- `pnpm run format`: Prettier passes on code format.
 
 ---
 
