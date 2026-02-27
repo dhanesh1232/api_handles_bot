@@ -448,8 +448,14 @@
       }
 
       @keyframes modalIn {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
       }
 
       @keyframes pulse {
@@ -545,7 +551,7 @@
           <button class="toggle-btn" id="toggle-btn">Show JSON</button>
           <button class="copy-btn" id="copy-btn">Copy</button>
         </div>
-        <pre id="json-pre" style="display:none"></pre>
+        <pre id="json-pre" style="display: none"></pre>
       </div>
 
       <div class="actions">
@@ -576,14 +582,18 @@
 
     <script nonce="__NONCE__">
       const BOOT = __BOOT_TS__;
-      const RAW  = __JSON_RAW_ESCAPED__;
+      const RAW = __JSON_RAW_ESCAPED__;
 
       // Live clock
       function tick() {
-        const el = document.getElementById('live-ts');
-        if (el) el.textContent = new Date().toLocaleString('en-IN', { hour12: false });
+        const el = document.getElementById("live-ts");
+        if (el)
+          el.textContent = new Date().toLocaleString("en-IN", {
+            hour12: false,
+          });
       }
-      tick(); setInterval(tick, 1000);
+      tick();
+      setInterval(tick, 1000);
 
       // Uptime counter
       function fmt(ms) {
@@ -591,73 +601,90 @@
         const h = Math.floor(s / 3600);
         const m = Math.floor((s % 3600) / 60);
         const sc = s % 60;
-        return (h ? h + 'h ' : '') + m + 'm ' + sc + 's';
+        return (h ? h + "h " : "") + m + "m " + sc + "s";
       }
       function updateUptime() {
-        const el = document.getElementById('uptime');
+        const el = document.getElementById("uptime");
         if (el) el.textContent = fmt(Date.now() - BOOT);
       }
-      updateUptime(); setInterval(updateUptime, 1000);
+      updateUptime();
+      setInterval(updateUptime, 1000);
 
       // JSON toggle — direct style.display, no CSS cascade dependency
       function toggleJson() {
-        const pre = document.getElementById('json-pre');
-        const btn = document.getElementById('toggle-btn');
+        const pre = document.getElementById("json-pre");
+        const btn = document.getElementById("toggle-btn");
         if (!pre || !btn) return;
         if (!pre.innerHTML.trim()) {
-          const tpl = document.getElementById('json-tpl');
+          const tpl = document.getElementById("json-tpl");
           pre.innerHTML = tpl ? tpl.innerHTML : RAW;
         }
-        const showing = pre.style.display === 'block';
-        pre.style.display = showing ? 'none' : 'block';
-        btn.textContent = showing ? 'Show JSON' : 'Hide JSON';
+        const showing = pre.style.display === "block";
+        pre.style.display = showing ? "none" : "block";
+        btn.textContent = showing ? "Show JSON" : "Hide JSON";
       }
 
       // Copy raw JSON to clipboard
       function copyJson() {
-        const btn = document.getElementById('copy-btn');
+        const btn = document.getElementById("copy-btn");
         if (!btn) return;
-        navigator.clipboard.writeText(RAW).then(() => {
-          const orig = btn.textContent;
-          btn.textContent = 'Copied!';
-          setTimeout(() => { btn.textContent = orig; }, 1500);
-        }).catch(() => {});
+        navigator.clipboard
+          .writeText(RAW)
+          .then(() => {
+            const orig = btn.textContent;
+            btn.textContent = "Copied!";
+            setTimeout(() => {
+              btn.textContent = orig;
+            }, 1500);
+          })
+          .catch(() => {});
       }
 
       // Show raw JSON in a modal instead of a new tab
       function openRaw() {
-        const overlay = document.getElementById('modal-overlay');
-        const pre = document.getElementById('modal-json');
+        const overlay = document.getElementById("modal-overlay");
+        const pre = document.getElementById("modal-json");
         if (!overlay || !pre) return;
         pre.textContent = RAW;
-        overlay.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+        overlay.style.display = "flex";
+        document.body.style.overflow = "hidden";
       }
 
       function closeRaw() {
-        const overlay = document.getElementById('modal-overlay');
+        const overlay = document.getElementById("modal-overlay");
         if (overlay) {
-          overlay.style.display = 'none';
-          document.body.style.overflow = '';
+          overlay.style.display = "none";
+          document.body.style.overflow = "";
         }
       }
 
       // Wire all buttons via addEventListener - no onclick= attributes (CSP: script-src-attr none)
-      document.getElementById('toggle-btn')?.addEventListener('click', toggleJson);
-      document.getElementById('copy-btn')?.addEventListener('click', copyJson);
-      document.getElementById('btn-refresh')?.addEventListener('click', () => location.reload());
-      document.getElementById('btn-raw')?.addEventListener('click', openRaw);
-      document.getElementById('modal-close')?.addEventListener('click', closeRaw);
-      document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
-        if (e.target === document.getElementById('modal-overlay')) closeRaw();
-      });
+      document
+        .getElementById("toggle-btn")
+        ?.addEventListener("click", toggleJson);
+      document.getElementById("copy-btn")?.addEventListener("click", copyJson);
+      document
+        .getElementById("btn-refresh")
+        ?.addEventListener("click", () => location.reload());
+      document.getElementById("btn-raw")?.addEventListener("click", openRaw);
+      document
+        .getElementById("modal-close")
+        ?.addEventListener("click", closeRaw);
+      document
+        .getElementById("modal-overlay")
+        ?.addEventListener("click", (e) => {
+          if (e.target === document.getElementById("modal-overlay")) closeRaw();
+        });
 
       // Auto-refresh countdown
       let cd = 30;
-      const cdEl = document.getElementById('refresh-cd');
+      const cdEl = document.getElementById("refresh-cd");
       const timer = setInterval(() => {
         if (cdEl) cdEl.textContent = String(--cd);
-        if (cd <= 0) { clearInterval(timer); location.reload(); }
+        if (cd <= 0) {
+          clearInterval(timer);
+          location.reload();
+        }
       }, 1000);
     </script>
   </body>

@@ -1043,6 +1043,7 @@ Proprietary and confidential. Unauthorized use prohibited.
 ECODrIx uses a custom lightweight template renderer located at `src/lib/renderView.ts`.
 
 ### How to use:
+
 1. Place your `.html` file in `src/views/`.
 2. Use `__TOKEN_NAME__` in your HTML for substitution.
 3. Import `renderView` and call it in your route:
@@ -1053,14 +1054,16 @@ import { renderView } from "../../lib/renderView";
 router.get("/", (req, res) => {
   const html = renderView("index.html", {
     TOKEN_NAME: "Value",
-    NONCE: res.locals.cspNonce // Required for <script> tags
+    NONCE: res.locals.cspNonce, // Required for <script> tags
   });
   res.send(html);
 });
 ```
 
 ### Security (CSP & Nonce):
+
 All templates must use a **nonce** for inline scripts to comply with the project's Content Security Policy:
+
 - Add `nonce="__NONCE__"` to your `<script>` tags.
 - Avoid `onclick=` attributes; use `addEventListener` instead.
 

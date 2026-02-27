@@ -71,7 +71,10 @@ router.get("/health", async (req: Request, res: Response) => {
 
   // Double stringify to get a valid JS string literal of the pretty JSON
   const rawJson = JSON.stringify(envelope, null, 2);
-  const escapedJson = JSON.stringify(rawJson).replace(/<\/script/gi, "<\\/script");
+  const escapedJson = JSON.stringify(rawJson).replace(
+    /<\/script/gi,
+    "<\\/script",
+  );
 
   const html = renderView("health.html", {
     VERSION: payload.version,

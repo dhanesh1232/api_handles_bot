@@ -108,16 +108,19 @@ app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        defaultSrc:    ["'self'"],
-        scriptSrc:     ["'self'", (_req, res) => `'nonce-${(res as any).locals.cspNonce}'`],
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          (_req, res) => `'nonce-${(res as any).locals.cspNonce}'`,
+        ],
         // No inline event handlers anywhere — all onclick= removed in favour of addEventListener
         scriptSrcAttr: ["'none'"],
-        styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc:       ["'self'", "https://fonts.gstatic.com"],
-        imgSrc:        ["'self'", "data:"],
-        connectSrc:    ["'self'"],
-        objectSrc:     ["'none'"],
-        baseUri:       ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
       },
     },
   }),
@@ -272,11 +275,11 @@ const SERVER_BOOT_TS = Date.now();
 
 app.get("/", (_req: Request, res: Response) => {
   const html = renderView("index.html", {
-    VERSION:  process.env.npm_package_version ?? "1.5.0",
-    ENV:      process.env.NODE_ENV ?? "development",
-    BOOT_TS:  String(SERVER_BOOT_TS),
+    VERSION: process.env.npm_package_version ?? "1.5.0",
+    ENV: process.env.NODE_ENV ?? "development",
+    BOOT_TS: String(SERVER_BOOT_TS),
     BASE_URL: process.env.BASE_URL ?? "https://api.ecodrix.com",
-    NONCE:    res.locals.cspNonce as string,
+    NONCE: res.locals.cspNonce as string,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
