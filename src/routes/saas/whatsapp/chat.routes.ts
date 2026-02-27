@@ -46,12 +46,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: conversations });
       } catch (err: any) {
         console.error("Error fetching conversations:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to fetch chats",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to fetch chats",
+        });
       }
     },
   );
@@ -82,12 +80,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: messages });
       } catch (err: any) {
         console.error("Error fetching messages:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to fetch messages",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to fetch messages",
+        });
       }
     },
   );
@@ -117,12 +113,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true });
       } catch (err: any) {
         console.error("Error marking read:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to mark as read",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to mark as read",
+        });
       }
     },
   );
@@ -166,12 +160,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: conversation });
       } catch (err: any) {
         console.error("Error creating chat:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to create chat",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to create chat",
+        });
       }
     },
   );
@@ -207,12 +199,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true });
       } catch (err: any) {
         console.error("Error deleting conversation:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to delete conversation",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to delete conversation",
+        });
       }
     },
   );
@@ -289,12 +279,10 @@ export const createChatRouter = (io: Server) => {
         } = req.body;
 
         if (!conversationId && !to) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "Missing conversationId or to phone number",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "Missing conversationId or to phone number",
+          });
         }
 
         let targetConvId = conversationId;
@@ -381,12 +369,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: { isStarred: message.isStarred } });
       } catch (err: any) {
         console.error("Error toggling star:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to toggle star",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to toggle star",
+        });
       }
     },
   );
@@ -433,12 +419,10 @@ export const createChatRouter = (io: Server) => {
         } = req.body;
 
         if (!templateName || !recipients.length) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "Missing templateName or recipients",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "Missing templateName or recipients",
+          });
         }
 
         const conn = await getTenantConnection(clientCode);
@@ -492,12 +476,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: broadcast });
       } catch (err: any) {
         console.error("Broadcast creation error:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to create broadcast",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to create broadcast",
+        });
       }
     },
   );
@@ -523,12 +505,10 @@ export const createChatRouter = (io: Server) => {
         res.json({ success: true, data: broadcasts });
       } catch (err: any) {
         console.error("Error fetching broadcasts:", err);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: err.message || "Failed to fetch broadcasts",
-          });
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to fetch broadcasts",
+        });
       }
     },
   );

@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 // General API: 200 requests per 15 minutes
 export const limiter = rateLimit({
@@ -11,8 +11,10 @@ export const limiter = rateLimit({
     message: "Too many requests, please try again later.",
   },
   keyGenerator: (req) => {
-    // Rate limit per clientCode if authenticated, otherwise per IP
-    return (req as any).clientCode || req.ip || "unknown";
+    // Rate limit per clientCode if authenticated, otherwise per IP (sanitized for IPv6 warning)
+    const clientCode = (req as any).clientCode;
+    if (clientCode) return clientCode;
+    return ipKeyGenerator(req.ip || "unknown");
   },
 });
 
@@ -26,5 +28,9 @@ export const triggerLimiter = rateLimit({
     success: false,
     message: "Trigger rate limit exceeded. Max 60 events/minute.",
   },
-  keyGenerator: (req) => (req as any).clientCode || req.ip || "unknown",
+  keyGenerator: (req) => {
+    const clientCode = (req as any).clientCode;
+    if (clientCode) return clientCode;
+    return ipKeyGenerator(req.ip || "unknown");
+  },
 });

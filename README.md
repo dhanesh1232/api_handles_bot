@@ -18,37 +18,50 @@ multi-step sequences, WhatsApp templates, email.
 
 ## Monitoring
 
+```
 GET /api/saas/health → public health check
 GET /api/saas/health/client → client service status (auth required)
 GET /api/saas/events/logs → automation event history
 GET /api/saas/events/stats → summary statistics
 GET /api/saas/callbacks/logs → callback delivery history
 GET /api/saas/jobs/status/:jobId → specific job status
+```
 
 ## CRM
 
+```
 GET /api/crm/leads → leads list (filter/sort/paginate)
 GET /api/crm/leads/:id/timeline → lead activity timeline
 GET /api/crm/analytics/overview → KPIs
 POST /api/crm/automations → create automation rule
 GET /api/crm/automations → list rules
+```
 
 ## WhatsApp
 
+```
 GET /api/saas/chat/conversations → inbox
 GET /api/saas/chat/conversations/:id/messages → messages
 POST /api/saas/chat/send → send message
 POST /api/saas/chat/broadcast → bulk broadcast
+```
 
 ## Callback Verification (for client websites)
 
 ECODrIx signs all callbacks with HMAC-SHA256:
-const sig = req.headers['x-ecodrix-signature']; // "sha256=<hex>"
-const expected = 'sha256=' + crypto
-.createHmac('sha256', YOUR_WEBHOOK_SECRET)
-.update(JSON.stringify(req.body))
-.digest('hex');
-if (sig === expected) { /_ verified _/ }
+
+```javascript
+const sig = req.headers["x-ecodrix-signature"]; // "sha256=<hex>"
+const expected =
+  "sha256=" +
+  crypto
+    .createHmac("sha256", YOUR * WEBHOOK_SECRET)
+    .update(JSON.stringify(req.body))
+    .digest("hex");
+if (sig === expected) {
+  /* verified \_/*/
+}
+```
 
 ---
 
@@ -65,12 +78,14 @@ if (sig === expected) { /_ verified _/ }
 
 ## 🛠 Tech Stack
 
+```markdown
 - **Runtime**: Node.js (ES Modules)
 - **Framework**: Express.js
 - **Real-time**: Socket.io
 - **Database**: MongoDB with Mongoose (Dual-layer: Services DB + Tenant DBs)
 - **Storage**: Cloudflare R2 (via S3 SDK)
 - **Task Scheduling**: node-cron
+```
 
 ---
 

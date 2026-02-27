@@ -35,13 +35,11 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
   } = body;
 
   if (!trigger || !phone) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "trigger and phone are required",
-        code: "MISSING_REQUIRED",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "trigger and phone are required",
+      code: "MISSING_REQUIRED",
+    });
   }
 
   // Phone must be E.164 format (digits only, 10-15 chars)

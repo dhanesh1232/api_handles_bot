@@ -47,7 +47,7 @@ export async function sendCallbackWithRetry(
         method,
         headers: {
           "Content-Type": "application/json",
-          ...(signature ? { "X-ECODrix-Signature": signature } : {}),
+          ...(signature ? { "x-ecodrix-signature": signature } : {}),
         },
         body,
         signal: AbortSignal.timeout(8000),

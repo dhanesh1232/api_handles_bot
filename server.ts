@@ -34,8 +34,8 @@ import leadsRouter from "./src/routes/services/leads.ts";
 
 import { cronJobs } from "./src/jobs/cron.ts";
 import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
-import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
 import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
+import { verifyCoreToken } from "./src/middleware/auth.ts";
 import { requestLogger } from "./src/middleware/logger.ts";
 import { limiter, triggerLimiter } from "./src/middleware/rate-limit.ts";
 import { validateClientKey } from "./src/middleware/saasAuth.ts";
@@ -85,6 +85,10 @@ const corsOptions: cors.CorsOptions = {
     "x-api-key",
     "x-client-code",
     "x-core-api-key",
+    "x-socket-id",
+    "x-socket-token",
+    "x-socket-client-code",
+    "x-ecodrix-signature",
   ],
 };
 
@@ -153,8 +157,9 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: corsOptions.origin,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
   },
 });
 
@@ -212,7 +217,6 @@ io.on("connection", (socket: Socket) => {
  */
 
 registerGlobalIo(io);
-startWorkflowProcessor();
 cronJobs();
 
 // ─── CRM Worker — handles all async CRM jobs (WhatsApp, email, meeting, reminders)
@@ -261,7 +265,7 @@ app.get("/", (req: Request, res: Response) => {
  */
 app.use("/api", blogsRouter);
 app.use("/api", leadsRouter);
-app.use("/api", clientsRouter);
+app.use("/api", verifyCoreToken, clientsRouter);
 
 // Using top-level await pattern natively or wrap carefully.
 // Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router
@@ -280,9 +284,9 @@ const initializeRoutes = async () => {
   );
   app.use("/api/saas/marketing", validateClientKey, marketingRouter);
   app.use("/api/saas/cors", validateClientKey, corsRouter);
-  app.use("/api/auth/google", validateClientKey, googleAuthRouter);
+  app.use("/api/auth/google", googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);
-  app.use("/api/saas", validateClientKey, healthRouter);
+  app.use("/api/saas", healthRouter);
   app.use("/api/saas", validateClientKey, eventLogRouter);
 
   // Override for trigger endpoint (stricter limit)

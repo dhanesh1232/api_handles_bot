@@ -85,12 +85,10 @@ export const createTemplateRouter = (io: Server) => {
         const wabaId = secrets.getDecrypted("whatsappBusinessId");
 
         if (!token || !wabaId) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "WhatsApp credentials not configured",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "WhatsApp credentials not configured",
+          });
         }
 
         const tenantConn = await getTenantConnection(clientCode);
@@ -99,12 +97,10 @@ export const createTemplateRouter = (io: Server) => {
         res.json({ success: true, data: result });
       } catch (error: any) {
         console.error("Sync error:", error);
-        res
-          .status(500)
-          .json({
-            success: false,
-            message: error.message || "Failed to sync templates",
-          });
+        res.status(500).json({
+          success: false,
+          message: error.message || "Failed to sync templates",
+        });
       }
     },
   );
@@ -301,12 +297,10 @@ export const createTemplateRouter = (io: Server) => {
       res.json({ success: true, data: result });
     } catch (error: any) {
       console.error("Create template error:", error);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create template",
-        });
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create template",
+      });
     }
   });
 
