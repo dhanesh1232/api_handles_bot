@@ -3,11 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ECODrIx — Multi-tenant Business Automation API</title>
+    <title>ECODrIx API — Production-grade Business Automation</title>
     <meta
       name="description"
-      content="Production-grade API for CRM, WhatsApp automation, pipelines, analytics and more."
+      content="The automation engine behind modern business. CRM, WhatsApp messaging, pipelines, analytics, and Google Meet integration — all via one secure API."
     />
+    <meta
+      name="keywords"
+      content="eco-drive, ecodrix, ecodrix api, saas api, whatsapp automation, crm api, lead management, business automation, google meet integration, email marketing api"
+    />
+    <meta name="author" content="ECODrIx" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/favicon-192x192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="/favicon-512x512.png"
+    />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ECODrIx API — The Automation Engine" />
+    <meta
+      property="og:description"
+      content="CRM, WhatsApp messaging, pipelines, analytics and more via one clean, secure API."
+    />
+    <meta property="og:image" content="/logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ECODrIx API" />
+    <meta
+      name="twitter:description"
+      content="Unified business automation API."
+    />
+    <meta name="twitter:image" content="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
@@ -37,6 +76,29 @@
         --muted: #64748b;
         --mono: "JetBrains Mono", monospace;
         --r: 14px;
+      }
+
+      /* ── Custom Scrollbars ── */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 10px;
+        border: 2px solid var(--bg);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent);
+      }
+
+      /* FireFox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border2) var(--bg);
       }
       html {
         scroll-behavior: smooth;
@@ -490,47 +552,55 @@
       /* ── API Explorer ── */
       .explorer-wrap {
         display: grid;
-        grid-template-columns: 240px 1fr;
-        border-radius: 16px;
+        grid-template-columns: 260px 1fr;
+        border-radius: 20px;
         overflow: hidden;
-        border: 1px solid var(--border);
-        min-height: 460px;
+        border: 1px solid var(--border2);
+        background: rgba(10, 17, 32, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        min-height: 520px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
       }
       .explorer-sidebar {
-        background: var(--surface);
+        background: rgba(13, 23, 40, 0.5);
         border-right: 1px solid var(--border);
         overflow-y: auto;
-        max-height: 560px;
+        max-height: 600px;
+        padding-bottom: 20px;
       }
       .explorer-main {
-        background: var(--bg2);
+        background: transparent;
         display: flex;
         flex-direction: column;
         min-height: 0;
       }
       .ep-group-title {
-        font-size: 0.62rem;
-        font-weight: 700;
+        font-size: 0.65rem;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.08em;
         color: var(--muted);
-        padding: 12px 14px 5px;
+        padding: 18px 18px 8px;
+        opacity: 0.8;
       }
       .ep-item {
         display: flex;
         align-items: center;
-        gap: 7px;
-        padding: 8px 14px;
+        gap: 10px;
+        padding: 10px 18px;
         cursor: pointer;
-        transition: background 0.15s;
-        border-left: 2px solid transparent;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border-right: 3px solid transparent;
       }
       .ep-item:hover {
-        background: rgba(59, 130, 246, 0.06);
+        background: rgba(59, 130, 246, 0.08);
+        padding-left: 22px;
       }
       .ep-item.active {
-        background: rgba(59, 130, 246, 0.1);
-        border-left-color: var(--accent);
+        background: rgba(59, 130, 246, 0.15);
+        border-right-color: var(--accent);
+        box-shadow: inset 4px 0 12px -2px rgba(59, 130, 246, 0.2);
       }
       .ep-method {
         font-family: var(--mono);
@@ -581,6 +651,47 @@
         gap: 8px;
         flex-wrap: wrap;
       }
+
+      .explorer-auth {
+        padding: 12px 20px;
+        background: rgba(59, 130, 246, 0.04);
+        border-bottom: 1px solid var(--border);
+      }
+      .auth-title {
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .auth-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .auth-field label {
+        display: block;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        color: #93c5fd;
+        margin-bottom: 4px;
+      }
+      .auth-field input {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .auth-field input:focus {
+        border-color: var(--accent);
+      }
       .ep-badge-method {
         font-family: var(--mono);
         font-size: 0.68rem;
@@ -617,6 +728,48 @@
       }
       .try-btn:hover {
         opacity: 0.86;
+        transform: translateY(-1px);
+      }
+      .try-btn:active {
+        transform: translateY(1px);
+      }
+      .try-btn.loading {
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
+      .ep-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .copy-btn {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.65rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+        margin-right: 12px;
+      }
+      .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        border-color: var(--border2);
+      }
+      .copy-btn.success {
+        color: var(--green);
+        border-color: rgba(34, 197, 94, 0.3);
+      }
+      .ep-tab-spacer {
+        flex: 1;
       }
 
       .explorer-body {
@@ -1147,13 +1300,45 @@
               <div class="svc-title">Analytics &amp; Scoring</div>
               <div class="svc-desc">
                 8 analytics endpoints: funnel, revenue forecast, source
-                breakdown, team leaderboard, activity heatmap, stage timing,
-                score distribution.
+                breakdown, team leaderboard, activity heatmap, stage timing, and
+                performance trends.
               </div>
               <div class="svc-tags">
-                <span class="tag">Funnel</span><span class="tag">Forecast</span
-                ><span class="tag">Lead Score</span
-                ><span class="tag">Heatmap</span>
+                <span class="tag">Funnel</span><span class="tag">Revenue</span
+                ><span class="tag">Heatmap</span
+                ><span class="tag">Forecast</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(244, 63, 94, 0.1)">
+                📹
+              </div>
+              <div class="svc-title">Google Meet &amp; Calendar</div>
+              <div class="svc-desc">
+                Automatically generate unique Google Meet links for every lead
+                booking. Manage appointments and sync with your team calendar
+                via OAuth2.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">Google Meet</span
+                ><span class="tag">OAuth2</span><span class="tag">Calendar</span
+                ><span class="tag">Booking</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(14, 165, 233, 0.1)">
+                ✉️
+              </div>
+              <div class="svc-title">Email Marketing (SMTP)</div>
+              <div class="svc-desc">
+                Send transactional emails or bulk marketing campaigns. Support
+                for custom SMTP, Amazon SES, or API-based delivery with open
+                tracking.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">SMTP</span><span class="tag">Campaigns</span
+                ><span class="tag">Tracking</span
+                ><span class="tag">Transactional</span>
               </div>
             </div>
             <div class="service-card">
@@ -1213,27 +1398,69 @@
                     id="ep-badge-method"
                   ></span>
                   <span class="ep-full-path" id="ep-full-path"></span>
-                  <button class="try-btn" id="try-run-btn">▶ Run</button>
+                  <div class="ep-actions">
+                    <button class="try-btn" id="try-run-btn">▶ Run</button>
+                  </div>
                 </div>
                 <div class="ep-desc-text" id="ep-desc"></div>
+              </div>
+              <!-- Auth Header Input -->
+              <div class="explorer-auth">
+                <div class="auth-title">
+                  Auth Settings (Required for real calls)
+                </div>
+                <div class="auth-grid">
+                  <div class="auth-field">
+                    <label>x-api-key</label>
+                    <input
+                      type="password"
+                      id="auth-api-key"
+                      placeholder="Enter API Key"
+                    />
+                  </div>
+                  <div class="auth-field">
+                    <label>x-client-code</label>
+                    <input
+                      type="text"
+                      id="auth-client-code"
+                      placeholder="Enter Client Code"
+                    />
+                  </div>
+                </div>
               </div>
               <div class="explorer-body">
                 <div class="ep-tabs" id="ep-tabs">
                   <div class="ep-tab active" data-tab="response">Response</div>
                   <div class="ep-tab" data-tab="headers">Headers</div>
                   <div class="ep-tab" data-tab="example">Request Body</div>
+                  <div class="ep-tab-spacer"></div>
+                  <button
+                    class="copy-btn"
+                    id="copy-panel-btn"
+                    title="Copy to clipboard"
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14">
+                      <path
+                        fill="currentColor"
+                        d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                      />
+                    </svg>
+                    Copy
+                  </button>
                 </div>
-                <div class="ep-content" id="ep-response-panel"></div>
-                <div
-                  class="ep-content"
-                  id="ep-headers-panel"
-                  style="display: none"
-                ></div>
-                <div
-                  class="ep-content"
-                  id="ep-example-panel"
-                  style="display: none"
-                ></div>
+                <div class="ep-body-panels">
+                  <div class="ep-content" id="ep-response-panel"></div>
+                  <div
+                    class="ep-content"
+                    id="ep-headers-panel"
+                    style="display: none"
+                  ></div>
+                  <div
+                    class="ep-content"
+                    id="ep-example-panel"
+                    style="display: none"
+                  ></div>
+                </div>
               </div>
             </div>
           </div>
@@ -2046,16 +2273,49 @@
 
       function runEndpoint() {
         if (!activeEp) return;
+        const btn = document.getElementById("try-run-btn");
+        const originalText = btn.textContent;
+        btn.classList.add("loading");
+        btn.textContent = "Processing...";
+
         document
           .querySelectorAll(".ep-tab")
           .forEach((t, i) => t.classList.toggle("active", i === 0));
         showContent("response");
         const panel = document.getElementById("ep-response-panel");
         panel.style.opacity = "0.3";
+
         setTimeout(() => {
+          btn.classList.remove("loading");
+          btn.textContent = originalText;
           panel.style.transition = "opacity .35s";
           panel.style.opacity = "1";
-        }, 60);
+        }, 500);
+      }
+
+      async function copyPanel() {
+        const panel = document.querySelector(
+          '.ep-content:not([style*="display: none"])',
+        );
+        if (!panel) return;
+        const text = panel.innerText;
+        try {
+          await navigator.clipboard.writeText(text);
+          const btn = document.getElementById("copy-panel-btn");
+          const original = btn.innerHTML;
+          btn.classList.add("success");
+          btn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="14" height="14">
+              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            Copied!`;
+          setTimeout(() => {
+            btn.classList.remove("success");
+            btn.innerHTML = original;
+          }, 2000);
+        } catch (err) {
+          console.error("Failed to copy:", err);
+        }
       }
 
       renderSidebar();
@@ -2069,6 +2329,9 @@
       document
         .getElementById("try-run-btn")
         ?.addEventListener("click", runEndpoint);
+      document
+        .getElementById("copy-panel-btn")
+        ?.addEventListener("click", copyPanel);
       document.getElementById("ep-tabs")?.addEventListener("click", (e) => {
         const tab = e.target.closest(".ep-tab");
         if (tab && tab.dataset.tab) switchTab(tab.dataset.tab);

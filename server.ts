@@ -7,6 +7,7 @@ import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import helmet from "helmet";
 import http from "http";
+import { join } from "path";
 import { Server, type Socket } from "socket.io";
 import { renderView } from "./src/lib/renderView.ts";
 import { getDynamicOrigins } from "./src/model/cors-origins.ts";
@@ -117,7 +118,7 @@ app.use(
         scriptSrcAttr: ["'none'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:"],
+        imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
@@ -125,6 +126,9 @@ app.use(
     },
   }),
 );
+
+// Serve static assets from public/ folder (favicons, logos, etc.)
+app.use(express.static(join(process.cwd(), "public")));
 
 /**
  * @Start Rate Limiting
