@@ -18,6 +18,7 @@ _Changes staged for the next release._
 ### Added
 
 **Multi-Tenant Core**
+
 - Dual-database architecture: central `services` DB + per-client tenant DBs
 - `connectionManager.ts` — pooled tenant connection cache keyed by `clientCode`
 - `getCrmModels()` shortcut for safe tenant model access
@@ -25,6 +26,7 @@ _Changes staged for the next release._
 - `validateClientKey` middleware — verifies API key + attaches `clientCode` to every request
 
 **Workflow Engine**
+
 - `POST /api/saas/workflows/trigger` — single entry point for all client automation triggers
 - 18 supported trigger names (`appointment_confirmed`, `payment_captured`, `lead_created`, etc.)
 - `requiresMeet` flag — optional Google Meet link creation per trigger
@@ -34,6 +36,7 @@ _Changes staged for the next release._
 - `EventLog` — full audit trail for every trigger invocation
 
 **CRM**
+
 - Leads: create, list (with 14 filter/sort params), update, archive, tag, move, convert, bulk import
 - Pipelines & Stages: CRUD, reorder, duplicate, board view (Kanban), revenue forecast
 - Activities, Calls & Notes: full timeline, pin notes, log calls
@@ -43,6 +46,7 @@ _Changes staged for the next release._
 - Auto-creates a default "sales" pipeline for brand-new tenants (prevents crashes on first trigger)
 
 **WhatsApp**
+
 - Inbound webhook: receive messages, statuses, reactions
 - Outbound messaging: text, template, media
 - Conversation management: list, create, read-mark, delete
@@ -55,12 +59,14 @@ _Changes staged for the next release._
 - Incoming WhatsApp messages auto-create or link to existing CRM Leads
 
 **Background Jobs**
+
 - `MongoQueue` — custom poll-based job queue (no Redis required)
 - `crmWorker.ts` — single centralized worker for all async jobs
 - Cron jobs: `no_contact` detection, nightly score recalculation
 - Job types: `crm.automation_event`, `crm.send_whatsapp`, `crm.send_broadcast_msg`, `crm.send_email`, `crm.google_meet`
 
 **Integrations**
+
 - Google Meet: OAuth flow + meeting creation per trigger
 - OpenAI: AI-assisted features (chatbot, text generation)
 - SMTP email: per-client credentials via `ClientSecrets`
@@ -68,6 +74,7 @@ _Changes staged for the next release._
 - FFmpeg: video/audio transcoding for media messages
 
 **Infrastructure**
+
 - Helmet security headers
 - Global + trigger-specific rate limiting (IPv6-safe)
 - Dynamic CORS allowlist via `CorsOrigin` model + admin API
@@ -77,6 +84,7 @@ _Changes staged for the next release._
 - Dependabot for automated dependency updates
 
 ### Security
+
 - All client secrets encrypted at rest with AES-256 (`ENCRYPTION_KEY`)
 - All outbound callbacks HMAC-signed with per-client `automationWebhookSecret`
 - Tenant isolation enforced at every query level — `clientCode` is a hard filter

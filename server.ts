@@ -2,11 +2,13 @@ import dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
 
 import cors from "cors";
+import crypto from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import helmet from "helmet";
 import http from "http";
 import { Server, type Socket } from "socket.io";
+import { renderView } from "./src/lib/renderView.ts";
 import { getDynamicOrigins } from "./src/model/cors-origins.ts";
 import googleAuthRouter from "./src/routes/auth/google.ts";
 import corsRouter from "./src/routes/saas/cors/cors.routes.ts";
@@ -35,7 +37,6 @@ import leadsRouter from "./src/routes/services/leads.ts";
 import { cronJobs } from "./src/jobs/cron.ts";
 import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
 import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
-import { verifyCoreToken } from "./src/middleware/auth.ts";
 import { requestLogger } from "./src/middleware/logger.ts";
 import { limiter, triggerLimiter } from "./src/middleware/rate-limit.ts";
 import { validateClientKey } from "./src/middleware/saasAuth.ts";
@@ -96,7 +97,31 @@ const corsOptions: cors.CorsOptions = {
  * @Start Security Middleware
  * @borrows Helmet and Rate Limiting
  */
-app.use(helmet());
+
+// Generate a fresh nonce per request for CSP script-src
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString("base64");
+  next();
+});
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc:    ["'self'"],
+        scriptSrc:     ["'self'", (_req, res) => `'nonce-${(res as any).locals.cspNonce}'`],
+        // No inline event handlers anywhere — all onclick= removed in favour of addEventListener
+        scriptSrcAttr: ["'none'"],
+        styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc:       ["'self'", "https://fonts.gstatic.com"],
+        imgSrc:        ["'self'", "data:"],
+        connectSrc:    ["'self'"],
+        objectSrc:     ["'none'"],
+        baseUri:       ["'self'"],
+      },
+    },
+  }),
+);
 
 /**
  * @Start Rate Limiting
@@ -241,8 +266,21 @@ app.use((req: any, res: Response, next: NextFunction) => {
  * @param {req.io} - Middleware to attach io to req
  */
 
-app.get("/", (req: Request, res: Response) => {
-  res.send("Hello from server");
+// ─── Root status page ────────────────────────────────────────────────────────
+// Served from src/views/index.html — renderView caches the file at first call.
+const SERVER_BOOT_TS = Date.now();
+
+app.get("/", (_req: Request, res: Response) => {
+  const html = renderView("index.html", {
+    VERSION:  process.env.npm_package_version ?? "1.5.0",
+    ENV:      process.env.NODE_ENV ?? "development",
+    BOOT_TS:  String(SERVER_BOOT_TS),
+    BASE_URL: process.env.BASE_URL ?? "https://api.ecodrix.com",
+    NONCE:    res.locals.cspNonce as string,
+  });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(html);
 });
 
 /**
@@ -265,7 +303,7 @@ app.get("/", (req: Request, res: Response) => {
  */
 app.use("/api", blogsRouter);
 app.use("/api", leadsRouter);
-app.use("/api", verifyCoreToken, clientsRouter);
+app.use("/api", clientsRouter);
 
 // Using top-level await pattern natively or wrap carefully.
 // Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router

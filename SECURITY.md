@@ -6,8 +6,8 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
+| Version       | Supported |
+| ------------- | --------- |
 | 1.x (current) | ✅ Active |
 
 Older versions receive no security patches.
@@ -21,6 +21,7 @@ Older versions receive no security patches.
 Email: **security@ecodrix.com**
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -34,11 +35,11 @@ We will acknowledge within **48 hours** and aim to release a patch within **7 da
 
 ### Authentication Layers
 
-| Layer | Mechanism | Scope |
-|-------|-----------|-------|
+| Layer      | Mechanism                             | Scope                                  |
+| ---------- | ------------------------------------- | -------------------------------------- |
 | Tenant API | `x-api-key` + `x-client-code` headers | All `/api/crm/*`, `/api/saas/*` routes |
-| Admin API | `verifyCoreToken` (JWT/Bearer) | `/api/clients/*` routes only |
-| Public | None | `GET /api/saas/health` only |
+| Admin API  | `verifyCoreToken` (JWT/Bearer)        | `/api/clients/*` routes only           |
+| Public     | None                                  | `GET /api/saas/health` only            |
 
 ### Tenant Isolation
 
@@ -52,6 +53,7 @@ Every database query includes `clientCode` as a mandatory filter. Tenant data is
 All per-client credentials (WhatsApp tokens, SMTP passwords, etc.) stored in `ClientSecrets` are encrypted at rest using **AES-256-CBC** with the server-side `ENCRYPTION_KEY`.
 
 The `ENCRYPTION_KEY` is **never** stored in the database. If this key is compromised:
+
 1. Rotate immediately (see `RUNBOOK.md` → Section 4)
 2. Revoke all affected client API keys
 3. Re-issue new credentials to clients
@@ -69,11 +71,14 @@ Verification example (Node.js):
 ```ts
 import crypto from "crypto";
 
-function verifyCallback(rawBody: string, signature: string, secret: string): boolean {
-  const expected = "sha256=" + crypto
-    .createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
+function verifyCallback(
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
+  const expected =
+    "sha256=" +
+    crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 ```

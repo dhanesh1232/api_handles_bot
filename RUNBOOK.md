@@ -121,13 +121,13 @@ The MongoQueue stores jobs in the central `services` database (`jobs` collection
 
 ```js
 // Count by status
-db.jobs.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
+db.jobs.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
 
 // View stuck jobs (processing > 10 min)
 db.jobs.find({
   status: "processing",
-  updatedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) }
-})
+  updatedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) },
+});
 ```
 
 ### Re-queue a stuck job
@@ -136,14 +136,14 @@ db.jobs.find({
 // Reset a specific stuck job back to pending
 db.jobs.updateOne(
   { _id: ObjectId("...") },
-  { $set: { status: "pending", retries: 0 } }
-)
+  { $set: { status: "pending", retries: 0 } },
+);
 ```
 
 ### Kill a poison job permanently
 
 ```js
-db.jobs.deleteOne({ _id: ObjectId("...") })
+db.jobs.deleteOne({ _id: ObjectId("...") });
 ```
 
 ---
@@ -221,15 +221,15 @@ If the server returns a non-200 or is unreachable:
 
 ## 8. Common Errors & Fixes
 
-| Error | Likely Cause | Fix |
-|-------|-------------|-----|
-| `ClientCode not found` | Client not onboarded | Run onboarding steps 1–3 |
-| `No tenant connection for X` | `ClientDataSource` missing | Run Step 3 of onboarding |
-| `Invalid API key` | Wrong key / rotated | Re-share the correct key |
-| `Template not found` | Not synced yet | Run Step 5 (template sync) |
-| `MongoNetworkError` | Atlas IP blocked | Whitelist server IP in Atlas |
-| `HMAC mismatch` on callback | Wrong `automationWebhookSecret` | Client must update their webhook verification |
-| Job stuck in `processing` | Worker crashed mid-job | Reset job status — see Section 2 |
+| Error                        | Likely Cause                    | Fix                                           |
+| ---------------------------- | ------------------------------- | --------------------------------------------- |
+| `ClientCode not found`       | Client not onboarded            | Run onboarding steps 1–3                      |
+| `No tenant connection for X` | `ClientDataSource` missing      | Run Step 3 of onboarding                      |
+| `Invalid API key`            | Wrong key / rotated             | Re-share the correct key                      |
+| `Template not found`         | Not synced yet                  | Run Step 5 (template sync)                    |
+| `MongoNetworkError`          | Atlas IP blocked                | Whitelist server IP in Atlas                  |
+| `HMAC mismatch` on callback  | Wrong `automationWebhookSecret` | Client must update their webhook verification |
+| Job stuck in `processing`    | Worker crashed mid-job          | Reset job status — see Section 2              |
 
 ---
 

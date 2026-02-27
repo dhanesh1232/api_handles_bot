@@ -37,16 +37,16 @@ module.exports = {
       merge_logs: true,
 
       // Auto-restart behaviour
-      watch: false,           // never watch in production — use pm2 reload instead
-      restart_delay: 3000,    // 3s delay between restarts
-      max_restarts: 10,       // stop restarting after 10 rapid failures
-      min_uptime: "10s",      // must stay up ≥10s to count as a successful start
+      watch: false, // never watch in production — use pm2 reload instead
+      restart_delay: 3000, // 3s delay between restarts
+      max_restarts: 10, // stop restarting after 10 rapid failures
+      min_uptime: "10s", // must stay up ≥10s to count as a successful start
 
       // Memory limit — restart if the process grows above this
       max_memory_restart: "512M",
 
       // Graceful shutdown — matches the SIGTERM handler in server.ts
-      kill_timeout: 12000,    // 12s (server.ts forces exit after 10s; PM2 adds 2s buffer)
+      kill_timeout: 12000, // 12s (server.ts forces exit after 10s; PM2 adds 2s buffer)
       listen_timeout: 15000,
 
       // Node.js flags

@@ -1,0 +1,2067 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ECODrIx — Multi-tenant Business Automation API</title>
+    <meta
+      name="description"
+      content="Production-grade API for CRM, WhatsApp automation, pipelines, analytics and more."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #060a12;
+        --bg2: #0a1120;
+        --surface: #0d1728;
+        --surf2: #111e35;
+        --border: rgba(79, 140, 255, 0.11);
+        --border2: rgba(79, 140, 255, 0.24);
+        --accent: #3b82f6;
+        --accent2: #6366f1;
+        --green: #22c55e;
+        --yellow: #f59e0b;
+        --red: #ef4444;
+        --text: #e2e8f0;
+        --muted: #64748b;
+        --mono: "JetBrains Mono", monospace;
+        --r: 14px;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        overflow-x: hidden;
+      }
+
+      /* ── Background grid + blobs ── */
+      .bg-grid {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background-image:
+          linear-gradient(rgba(59, 130, 246, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(59, 130, 246, 0.035) 1px, transparent 1px);
+        background-size: 44px 44px;
+      }
+      .blob {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(80px);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .blob-1 {
+        width: 500px;
+        height: 500px;
+        top: -160px;
+        left: -120px;
+        background: radial-gradient(
+          circle,
+          rgba(59, 130, 246, 0.07),
+          transparent 70%
+        );
+      }
+      .blob-2 {
+        width: 420px;
+        height: 420px;
+        bottom: -160px;
+        right: -80px;
+        background: radial-gradient(
+          circle,
+          rgba(99, 102, 241, 0.06),
+          transparent 70%
+        );
+      }
+
+      /* ── Layout ── */
+      .page {
+        position: relative;
+        z-index: 1;
+      }
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      section {
+        padding: 60px 0;
+      }
+
+      /* ── Nav ── */
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(6, 10, 18, 0.88);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+      }
+      .nav-inner {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 58px;
+      }
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        text-decoration: none;
+      }
+      .nav-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
+      }
+      .nav-icon svg {
+        width: 17px;
+        height: 17px;
+        fill: #fff;
+      }
+      .nav-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #e2e8f0, #93c5fd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .nav-links {
+        display: flex;
+        gap: 2px;
+        margin-left: auto;
+      }
+      .nav-links a {
+        padding: 6px 12px;
+        border-radius: 7px;
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-decoration: none;
+        transition:
+          color 0.2s,
+          background 0.2s;
+        white-space: nowrap;
+      }
+      .nav-links a:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .nav-badge {
+        background: rgba(59, 130, 246, 0.12);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.22);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        margin-left: 8px;
+      }
+      .nav-badge::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: pulse 2s infinite;
+      }
+      /* Mobile nav toggle */
+      .nav-toggle {
+        display: none;
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 4px;
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        padding: 72px 0 52px;
+        text-align: center;
+      }
+      .hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        padding: 5px 14px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #93c5fd;
+        margin-bottom: 22px;
+      }
+      .hero-eyebrow span {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: pulse 2s infinite;
+      }
+      .hero h1 {
+        font-size: clamp(1.8rem, 5vw, 3.1rem);
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        background: linear-gradient(
+          135deg,
+          #e2e8f0 20%,
+          #93c5fd 60%,
+          #a78bfa 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 16px;
+      }
+      .hero p {
+        font-size: clamp(0.875rem, 2.5vw, 1.05rem);
+        color: var(--muted);
+        max-width: 540px;
+        margin: 0 auto 32px;
+        line-height: 1.65;
+      }
+      .hero-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      /* ── Buttons ── */
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        color: #fff;
+        padding: 10px 22px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition:
+          opacity 0.2s,
+          transform 0.2s;
+        border: none;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        opacity: 0.88;
+        transform: translateY(-1px);
+      }
+      .btn-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: transparent;
+        color: var(--text);
+        padding: 10px 22px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid var(--border2);
+        transition:
+          border-color 0.2s,
+          background 0.2s,
+          transform 0.2s;
+      }
+      .btn-outline:hover {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.07);
+        transform: translateY(-1px);
+      }
+
+      /* ── Status strip ── */
+      .status-strip {
+        background: rgba(34, 197, 94, 0.06);
+        border: 1px solid rgba(34, 197, 94, 0.18);
+        border-radius: 12px;
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: pulse 2s infinite;
+        flex-shrink: 0;
+      }
+      .status-strip-text {
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #86efac;
+      }
+      .status-strip .ts {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      /* ── Stat cards ── */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 44px;
+      }
+      .stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 16px 18px;
+        transition:
+          border-color 0.2s,
+          transform 0.2s;
+      }
+      .stat-card:hover {
+        border-color: var(--border2);
+        transform: translateY(-2px);
+      }
+      .stat-label {
+        font-size: 0.63rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 7px;
+      }
+      .stat-value {
+        font-size: clamp(1rem, 3vw, 1.25rem);
+        font-weight: 700;
+        font-family: var(--mono);
+      }
+      .stat-value.green {
+        color: var(--green);
+      }
+      .stat-value.blue {
+        color: #93c5fd;
+      }
+      .stat-sub {
+        font-size: 0.63rem;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      /* ── Section headings ── */
+      .section-tag {
+        display: inline-block;
+        font-size: 0.67rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+      .section-title {
+        font-size: clamp(1.3rem, 3vw, 1.85rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        margin-bottom: 10px;
+      }
+      .section-desc {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.65;
+        max-width: 540px;
+      }
+
+      /* ── Card base ── */
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+      .card-header .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      /* ── Service cards ── */
+      .services-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .service-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 22px;
+        transition:
+          border-color 0.25s,
+          transform 0.25s;
+      }
+      .service-card:hover {
+        border-color: var(--border2);
+        transform: translateY(-3px);
+      }
+      .svc-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        margin-bottom: 14px;
+      }
+      .svc-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .svc-desc {
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .svc-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .tag {
+        font-size: 0.62rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(59, 130, 246, 0.1);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.18);
+      }
+
+      /* ── API Explorer ── */
+      .explorer-wrap {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        min-height: 460px;
+      }
+      .explorer-sidebar {
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        overflow-y: auto;
+        max-height: 560px;
+      }
+      .explorer-main {
+        background: var(--bg2);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .ep-group-title {
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        padding: 12px 14px 5px;
+      }
+      .ep-item {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 14px;
+        cursor: pointer;
+        transition: background 0.15s;
+        border-left: 2px solid transparent;
+      }
+      .ep-item:hover {
+        background: rgba(59, 130, 246, 0.06);
+      }
+      .ep-item.active {
+        background: rgba(59, 130, 246, 0.1);
+        border-left-color: var(--accent);
+      }
+      .ep-method {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        font-weight: 700;
+        padding: 2px 5px;
+        border-radius: 4px;
+        width: 38px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .ep-method.GET {
+        background: rgba(34, 197, 94, 0.15);
+        color: #86efac;
+      }
+      .ep-method.POST {
+        background: rgba(59, 130, 246, 0.15);
+        color: #93c5fd;
+      }
+      .ep-method.PATCH {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fde047;
+      }
+      .ep-method.DELETE {
+        background: rgba(239, 68, 68, 0.15);
+        color: #fca5a5;
+      }
+      .ep-path {
+        font-family: var(--mono);
+        font-size: 0.67rem;
+        color: var(--muted);
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ep-item.active .ep-path {
+        color: var(--text);
+      }
+
+      .explorer-top {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .ep-url-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ep-badge-method {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 6px;
+      }
+      .ep-full-path {
+        font-family: var(--mono);
+        font-size: 0.76rem;
+        color: #93c5fd;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ep-desc-text {
+        font-size: 0.76rem;
+        color: var(--muted);
+        margin-top: 7px;
+      }
+      .try-btn {
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        color: #fff;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 7px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+      }
+      .try-btn:hover {
+        opacity: 0.86;
+      }
+
+      .explorer-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .ep-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+      }
+      .ep-tab {
+        padding: 9px 16px;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: color 0.2s;
+        white-space: nowrap;
+      }
+      .ep-tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      .ep-content {
+        flex: 1;
+        padding: 16px 20px;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        line-height: 1.75;
+        color: #cbd5e1;
+        overflow: auto;
+        max-height: 300px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .ep-content .key {
+        color: #93c5fd;
+      }
+      .ep-content .str {
+        color: #86efac;
+      }
+      .ep-content .num {
+        color: #fde047;
+      }
+      .ep-content .bool {
+        color: #f9a8d4;
+      }
+      .ep-content .null {
+        color: var(--muted);
+      }
+      .ep-content .cmt {
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      /* ── Integration Steps ── */
+      .steps {
+        display: flex;
+        flex-direction: column;
+      }
+      .step {
+        display: flex;
+        gap: 18px;
+        position: relative;
+      }
+      .step:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 44px;
+        bottom: 0;
+        width: 1px;
+        background: var(--border);
+      }
+      .step-num {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 700;
+        position: relative;
+        z-index: 1;
+        box-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
+      }
+      .step-body {
+        padding-bottom: 30px;
+        flex: 1;
+        min-width: 0;
+      }
+      .step-title {
+        font-size: 0.92rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+        margin-top: 8px;
+      }
+      .step-desc {
+        font-size: 0.8rem;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .code-block {
+        background: var(--surf2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 13px 15px;
+        font-family: var(--mono);
+        font-size: clamp(0.68rem, 1.8vw, 0.74rem);
+        color: #93c5fd;
+        margin-top: 10px;
+        line-height: 1.7;
+        overflow-x: auto;
+        white-space: pre;
+        word-break: normal;
+      }
+
+      /* ── Auth grid ── */
+      .auth-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .auth-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+      }
+      .auth-icon {
+        font-size: 22px;
+        margin-bottom: 10px;
+      }
+      .auth-title {
+        font-size: 0.87rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+      .auth-desc {
+        font-size: 0.76rem;
+        color: var(--muted);
+        line-height: 1.65;
+        margin-bottom: 10px;
+      }
+
+      /* ── Badges ── */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 9px;
+        border-radius: 20px;
+        font-size: 0.64rem;
+        font-weight: 600;
+      }
+      .badge::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .badge.ok {
+        background: rgba(34, 197, 94, 0.1);
+        color: #86efac;
+        border: 1px solid rgba(34, 197, 94, 0.2);
+      }
+      .badge.info {
+        background: rgba(59, 130, 246, 0.1);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+      }
+
+      /* ── Service status rows ── */
+      .srv-row {
+        display: flex;
+        align-items: center;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.15s;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .srv-row:last-child {
+        border-bottom: none;
+      }
+      .srv-row:hover {
+        background: rgba(59, 130, 246, 0.04);
+      }
+      .srv-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .srv-name {
+        font-size: 0.84rem;
+        font-weight: 600;
+        flex: 1;
+        min-width: 120px;
+      }
+      .srv-path {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        color: var(--muted);
+      }
+
+      /* ── CTA ── */
+      .cta-box {
+        background: linear-gradient(
+          135deg,
+          rgba(59, 130, 246, 0.08),
+          rgba(99, 102, 241, 0.08)
+        );
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        padding: 48px 32px;
+        text-align: center;
+      }
+      .cta-box h2 {
+        font-size: clamp(1.3rem, 3vw, 1.7rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin-bottom: 10px;
+      }
+      .cta-box p {
+        color: var(--muted);
+        font-size: 0.88rem;
+        max-width: 420px;
+        margin: 0 auto 26px;
+        line-height: 1.65;
+      }
+      .cta-contacts {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .contact-pill {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        padding: 9px 16px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-decoration: none;
+        color: var(--text);
+        transition:
+          border-color 0.2s,
+          transform 0.2s;
+      }
+      .contact-pill:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+
+      /* ── Footer ── */
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 24px 20px;
+      }
+      .footer-inner {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 820px) {
+        .services-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .explorer-wrap {
+          grid-template-columns: 1fr;
+        }
+        .explorer-sidebar {
+          max-height: 180px;
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+        .ep-content {
+          max-height: 220px;
+        }
+      }
+      @media (max-width: 640px) {
+        .nav-links {
+          display: none;
+        }
+        .nav-toggle {
+          display: block;
+        }
+        .nav-links.open {
+          display: flex;
+          flex-direction: column;
+          position: absolute;
+          top: 58px;
+          left: 0;
+          right: 0;
+          background: rgba(6, 10, 18, 0.97);
+          border-bottom: 1px solid var(--border);
+          padding: 8px 16px 14px;
+        }
+        .nav-links.open a {
+          padding: 9px 8px;
+        }
+        .nav-badge {
+          display: none;
+        }
+        .services-grid {
+          grid-template-columns: 1fr;
+        }
+        .auth-grid {
+          grid-template-columns: 1fr;
+        }
+        section {
+          padding: 44px 0;
+        }
+        .cta-box {
+          padding: 32px 20px;
+        }
+      }
+      @media (max-width: 480px) {
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .hero {
+          padding: 48px 0 36px;
+        }
+        .code-block {
+          font-size: 0.64rem;
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1);
+        }
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="page">
+      <!-- ── NAV ── -->
+      <nav>
+        <div class="nav-inner">
+          <a class="nav-logo" href="#">
+            <div class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v3H7v4h11v3H7v4h13v3H4z" />
+              </svg>
+            </div>
+            <span class="nav-title">ECODrIx API</span>
+          </a>
+          <div class="nav-links" id="nav-links">
+            <a href="#services">Services</a>
+            <a href="#explorer">API Explorer</a>
+            <a href="#integrate">Integrate</a>
+            <a href="#contact">Contact</a>
+          </div>
+          <div class="nav-badge">Live &nbsp;·&nbsp; v__VERSION__</div>
+          <button
+            class="nav-toggle"
+            id="nav-toggle-btn"
+            aria-label="Toggle navigation"
+          >
+            ☰
+          </button>
+        </div>
+      </nav>
+
+      <div class="container">
+        <!-- ── HERO ── -->
+        <section class="hero" id="home">
+          <div class="hero-eyebrow">
+            <span></span>Production &nbsp;·&nbsp; Multi-tenant &nbsp;·&nbsp;
+            API-first
+          </div>
+          <h1>The Automation Engine<br />Behind Your Business</h1>
+          <p>
+            CRM, WhatsApp messaging, pipeline management, lead scoring,
+            analytics and Google Meet — all through one clean, secure API.
+          </p>
+          <div class="hero-actions">
+            <a class="btn-primary" href="#explorer">▶ Try the API</a>
+            <a class="btn-outline" href="#integrate">Integration Guide →</a>
+          </div>
+        </section>
+
+        <!-- Status strip -->
+        <div class="status-strip">
+          <div class="pulse-dot"></div>
+          <span class="status-strip-text">All Systems Operational</span>
+          <span class="ts" id="live-time"></span>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Server Uptime</div>
+            <div class="stat-value green" id="uptime-counter">—</div>
+            <div class="stat-sub">since last deploy</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Environment</div>
+            <div class="stat-value blue">__ENV__</div>
+            <div class="stat-sub">node runtime</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Version</div>
+            <div class="stat-value" style="font-size: 1.05rem">
+              v__VERSION__
+            </div>
+            <div class="stat-sub">semantic versioning</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">DB Status</div>
+            <div class="stat-value green" id="db-val">● —</div>
+            <div class="stat-sub" id="queue-sub">queue: — jobs</div>
+          </div>
+        </div>
+
+        <!-- ── SERVICES ── -->
+        <section id="services">
+          <div class="section-tag">What We Offer</div>
+          <h2 class="section-title">One API, Every Business Tool</h2>
+          <p class="section-desc" style="margin-bottom: 36px">
+            Everything a modern business needs to automate client journeys —
+            from lead capture to deal close.
+          </p>
+          <div class="services-grid">
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(34, 197, 94, 0.1)">
+                🧲
+              </div>
+              <div class="svc-title">CRM &amp; Lead Management</div>
+              <div class="svc-desc">
+                Full-featured lead pipeline with custom stages, scoring, tags,
+                activities, notes and timeline. Bulk import up to 1,000 leads in
+                one call.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">Leads</span><span class="tag">Pipelines</span
+                ><span class="tag">Kanban</span
+                ><span class="tag">Timeline</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(59, 130, 246, 0.1)">
+                ⚡
+              </div>
+              <div class="svc-title">Workflow Automation</div>
+              <div class="svc-desc">
+                Fire a single trigger from your website — ECODrIx handles
+                WhatsApp, email, stage moves, tagging, Google Meet creation, and
+                callbacks automatically.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">18 Triggers</span
+                ><span class="tag">6 Actions</span
+                ><span class="tag">Delayed Jobs</span
+                ><span class="tag">Callbacks</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(22, 163, 74, 0.08)">
+                💬
+              </div>
+              <div class="svc-title">WhatsApp Inbox &amp; Messaging</div>
+              <div class="svc-desc">
+                Full WhatsApp Business inbox with real-time Socket.IO updates.
+                Send templates, media, reactions. Run bulk broadcasts with CRM
+                variable mapping.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">Inbox</span><span class="tag">Templates</span
+                ><span class="tag">Broadcasts</span
+                ><span class="tag">Real-time</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(168, 85, 247, 0.1)">
+                📊
+              </div>
+              <div class="svc-title">Analytics &amp; Scoring</div>
+              <div class="svc-desc">
+                8 analytics endpoints: funnel, revenue forecast, source
+                breakdown, team leaderboard, activity heatmap, stage timing,
+                score distribution.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">Funnel</span><span class="tag">Forecast</span
+                ><span class="tag">Lead Score</span
+                ><span class="tag">Heatmap</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(245, 158, 11, 0.1)">
+                📅
+              </div>
+              <div class="svc-title">Google Meet Integration</div>
+              <div class="svc-desc">
+                Auto-generate Google Meet links on any workflow trigger. Links
+                are embedded in WhatsApp messages and returned in the API
+                response.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">OAuth</span><span class="tag">Auto-link</span
+                ><span class="tag">Calendar</span>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="svc-icon" style="background: rgba(239, 68, 68, 0.08)">
+                🔒
+              </div>
+              <div class="svc-title">Multi-tenant Security</div>
+              <div class="svc-desc">
+                Every client gets a physically isolated database. API key auth,
+                AES-256 secret encryption, HMAC-signed callbacks, dynamic CORS,
+                IPv6-safe rate limiting.
+              </div>
+              <div class="svc-tags">
+                <span class="tag">Isolation</span
+                ><span class="tag">AES-256</span><span class="tag">HMAC</span
+                ><span class="tag">Rate Limit</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── API EXPLORER ── -->
+        <section id="explorer">
+          <div class="section-tag">Interactive</div>
+          <h2 class="section-title">Try the API</h2>
+          <p class="section-desc" style="margin-bottom: 28px">
+            Click any endpoint and hit
+            <strong style="color: var(--text)">Run</strong> to see a live dummy
+            response. Real calls need your
+            <code
+              style="font-family: var(--mono); color: #93c5fd; font-size: 0.8em"
+              >x-api-key</code
+            >.
+          </p>
+          <div class="explorer-wrap">
+            <div class="explorer-sidebar" id="ep-sidebar"></div>
+            <div class="explorer-main">
+              <div class="explorer-top">
+                <div class="ep-url-bar">
+                  <span
+                    class="ep-badge-method ep-method"
+                    id="ep-badge-method"
+                  ></span>
+                  <span class="ep-full-path" id="ep-full-path"></span>
+                  <button class="try-btn" id="try-run-btn">▶ Run</button>
+                </div>
+                <div class="ep-desc-text" id="ep-desc"></div>
+              </div>
+              <div class="explorer-body">
+                <div class="ep-tabs" id="ep-tabs">
+                  <div class="ep-tab active" data-tab="response">Response</div>
+                  <div class="ep-tab" data-tab="headers">Headers</div>
+                  <div class="ep-tab" data-tab="example">Request Body</div>
+                </div>
+                <div class="ep-content" id="ep-response-panel"></div>
+                <div
+                  class="ep-content"
+                  id="ep-headers-panel"
+                  style="display: none"
+                ></div>
+                <div
+                  class="ep-content"
+                  id="ep-example-panel"
+                  style="display: none"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── INTEGRATION GUIDE ── -->
+        <section id="integrate">
+          <div class="section-tag">Get Started</div>
+          <h2 class="section-title">Integrate in Minutes</h2>
+          <p class="section-desc" style="margin-bottom: 36px">
+            Once you have your API key and client code, you can start sending
+            triggers from your website immediately.
+          </p>
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Get your credentials</div>
+                <div class="step-desc">
+                  Contact us to get onboarded. We'll set up your isolated tenant
+                  database and give you your
+                  <code style="font-family: var(--mono); color: #93c5fd"
+                    >API_KEY</code
+                  >
+                  and
+                  <code style="font-family: var(--mono); color: #93c5fd"
+                    >CLIENT_CODE</code
+                  >.
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Fire your first workflow trigger</div>
+                <div class="step-desc">
+                  From your server (Next.js API route, Express handler, etc.) —
+                  never from the browser:
+                </div>
+                <div class="code-block">
+                  POST __BASE_URL__/api/saas/workflows/trigger x-api-key:
+                  YOUR_API_KEY x-client-code: YOUR_CLIENT_CODE Content-Type:
+                  application/json { "trigger": "appointment_confirmed",
+                  "phone": "919876543210", "variables": { "patientName": "Ravi",
+                  "doctorName": "Dr. Sharma" }, "createLeadIfMissing": true }
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">ECODrIx does the rest</div>
+                <div class="step-desc">
+                  Based on your configured automation rules, we automatically
+                  send WhatsApp messages, move leads through the pipeline,
+                  create Google Meet links — all without blocking your request.
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">
+                  Receive signed callbacks (optional)
+                </div>
+                <div class="step-desc">
+                  Pass a
+                  <code style="font-family: var(--mono); color: #93c5fd"
+                    >callbackUrl</code
+                  >
+                  in your trigger to receive a HMAC-signed webhook when the
+                  automation completes.
+                </div>
+                <div class="code-block">
+                  // Verify on your server const sig =
+                  req.headers['x-ecodrix-signature']; const expected = 'sha256='
+                  + crypto .createHmac('sha256', WEBHOOK_SECRET)
+                  .update(rawBody).digest('hex'); if
+                  (!crypto.timingSafeEqual(Buffer.from(sig),
+                  Buffer.from(expected))) throw new Error('Invalid signature');
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── AUTH ── -->
+        <section>
+          <div class="section-tag">Authentication</div>
+          <h2 class="section-title">Two Header Auth</h2>
+          <p class="section-desc" style="margin-bottom: 28px">
+            Every tenant API call needs two headers. Keep them on your server —
+            never in browser code.
+          </p>
+          <div class="auth-grid">
+            <div class="auth-card">
+              <div class="auth-icon">🔑</div>
+              <div class="auth-title">Tenant Routes</div>
+              <div class="auth-desc">
+                Used on all CRM, WhatsApp, workflow and analytics endpoints.
+              </div>
+              <div class="code-block">
+                x-api-key: &lt;your_api_key&gt; x-client-code:
+                &lt;your_client_code&gt;
+              </div>
+            </div>
+            <div class="auth-card">
+              <div class="auth-icon">🛡️</div>
+              <div class="auth-title">Response Envelope</div>
+              <div class="auth-desc">
+                Every response follows the same predictable JSON shape.
+              </div>
+              <div class="code-block">
+                // Success { "success": true, "data": { ... } } // Error {
+                "success": false, "message": "Human-readable reason", "code":
+                "ERROR_CODE" }
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── SYSTEM STATUS ── -->
+        <section>
+          <div class="section-tag">Live Status</div>
+          <h2 class="section-title">System Components</h2>
+          <div class="card" style="margin-top: 24px">
+            <div class="card-header">
+              <div class="dot"></div>
+              Running Services
+            </div>
+            <div class="srv-row">
+              <div class="srv-icon" style="background: rgba(34, 197, 94, 0.1)">
+                🟢
+              </div>
+              <div class="srv-name">
+                MongoDB — Central DB
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  Global config, clients, jobs, logs
+                </div>
+              </div>
+              <div class="srv-path">services</div>
+              &nbsp;
+              <div class="badge ok" id="mongo-badge">connected</div>
+            </div>
+            <div class="srv-row">
+              <div class="srv-icon" style="background: rgba(59, 130, 246, 0.1)">
+                ⚡
+              </div>
+              <div class="srv-name">
+                MongoQueue Worker
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  Poll 5s · concurrency 3 · auto-retry
+                </div>
+              </div>
+              <div class="srv-path">in-process</div>
+              &nbsp;
+              <div class="badge ok">running</div>
+            </div>
+            <div class="srv-row">
+              <div class="srv-icon" style="background: rgba(34, 197, 94, 0.08)">
+                💬
+              </div>
+              <div class="srv-name">
+                Socket.IO
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  Real-time WhatsApp inbox push
+                </div>
+              </div>
+              <div class="srv-path">ws://</div>
+              &nbsp;
+              <div class="badge ok">listening</div>
+            </div>
+            <div class="srv-row">
+              <div class="srv-icon" style="background: rgba(245, 158, 11, 0.1)">
+                📅
+              </div>
+              <div class="srv-name">
+                Cron Jobs
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  no_contact · nightly score recalc
+                </div>
+              </div>
+              <div class="srv-path">node-cron</div>
+              &nbsp;
+              <div class="badge ok">scheduled</div>
+            </div>
+            <div class="srv-row">
+              <div class="srv-icon" style="background: rgba(239, 68, 68, 0.08)">
+                🔒
+              </div>
+              <div class="srv-name">
+                Rate Limiting
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  Global + 60 req/min/tenant on trigger
+                </div>
+              </div>
+              <div class="srv-path">all /api/*</div>
+              &nbsp;
+              <div class="badge ok">active</div>
+            </div>
+            <div class="srv-row">
+              <div
+                class="srv-icon"
+                style="background: rgba(168, 85, 247, 0.08)"
+              >
+                🛡️
+              </div>
+              <div class="srv-name">
+                Tenant Isolation
+                <div style="font-size: 0.72rem; color: var(--muted)">
+                  Per-client DB · AES-256 secrets
+                </div>
+              </div>
+              <div class="srv-path">enforced</div>
+              &nbsp;
+              <div class="badge ok">enforced</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── CTA ── -->
+        <section id="contact" style="padding-bottom: 0">
+          <div class="cta-box">
+            <h2>Ready to integrate ECODrIx?</h2>
+            <p>
+              We onboard new clients personally. Contact us to get your API key,
+              client code, and a private walkthrough.
+            </p>
+            <div class="cta-contacts">
+              <a class="contact-pill" href="mailto:contact@ecodrix.com"
+                >✉️ contact@ecodrix.com</a
+              >
+              <a
+                class="contact-pill"
+                href="https://ecodrix.com"
+                target="_blank"
+                rel="noreferrer"
+                >🌐 ecodrix.com ↗</a
+              >
+              <a class="contact-pill" href="/api/saas/health"
+                >🩺 Health Status ↗</a
+              >
+            </div>
+          </div>
+        </section>
+      </div>
+      <!-- /container -->
+
+      <footer>
+        <div class="footer-inner">
+          <span>ECODrIx &copy; 2026 &nbsp;·&nbsp; All rights reserved.</span>
+          <span
+            >v__VERSION__ &nbsp;·&nbsp;
+            <a href="/api/saas/health">health</a> &nbsp;·&nbsp;
+            <a href="mailto:contact@ecodrix.com">contact</a></span
+          >
+        </div>
+      </footer>
+    </div>
+    <!-- /page -->
+
+    <script nonce="__NONCE__">
+      // Mobile nav toggle
+      function toggleNav() {
+        document.getElementById('nav-links').classList.toggle('open');
+      }
+      // Close nav on link click (mobile)
+      document.querySelectorAll("#nav-links a").forEach((a) => {
+        a.addEventListener("click", () =>
+          document.getElementById("nav-links").classList.remove("open"),
+        );
+      });
+
+      // Live clock
+      function tick() {
+        const el = document.getElementById("live-time");
+        if (el)
+          el.textContent = new Date().toLocaleString("en-IN", {
+            hour12: false,
+          });
+      }
+      tick();
+      setInterval(tick, 1000);
+
+      // Uptime counter from server boot timestamp
+      const BOOT = __BOOT_TS__;
+      function fmtMs(ms) {
+        const s = Math.floor(ms / 1000),
+          d = Math.floor(s / 86400),
+          h = Math.floor((s % 86400) / 3600),
+          m = Math.floor((s % 3600) / 60),
+          sc = s % 60;
+        if (d > 0) return d + "d " + h + "h " + m + "m";
+        if (h > 0) return h + "h " + m + "m " + sc + "s";
+        return m + "m " + sc + "s";
+      }
+      function updateUptime() {
+        const el = document.getElementById("uptime-counter");
+        if (el) el.textContent = fmtMs(Date.now() - BOOT);
+      }
+      updateUptime();
+      setInterval(updateUptime, 1000);
+
+      // Health polling every 30s
+      async function pollHealth() {
+        try {
+          const j = await fetch("/api/saas/health", {
+            headers: { Accept: "application/json" },
+          }).then((r) => r.json());
+          const d = j.data ?? j;
+          const ok = d.db === "connected";
+          const dbEl = document.getElementById("db-val");
+          const mbEl = document.getElementById("mongo-badge");
+          if (dbEl) {
+            dbEl.textContent = (ok ? "● " : "✕ ") + d.db;
+            dbEl.style.color = ok ? "var(--green)" : "var(--red)";
+          }
+          if (mbEl) {
+            mbEl.className = "badge " + (ok ? "ok" : "error");
+            mbEl.textContent = d.db;
+          }
+          const qs = document.getElementById("queue-sub");
+          if (qs) qs.textContent = "queue: " + (d.queueDepth ?? 0) + " jobs";
+        } catch {}
+      }
+      pollHealth();
+      setInterval(pollHealth, 30000);
+
+      // ── API Explorer ──────────────────────────────────────────────────────────────
+      const BASE = "__BASE_URL__";
+      const ENDPOINTS = [
+        {
+          group: "Health",
+          items: [
+            {
+              method: "GET",
+              path: "/api/saas/health",
+              desc: "Public health check — no auth needed.",
+              response: {
+                success: true,
+                data: {
+                  status: "ok",
+                  version: "__VERSION__",
+                  env: "__ENV__",
+                  uptime: 7421,
+                  db: "connected",
+                  queueDepth: 3,
+                  timestamp: new Date().toISOString(),
+                },
+              },
+              headers: {
+                "Content-Type": "application/json",
+                "X-Response-Time": "4ms",
+              },
+              body: null,
+            },
+          ],
+        },
+        {
+          group: "Workflow Triggers",
+          items: [
+            {
+              method: "POST",
+              path: "/api/saas/workflows/trigger",
+              desc: "Fire an automation trigger. ECODrIx handles WhatsApp, email, Meet, stage moves, and callbacks automatically.",
+              response: {
+                success: true,
+                data: {
+                  eventLogId: "65b2a3f1c4d5e6f7a8b9c0d1",
+                  trigger: "appointment_confirmed",
+                  leadId: "65b2a3f1c4d5e6f7a8b9c0d2",
+                  meetLink: "https://meet.google.com/abc-defg-hij",
+                  rulesMatched: 2,
+                  scheduled: false,
+                },
+              },
+              headers: {
+                "Content-Type": "application/json",
+                "X-RateLimit-Limit": "60",
+                "X-RateLimit-Remaining": "59",
+              },
+              body: {
+                trigger: "appointment_confirmed",
+                phone: "919876543210",
+                email: "patient@example.com",
+                variables: {
+                  patientName: "Ravi Kumar",
+                  doctorName: "Dr. Sharma",
+                },
+                createLeadIfMissing: true,
+                requiresMeet: true,
+              },
+            },
+          ],
+        },
+        {
+          group: "CRM — Leads",
+          items: [
+            {
+              method: "GET",
+              path: "/api/crm/leads",
+              desc: "List leads with 14 filter/sort params and full-text search.",
+              response: {
+                success: true,
+                data: [
+                  {
+                    _id: "65b2a3f1",
+                    firstName: "Ravi",
+                    lastName: "Kumar",
+                    phone: "+919876543210",
+                    score: 72,
+                    tags: ["vip", "hot"],
+                    dealValue: 120000,
+                    source: "website",
+                  },
+                ],
+                total: 142,
+                page: 1,
+                limit: 25,
+                totalPages: 6,
+              },
+              headers: {
+                "Content-Type": "application/json",
+                "X-Total-Count": "142",
+              },
+              body: null,
+            },
+            {
+              method: "POST",
+              path: "/api/crm/leads",
+              desc: "Create a new lead. Auto-assigns to default pipeline.",
+              response: {
+                success: true,
+                data: {
+                  _id: "65b2a3f4",
+                  firstName: "Suresh",
+                  lastName: "Rao",
+                  phone: "+919876543210",
+                  status: "open",
+                  score: 0,
+                  source: "website",
+                  dealValue: 120000,
+                  createdAt: new Date().toISOString(),
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: {
+                firstName: "Suresh",
+                lastName: "Rao",
+                phone: "+919876543210",
+                email: "suresh@example.com",
+                source: "website",
+                dealValue: 120000,
+              },
+            },
+            {
+              method: "PATCH",
+              path: "/api/crm/leads/:id/move",
+              desc: "Move a lead to a different pipeline stage. Fires stage_enter/stage_exit triggers.",
+              response: {
+                success: true,
+                data: {
+                  _id: "65b2a3f4",
+                  stageId: "65b2a3f9",
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: { stageId: "65b2a3f9" },
+            },
+          ],
+        },
+        {
+          group: "CRM — Pipelines",
+          items: [
+            {
+              method: "GET",
+              path: "/api/crm/pipelines",
+              desc: "List all active pipelines with their stages.",
+              response: {
+                success: true,
+                data: [
+                  {
+                    _id: "65b2a3f5",
+                    name: "Patient Journey",
+                    isDefault: true,
+                    stages: [
+                      { name: "Inquiry", order: 0, probability: 10 },
+                      { name: "Consulted", order: 1, probability: 60 },
+                      {
+                        name: "Booked",
+                        order: 2,
+                        probability: 90,
+                        isWon: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+              headers: { "Content-Type": "application/json" },
+              body: null,
+            },
+            {
+              method: "GET",
+              path: "/api/crm/pipelines/:id/forecast",
+              desc: "Revenue forecast: deal value × probability per stage.",
+              response: {
+                success: true,
+                data: {
+                  rows: [
+                    {
+                      stageName: "Inquiry",
+                      probability: 10,
+                      totalValue: 500000,
+                      expectedRevenue: 50000,
+                    },
+                    {
+                      stageName: "Consulted",
+                      probability: 60,
+                      totalValue: 800000,
+                      expectedRevenue: 480000,
+                    },
+                  ],
+                  grandTotal: 530000,
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: null,
+            },
+          ],
+        },
+        {
+          group: "Analytics",
+          items: [
+            {
+              method: "GET",
+              path: "/api/crm/analytics/overview",
+              desc: "KPIs: total leads, pipeline value, conversion rate, avg score.",
+              response: {
+                success: true,
+                data: {
+                  totalLeads: 142,
+                  newLeads: 23,
+                  wonDeals: 8,
+                  pipelineValue: 1600000,
+                  conversionRate: 18.4,
+                  avgScore: 51,
+                  range: "30d",
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: null,
+            },
+            {
+              method: "GET",
+              path: "/api/crm/analytics/funnel",
+              desc: "Stage-by-stage lead counts, conversion %, and drop-off analytics.",
+              response: {
+                success: true,
+                data: {
+                  stages: [
+                    { name: "Inquiry", leads: 80, conversionRate: 52 },
+                    { name: "Consulted", leads: 42, conversionRate: 38 },
+                    { name: "Booked", leads: 16, conversionRate: 87 },
+                    { name: "Won", leads: 14 },
+                  ],
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: null,
+            },
+          ],
+        },
+        {
+          group: "WhatsApp",
+          items: [
+            {
+              method: "GET",
+              path: "/api/saas/chat/conversations",
+              desc: "Get all WhatsApp conversations sorted by last message.",
+              response: {
+                success: true,
+                data: [
+                  {
+                    _id: "conv1",
+                    phone: "+919876543210",
+                    name: "Ravi Kumar",
+                    lastMessage: "Your appointment is confirmed",
+                    unreadCount: 0,
+                  },
+                  {
+                    _id: "conv2",
+                    phone: "+919999999999",
+                    name: "Priya Nair",
+                    unreadCount: 2,
+                  },
+                ],
+              },
+              headers: { "Content-Type": "application/json" },
+              body: null,
+            },
+            {
+              method: "POST",
+              path: "/api/saas/chat/send",
+              desc: "Send an outbound WhatsApp message — free text or template.",
+              response: {
+                success: true,
+                data: {
+                  messageId: "wamid.HBgLOTE5ODc2NTQz",
+                  status: "sent",
+                  to: "+919876543210",
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: {
+                to: "+919876543210",
+                templateName: "appointment_confirmed",
+                templateLanguage: "en_US",
+              },
+            },
+            {
+              method: "POST",
+              path: "/api/saas/chat/broadcast",
+              desc: "Create and launch a bulk WhatsApp campaign. Jobs enqueued per recipient.",
+              response: {
+                success: true,
+                data: {
+                  broadcastId: "65b2a3f0",
+                  name: "Feb Health Camp",
+                  status: "queued",
+                  total: 87,
+                  queued: 87,
+                  sent: 0,
+                  failed: 0,
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: {
+                name: "Feb Health Camp",
+                templateName: "health_camp_invite",
+                recipients: [
+                  { phone: "+919876543210", variables: ["Ravi", "March 20"] },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          group: "Automations",
+          items: [
+            {
+              method: "POST",
+              path: "/api/crm/automations",
+              desc: "Create an automation rule that fires on a trigger.",
+              response: {
+                success: true,
+                data: {
+                  _id: "65b2a3ff",
+                  name: "Appointment Confirmed WA",
+                  trigger: "appointment_confirmed",
+                  isActive: true,
+                  actions: [
+                    {
+                      type: "send_whatsapp",
+                      delayMinutes: 0,
+                      config: { templateName: "appointment_confirmed" },
+                    },
+                  ],
+                },
+              },
+              headers: { "Content-Type": "application/json" },
+              body: {
+                name: "Appointment Confirmed WA",
+                trigger: "appointment_confirmed",
+                actions: [
+                  {
+                    type: "send_whatsapp",
+                    delayMinutes: 0,
+                    config: { templateName: "appointment_confirmed" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ];
+
+      let activeEp = null,
+        activeTab = "response";
+
+      function j2h(obj, indent = 0) {
+        const pad = "  ".repeat(indent),
+          inner = "  ".repeat(indent + 1);
+        if (obj === null) return '<span class="null">null</span>';
+        if (typeof obj === "boolean")
+          return '<span class="bool">' + obj + "</span>";
+        if (typeof obj === "number")
+          return '<span class="num">' + obj + "</span>";
+        if (typeof obj === "string")
+          return '<span class="str">"' + obj + '"</span>';
+        if (Array.isArray(obj)) {
+          if (!obj.length) return "[]";
+          return (
+            "[\n" +
+            obj.map((v) => inner + j2h(v, indent + 1)).join(",\n") +
+            "\n" +
+            pad +
+            "]"
+          );
+        }
+        const keys = Object.keys(obj);
+        if (!keys.length) return "{}";
+        return (
+          "{\n" +
+          keys
+            .map(
+              (k) =>
+                inner +
+                '<span class="key">"' +
+                k +
+                '"</span>: ' +
+                j2h(obj[k], indent + 1),
+            )
+            .join(",\n") +
+          "\n" +
+          pad +
+          "}"
+        );
+      }
+
+      function renderSidebar() {
+        const sb = document.getElementById("ep-sidebar");
+        ENDPOINTS.forEach((g, gi) => {
+          const t = document.createElement("div");
+          t.className = "ep-group-title";
+          t.textContent = g.group;
+          sb.appendChild(t);
+          g.items.forEach((ep, ei) => {
+            const row = document.createElement("div");
+            row.className = "ep-item";
+            row.innerHTML =
+              '<span class="ep-method ' +
+              ep.method +
+              '">' +
+              ep.method +
+              '</span><span class="ep-path">' +
+              ep.path +
+              "</span>";
+            row.onclick = () => selectEndpoint(gi, ei, row);
+            sb.appendChild(row);
+          });
+        });
+      }
+
+      function selectEndpoint(gi, ei, rowEl) {
+        document
+          .querySelectorAll(".ep-item")
+          .forEach((r) => r.classList.remove("active"));
+        rowEl.classList.add("active");
+        activeEp = ENDPOINTS[gi].items[ei];
+        const mb = document.getElementById("ep-badge-method");
+        mb.textContent = activeEp.method;
+        mb.className = "ep-badge-method ep-method " + activeEp.method;
+        document.getElementById("ep-full-path").textContent =
+          BASE + activeEp.path;
+        document.getElementById("ep-desc").textContent = activeEp.desc;
+        showContent(activeTab);
+      }
+
+      function showContent(tab) {
+        activeTab = tab;
+        ["response", "headers", "example"].forEach((t) => {
+          document.getElementById("ep-" + t + "-panel").style.display =
+            t === tab ? "" : "none";
+        });
+        if (!activeEp) return;
+        const rp = document.getElementById("ep-response-panel");
+        const hp = document.getElementById("ep-headers-panel");
+        const ep2 = document.getElementById("ep-example-panel");
+        if (tab === "response")
+          rp.innerHTML =
+            '<span class="cmt">// Dummy response\n</span>' +
+            j2h(activeEp.response);
+        else if (tab === "headers")
+          hp.innerHTML = Object.entries(activeEp.headers)
+            .map(
+              ([k, v]) =>
+                '<span class="key">' +
+                k +
+                '</span>: <span class="str">' +
+                v +
+                "</span>",
+            )
+            .join("\n");
+        else
+          ep2.innerHTML = activeEp.body
+            ? '<span class="cmt">// Request body\n</span>' + j2h(activeEp.body)
+            : '<span class="cmt">// No request body for this endpoint</span>';
+      }
+
+      // Tab switching via event delegation on data-tab attribute (no inline onclick=)
+      function switchTab(tab) {
+        document.querySelectorAll('.ep-tab').forEach(t => t.classList.remove('active'));
+        const active = document.querySelector(`.ep-tab[data-tab="${tab}"]`);
+        if (active) active.classList.add('active');
+        showContent(tab);
+      }
+
+      function runEndpoint() {
+        if (!activeEp) return;
+        document.querySelectorAll('.ep-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+        showContent('response');
+        const panel = document.getElementById('ep-response-panel');
+        panel.style.opacity = '0.3';
+        setTimeout(() => { panel.style.transition = 'opacity .35s'; panel.style.opacity = '1'; }, 60);
+      }
+
+      renderSidebar();
+      const firstRow = document.querySelector('.ep-item');
+      if (firstRow) selectEndpoint(0, 0, firstRow);
+
+      // Wire all interactive elements via addEventListener — no onclick= attributes (CSP: script-src-attr none)
+      document.getElementById('nav-toggle-btn')?.addEventListener('click', toggleNav);
+      document.getElementById('try-run-btn')?.addEventListener('click', runEndpoint);
+      document.getElementById('ep-tabs')?.addEventListener('click', (e) => {
+        const tab = e.target.closest('.ep-tab');
+        if (tab && tab.dataset.tab) switchTab(tab.dataset.tab);
+      });
+    </script>
+  </body>
+</html>

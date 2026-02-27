@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ECODrIx — Health</title>
+    <meta name="robots" content="noindex" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #060a12;
+        --surface: #0d1728;
+        --border: rgba(79, 140, 255, 0.12);
+        --border2: rgba(79, 140, 255, 0.26);
+        --accent: #3b82f6;
+        --green: #22c55e;
+        --red: #ef4444;
+        --yellow: #f59e0b;
+        --text: #e2e8f0;
+        --muted: #64748b;
+        --mono: "JetBrains Mono", monospace;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(59, 130, 246, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(59, 130, 246, 0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 40px 16px 80px;
+      }
+
+      /* ── Breadcrumb ── */
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 32px;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .breadcrumb a {
+        color: var(--muted);
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .breadcrumb a:hover {
+        color: var(--text);
+      }
+      .breadcrumb .sep {
+        color: var(--border2);
+      }
+      .breadcrumb .current {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+      .hero-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 13px;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, var(--accent), #6366f1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+      }
+      .hero-icon svg {
+        width: 24px;
+        height: 24px;
+        fill: #fff;
+      }
+      .hero h1 {
+        font-size: clamp(1.2rem, 4vw, 1.5rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        background: linear-gradient(135deg, #e2e8f0, #93c5fd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .hero p {
+        font-size: 0.76rem;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+
+      /* ── Status banner ── */
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 18px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        border: 1px solid;
+      }
+      .banner.ok {
+        background: rgba(34, 197, 94, 0.07);
+        border-color: rgba(34, 197, 94, 0.22);
+      }
+      .banner.error {
+        background: rgba(239, 68, 68, 0.07);
+        border-color: rgba(239, 68, 68, 0.22);
+      }
+      .pulse {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        animation: pulse 2s infinite;
+      }
+      .pulse.ok {
+        background: var(--green);
+      }
+      .pulse.error {
+        background: var(--red);
+      }
+      .banner-text {
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      .banner.ok .banner-text {
+        color: #86efac;
+      }
+      .banner.error .banner-text {
+        color: #fca5a5;
+      }
+      .banner-ts {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      /* ── Metric grid ── */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .metric {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px 14px 12px;
+        transition:
+          border-color 0.2s,
+          transform 0.2s;
+      }
+      .metric:hover {
+        border-color: var(--border2);
+        transform: translateY(-2px);
+      }
+      .metric-label {
+        font-size: 0.63rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 7px;
+      }
+      .metric-value {
+        font-size: clamp(1rem, 3vw, 1.2rem);
+        font-weight: 700;
+        font-family: var(--mono);
+        word-break: break-all;
+      }
+      .metric-value.green {
+        color: var(--green);
+      }
+      .metric-value.blue {
+        color: #93c5fd;
+      }
+      .metric-value.red {
+        color: var(--red);
+      }
+      .metric-value.yellow {
+        color: var(--yellow);
+      }
+      .metric-sub {
+        font-size: 0.63rem;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      /* ── JSON panel ── */
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+      .panel-header {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .panel-title {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        flex: 1;
+        min-width: 80px;
+      }
+      .toggle-btn {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 4px 11px;
+        border-radius: 7px;
+        background: rgba(59, 130, 246, 0.1);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        cursor: pointer;
+        transition: background 0.2s;
+        white-space: nowrap;
+      }
+      .toggle-btn:hover {
+        background: rgba(59, 130, 246, 0.18);
+      }
+      .copy-btn {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 4px 11px;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition:
+          color 0.2s,
+          border-color 0.2s;
+        white-space: nowrap;
+      }
+      .copy-btn:hover {
+        color: var(--text);
+        border-color: var(--border2);
+      }
+      pre {
+        padding: 16px;
+        font-family: var(--mono);
+        font-size: clamp(0.7rem, 2vw, 0.78rem);
+        line-height: 1.75;
+        overflow-x: auto;
+        color: #cbd5e1;
+        /* visibility controlled by JS via style.display */
+      }
+
+      .k {
+        color: #93c5fd;
+      }
+      .s {
+        color: #86efac;
+      }
+      .n {
+        color: #fde047;
+      }
+      .b {
+        color: #f9a8d4;
+      }
+      .null {
+        color: var(--muted);
+      }
+
+      /* ── Actions ── */
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 36px;
+      }
+      .action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 18px;
+        border-radius: 9px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          opacity 0.2s,
+          transform 0.2s;
+        text-decoration: none;
+        border: none;
+        white-space: nowrap;
+      }
+      .action-btn:hover {
+        opacity: 0.85;
+        transform: translateY(-1px);
+      }
+      .action-btn.primary {
+        background: linear-gradient(135deg, var(--accent), #6366f1);
+        color: #fff;
+      }
+      .action-btn.outline {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border2);
+      }
+      .action-btn.outline:hover {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.07);
+      }
+
+      /* ── Footer ── */
+      footer {
+        text-align: center;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 520px) {
+        .grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .hero {
+          gap: 10px;
+        }
+        .hero-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 11px;
+        }
+        .hero-icon svg {
+          width: 20px;
+          height: 20px;
+        }
+        .banner-ts {
+          display: none;
+        }
+      }
+      @media (max-width: 360px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      /* ── Modal ── */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 10, 18, 0.85);
+        backdrop-filter: blur(12px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 24px;
+      }
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 18px;
+        width: 100%;
+        max-width: 640px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+        animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #93c5fd;
+      }
+      .modal-close {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 1.4rem;
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+        transition: color 0.2s;
+      }
+      .modal-close:hover {
+        color: var(--text);
+      }
+      .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .modal-body pre {
+        font-size: 0.76rem;
+        margin: 0;
+        padding: 0;
+      }
+
+      @keyframes modalIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="breadcrumb">
+        <a href="/">← Home</a>
+        <span class="sep">/</span>
+        <span>api</span>
+        <span class="sep">/</span>
+        <span>saas</span>
+        <span class="sep">/</span>
+        <span class="current">health</span>
+      </div>
+
+      <div class="hero">
+        <div class="hero-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 4h16v3H7v4h11v3H7v4h13v3H4z" />
+          </svg>
+        </div>
+        <div>
+          <h1>ECODrIx — Health</h1>
+          <p>
+            GET /api/saas/health &nbsp;·&nbsp; Public &nbsp;·&nbsp; No auth
+            required
+          </p>
+        </div>
+      </div>
+
+      <div class="banner __DB_BADGE__">
+        <div class="pulse __DB_BADGE__"></div>
+        <span class="banner-text"
+          >__STATUS_TEXT__ &nbsp;—&nbsp; __STATUS_MESSAGE__</span
+        >
+        <span class="banner-ts" id="live-ts"></span>
+      </div>
+
+      <div class="grid">
+        <div class="metric">
+          <div class="metric-label">Status</div>
+          <div class="metric-value __STATUS_COLOR_CLASS__">
+            __STATUS_UPPER__
+          </div>
+          <div class="metric-sub">server response</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Version</div>
+          <div class="metric-value blue">v__VERSION__</div>
+          <div class="metric-sub">semantic versioning</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Environment</div>
+          <div class="metric-value" style="font-size: 1rem">__ENV__</div>
+          <div class="metric-sub">NODE_ENV</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Uptime</div>
+          <div class="metric-value green" id="uptime">—</div>
+          <div class="metric-sub">since last restart</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Database</div>
+          <div class="metric-value __DB_COLOR_CLASS__">__DB_STATUS__</div>
+          <div class="metric-sub">mongoose state</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Queue Depth</div>
+          <div class="metric-value __QUEUE_COLOR_CLASS__" id="queue-depth">
+            __QUEUE_DEPTH__
+          </div>
+          <div class="metric-sub">pending + processing</div>
+        </div>
+      </div>
+
+      <!-- JSON highlighted — stored in template tag, injected on first toggle -->
+      <template id="json-tpl">__JSON_HIGHLIGHTED__</template>
+
+      <!-- JSON Response Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">JSON Response</span>
+          <button class="toggle-btn" id="toggle-btn">Show JSON</button>
+          <button class="copy-btn" id="copy-btn">Copy</button>
+        </div>
+        <pre id="json-pre" style="display:none"></pre>
+      </div>
+
+      <div class="actions">
+        <button class="action-btn primary" id="btn-refresh">↻ Refresh</button>
+        <button class="action-btn outline" id="btn-raw">{ } Raw JSON</button>
+        <a class="action-btn outline" href="/">← Back to Home</a>
+      </div>
+
+      <!-- Raw JSON Modal -->
+      <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <span class="modal-title">Raw JSON Response</span>
+            <button class="modal-close" id="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <pre id="modal-json"></pre>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        ECODrIx &copy; 2026 &nbsp;·&nbsp; Auto-refreshes in
+        <span id="refresh-cd">30</span>s &nbsp;·&nbsp;
+        <a href="mailto:contact@ecodrix.com">contact@ecodrix.com</a>
+      </footer>
+    </div>
+
+    <script nonce="__NONCE__">
+      const BOOT = __BOOT_TS__;
+      const RAW  = __JSON_RAW_ESCAPED__;
+
+      // Live clock
+      function tick() {
+        const el = document.getElementById('live-ts');
+        if (el) el.textContent = new Date().toLocaleString('en-IN', { hour12: false });
+      }
+      tick(); setInterval(tick, 1000);
+
+      // Uptime counter
+      function fmt(ms) {
+        const s = Math.floor(ms / 1000);
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sc = s % 60;
+        return (h ? h + 'h ' : '') + m + 'm ' + sc + 's';
+      }
+      function updateUptime() {
+        const el = document.getElementById('uptime');
+        if (el) el.textContent = fmt(Date.now() - BOOT);
+      }
+      updateUptime(); setInterval(updateUptime, 1000);
+
+      // JSON toggle — direct style.display, no CSS cascade dependency
+      function toggleJson() {
+        const pre = document.getElementById('json-pre');
+        const btn = document.getElementById('toggle-btn');
+        if (!pre || !btn) return;
+        if (!pre.innerHTML.trim()) {
+          const tpl = document.getElementById('json-tpl');
+          pre.innerHTML = tpl ? tpl.innerHTML : RAW;
+        }
+        const showing = pre.style.display === 'block';
+        pre.style.display = showing ? 'none' : 'block';
+        btn.textContent = showing ? 'Show JSON' : 'Hide JSON';
+      }
+
+      // Copy raw JSON to clipboard
+      function copyJson() {
+        const btn = document.getElementById('copy-btn');
+        if (!btn) return;
+        navigator.clipboard.writeText(RAW).then(() => {
+          const orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        }).catch(() => {});
+      }
+
+      // Show raw JSON in a modal instead of a new tab
+      function openRaw() {
+        const overlay = document.getElementById('modal-overlay');
+        const pre = document.getElementById('modal-json');
+        if (!overlay || !pre) return;
+        pre.textContent = RAW;
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeRaw() {
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) {
+          overlay.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      }
+
+      // Wire all buttons via addEventListener - no onclick= attributes (CSP: script-src-attr none)
+      document.getElementById('toggle-btn')?.addEventListener('click', toggleJson);
+      document.getElementById('copy-btn')?.addEventListener('click', copyJson);
+      document.getElementById('btn-refresh')?.addEventListener('click', () => location.reload());
+      document.getElementById('btn-raw')?.addEventListener('click', openRaw);
+      document.getElementById('modal-close')?.addEventListener('click', closeRaw);
+      document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal-overlay')) closeRaw();
+      });
+
+      // Auto-refresh countdown
+      let cd = 30;
+      const cdEl = document.getElementById('refresh-cd');
+      const timer = setInterval(() => {
+        if (cdEl) cdEl.textContent = String(--cd);
+        if (cd <= 0) { clearInterval(timer); location.reload(); }
+      }, 1000);
+    </script>
+  </body>
+</html>

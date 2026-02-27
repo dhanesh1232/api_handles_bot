@@ -1,17 +1,31 @@
 import { Router, type Request, type Response } from "express";
 import mongoose from "mongoose";
 import { dbConnect } from "../../lib/config.ts";
+import { renderView } from "../../lib/renderView.ts";
 import { validateClientKey } from "../../middleware/saasAuth.ts";
 
 const router = Router();
 
-// Read version from npm/pnpm runtime env (set automatically when started via package.json scripts)
-// Falls back to "unknown" if run directly without pnpm
 const VERSION: string = process.env.npm_package_version ?? "unknown";
+
+/** Syntax-highlight a JSON object into HTML spans (server-side). */
+function highlight(obj: unknown): string {
+  return JSON.stringify(obj, null, 2)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"([^"]+)":/g, '<span class="k">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="s">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g, ': <span class="n">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="b">$1</span>')
+    .replace(/: null/g, ': <span class="null">null</span>');
+}
 
 /**
  * GET /api/saas/health
- * Public — no auth required. Used by load balancer health checks and monitoring.
+ * Public — no auth required.
+ * • Browser (Accept: text/html) → premium live health dashboard (src/views/health.html)
+ * • API / curl / load balancer  → clean JSON envelope
  */
 router.get("/health", async (req: Request, res: Response) => {
   const dbState = mongoose.connection.readyState;
@@ -23,22 +37,63 @@ router.get("/health", async (req: Request, res: Response) => {
   let queueDepth = 0;
   try {
     const { default: Job } = await import("../../model/queue/job.model.ts");
-    queueDepth = await Job.countDocuments({ status: { $in: ["pending", "processing"] } });
+    queueDepth = await Job.countDocuments({
+      status: { $in: ["pending", "processing"] },
+    });
   } catch {
     // Non-fatal — queue depth is best-effort
   }
 
-  res.json({
-    success: true,
-    data: {
-      status: "ok",
-      version: VERSION,
-      env: process.env.NODE_ENV ?? "development",
-      uptime: Math.floor(process.uptime()),
-      db: dbStatus,
-      queueDepth,
-    },
+  const payload = {
+    status: "ok",
+    version: VERSION,
+    env: process.env.NODE_ENV ?? "development",
+    uptime: Math.floor(process.uptime()),
+    db: dbStatus,
+    queueDepth,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Content negotiation — HTML for browsers, JSON for everything else
+  const acceptsHtml =
+    req.headers.accept?.includes("text/html") &&
+    !req.headers.accept?.includes("application/json");
+
+  if (!acceptsHtml) {
+    return res.json({ success: true, data: payload });
+  }
+
+  const isOk = dbStatus === "connected";
+  const dbBadge = isOk ? "ok" : "error";
+  const statusText = isOk ? "Healthy" : "Degraded";
+  const bootTs = Date.now() - payload.uptime * 1000;
+  const envelope = { success: true, data: payload };
+
+  // Double stringify to get a valid JS string literal of the pretty JSON
+  const rawJson = JSON.stringify(envelope, null, 2);
+  const escapedJson = JSON.stringify(rawJson).replace(/<\/script/gi, "<\\/script");
+
+  const html = renderView("health.html", {
+    VERSION: payload.version,
+    ENV: payload.env,
+    DB_BADGE: dbBadge,
+    STATUS_TEXT: statusText,
+    STATUS_MESSAGE: isOk ? "All systems operational" : "Database unreachable",
+    STATUS_UPPER: payload.status.toUpperCase(),
+    STATUS_COLOR_CLASS: isOk ? "green" : "red",
+    DB_STATUS: dbStatus,
+    DB_COLOR_CLASS: isOk ? "green" : "red",
+    QUEUE_DEPTH: String(queueDepth),
+    QUEUE_COLOR_CLASS: queueDepth > 50 ? "yellow" : "",
+    BOOT_TS: String(bootTs),
+    JSON_HIGHLIGHTED: highlight(envelope),
+    JSON_RAW_ESCAPED: escapedJson,
+    NONCE: res.locals.cspNonce as string,
   });
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(html);
 });
 
 /**

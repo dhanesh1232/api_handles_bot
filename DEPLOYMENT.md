@@ -10,13 +10,13 @@ This document covers everything required to run the ECODrIx backend in productio
 
 ## Prerequisites
 
-| Requirement | Minimum Version |
-|-------------|----------------|
-| Node.js | 18 LTS |
-| pnpm | 9.x |
+| Requirement   | Minimum Version          |
+| ------------- | ------------------------ |
+| Node.js       | 18 LTS                   |
+| pnpm          | 9.x                      |
 | MongoDB Atlas | M10+ (dedicated cluster) |
-| PM2 | 5.x (process manager) |
-| Cloudflare R2 | — (media storage) |
+| PM2           | 5.x (process manager)    |
+| Cloudflare R2 | — (media storage)        |
 
 ---
 
@@ -30,47 +30,47 @@ cp .env.example .env
 
 ### Required — Server Boot
 
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Express listen port (default: `4000`) |
-| `NODE_ENV` | `production` |
-| `MONGODB_URI` | Atlas connection string prefix (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/`) |
-| `MONGODB_URI_END` | Atlas connection string suffix (e.g. `?retryWrites=true&w=majority`) |
-| `ENCRYPTION_KEY` | Exactly **32 characters** — used for AES-256 encryption of client secrets |
-| `CORE_API_TOKEN` | Admin JWT secret — used by `verifyCoreToken` on `/api/clients/*` routes |
+| Variable          | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `PORT`            | Express listen port (default: `4000`)                                                |
+| `NODE_ENV`        | `production`                                                                         |
+| `MONGODB_URI`     | Atlas connection string prefix (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/`) |
+| `MONGODB_URI_END` | Atlas connection string suffix (e.g. `?retryWrites=true&w=majority`)                 |
+| `ENCRYPTION_KEY`  | Exactly **32 characters** — used for AES-256 encryption of client secrets            |
+| `CORE_API_TOKEN`  | Admin JWT secret — used by `verifyCoreToken` on `/api/clients/*` routes              |
 
 > [!CAUTION]
 > `ENCRYPTION_KEY` cannot be changed after you've stored any client secrets. Rotating it requires decrypting + re-encrypting all tenant secrets. See `RUNBOOK.md`.
 
 ### Required — Integrations
 
-| Variable | Description |
-|----------|-------------|
-| `WHATSAPP_VERIFY_TOKEN` | Custom token for Meta webhook verification |
-| `META_CLOUD_API_VERSION` | Meta Graph API version (e.g. `v20.0`) |
-| `OPENAI_API_KEY` | OpenAI key (used for AI features) |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID (Google Meet) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (Google Meet) |
-| `GOOGLE_REDIRECT_URI` | Google OAuth callback URL (e.g. `https://api.ecodrix.com/api/auth/google/callback`) |
-| `BASE_URL` | Public base URL of this API (e.g. `https://api.ecodrix.com`) |
+| Variable                 | Description                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `WHATSAPP_VERIFY_TOKEN`  | Custom token for Meta webhook verification                                          |
+| `META_CLOUD_API_VERSION` | Meta Graph API version (e.g. `v20.0`)                                               |
+| `OPENAI_API_KEY`         | OpenAI key (used for AI features)                                                   |
+| `GOOGLE_CLIENT_ID`       | Google OAuth client ID (Google Meet)                                                |
+| `GOOGLE_CLIENT_SECRET`   | Google OAuth client secret (Google Meet)                                            |
+| `GOOGLE_REDIRECT_URI`    | Google OAuth callback URL (e.g. `https://api.ecodrix.com/api/auth/google/callback`) |
+| `BASE_URL`               | Public base URL of this API (e.g. `https://api.ecodrix.com`)                        |
 
 ### Required — Storage (Cloudflare R2)
 
-| Variable | Description |
-|----------|-------------|
-| `R2_ACCESS_KEY_ID` | R2 API access key |
-| `R2_SECRET_ACCESS_KEY` | R2 API secret key |
-| `R2_ENDPOINT` | R2 endpoint URL |
-| `R2_BUCKET_NAME` | Bucket name |
-| `R2_PUBLIC_URL` | Public CDN base URL (e.g. `https://media.ecodrix.com`) |
+| Variable               | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `R2_ACCESS_KEY_ID`     | R2 API access key                                      |
+| `R2_SECRET_ACCESS_KEY` | R2 API secret key                                      |
+| `R2_ENDPOINT`          | R2 endpoint URL                                        |
+| `R2_BUCKET_NAME`       | Bucket name                                            |
+| `R2_PUBLIC_URL`        | Public CDN base URL (e.g. `https://media.ecodrix.com`) |
 
 ### Optional — SMTP (per-client, stored in DB; these are fallback global creds)
 
-| Variable | Description |
-|----------|-------------|
-| `SMTP_HOST` | SMTP host |
-| `SMTP_PORT` | SMTP port |
-| `SMTP_USER` | SMTP username |
+| Variable    | Description       |
+| ----------- | ----------------- |
+| `SMTP_HOST` | SMTP host         |
+| `SMTP_PORT` | SMTP port         |
+| `SMTP_USER` | SMTP username     |
 | `SMTP_PASS` | SMTP app password |
 
 ---
@@ -172,12 +172,12 @@ server {
 
 ```js
 // clients collection
-db.clients.createIndex({ clientCode: 1 }, { unique: true })
-db.clients.createIndex({ apiKey: 1 })
+db.clients.createIndex({ clientCode: 1 }, { unique: true });
+db.clients.createIndex({ apiKey: 1 });
 
 // jobs collection (MongoQueue)
-db.jobs.createIndex({ status: 1, runAt: 1 })
-db.jobs.createIndex({ type: 1, status: 1 })
+db.jobs.createIndex({ status: 1, runAt: 1 });
+db.jobs.createIndex({ type: 1, status: 1 });
 ```
 
 ---

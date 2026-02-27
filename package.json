@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --exec 'tsx server.ts' --ext ts,js",
+    "dev": "nodemon --exec 'tsx server.ts' --ext ts,js,html",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "format": "pnpm exec prettier --write .",
