@@ -290,6 +290,10 @@ app.get("/", (_req: Request, res: Response) => {
   res.send(html);
 });
 
+app.use("/health-check", req: Request, res: Response)=>{
+  res.json('Server wake-up')
+}
+
 /**
  * @Start Routes
  * @borrows Routes for saas
