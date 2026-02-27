@@ -21,15 +21,15 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
+      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
 
       const conn = await getTenantConnection(clientCode);
       const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
 
       const leads = await Lead.find({}).sort({ createdAt: -1 });
-      res.json(leads);
+      res.json({ success: true, data: leads });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 );
@@ -43,7 +43,7 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
+      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
 
       const { id } = req.params;
       const { status } = req.body;
@@ -56,9 +56,9 @@ router.patch(
         { status },
         { returnDocument: "after" },
       );
-      res.json(lead);
+      res.json({ success: true, data: lead });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 );
@@ -72,12 +72,12 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
+      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
 
       const result = await meetService.createMeeting(clientCode, req.body);
-      res.status(result.success ? 201 : 400).json(result);
+      res.status(result.success ? 201 : 400).json(result); // result already has { success, ... }
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 );
@@ -91,12 +91,12 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
+      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
 
       const { recipients, subject, html } = req.body;
 
       if (!recipients || !Array.isArray(recipients)) {
-        return res.status(400).json({ error: "Recipients must be an array" });
+        return res.status(400).json({ success: false, message: "Recipients must be an array" });
       }
 
       const result = await emailService.sendCampaign(clientCode, {
@@ -105,9 +105,9 @@ router.post(
         html,
       });
 
-      res.json(result);
+      res.json(result); // Assuming result already has success wrapper
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 );
@@ -121,7 +121,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { clientCode } = req;
-      if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
+      if (!clientCode) return res.status(401).json({ success: false, message: "Unauthorized" });
 
       const { durationCredentials, payload } = req.body;
 
@@ -213,7 +213,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("Appointment confirmation error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 );

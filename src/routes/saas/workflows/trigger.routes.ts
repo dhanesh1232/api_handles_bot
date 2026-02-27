@@ -37,8 +37,32 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
   if (!trigger || !phone) {
     return res
       .status(400)
-      .json({ success: false, message: "trigger and phone are required" });
+      .json({ success: false, message: "trigger and phone are required", code: "MISSING_REQUIRED" });
   }
+
+  // Phone must be E.164 format (digits only, 10-15 chars)
+  const phoneRegex = /^\d{10,15}$/;
+  if (!phoneRegex.test(phone.replace(/^\+/, ""))) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid phone format. Use E.164 format e.g. 919876543210",
+      code: "INVALID_PHONE",
+    });
+  }
+
+  // Trigger must be a non-empty string, no spaces
+  if (typeof trigger !== "string" || trigger.includes(" ") || trigger.length > 50) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid trigger name. Must be a string with no spaces, max 50 chars.",
+      code: "INVALID_TRIGGER",
+    });
+  }
+
+  // Sanitize payload — remove any keys with undefined values before logging
+  const sanitizedPayload = JSON.parse(
+    JSON.stringify({ trigger, phone, email, variables, data, requiresMeet })
+  );
 
   let eventLog;
   try {
@@ -50,7 +74,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
       email,
       status: "received",
       callbackUrl: body.callbackUrl,
-      payload: { trigger, phone, email, variables, data, requiresMeet },
+      payload: sanitizedPayload,
     });
 
     // Step 3 — Find or create lead
@@ -188,10 +212,27 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
       await EventLog.findByIdAndUpdate(eventLog._id, {
         status: "failed",
         error: err.message,
-      });
+      }).catch(() => {}); // non-fatal
     }
-    console.error("[triggerRoute] Error:", err.message);
-    return res.status(500).json({ success: false, message: err.message });
+    
+    console.error("[triggerRoute] Error:", {
+      clientCode: req.clientCode,
+      trigger: req.body?.trigger,
+      phone: req.body?.phone,
+      error: err.message,
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    });
+
+    const statusCode =
+      err.message?.includes("not found") ? 404 :
+      err.message?.includes("Unauthorized") ? 401 :
+      err.message?.includes("not configured") ? 422 : 500;
+
+    return res.status(statusCode).json({
+      success: false,
+      message: err.message,
+      code: err.name ?? "TRIGGER_FAILED",
+    });
   }
 });
 

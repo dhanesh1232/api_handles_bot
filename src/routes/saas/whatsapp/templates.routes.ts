@@ -1,22 +1,22 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
 import {
-  getTenantConnection,
-  getTenantModel,
+    getTenantConnection,
+    getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 import {
-  createTemplate,
-  detectOutdatedMappings,
-  getCollectionFields,
-  getTenantCollections,
-  resolveTemplateVariables,
-  saveVariableMapping,
-  syncTemplatesFromMeta,
-  validateMappingCompleteness,
+    createTemplate,
+    detectOutdatedMappings,
+    getCollectionFields,
+    getTenantCollections,
+    resolveTemplateVariables,
+    saveVariableMapping,
+    syncTemplatesFromMeta,
+    validateMappingCompleteness,
 } from "../../../services/saas/whatsapp/template.service.ts";
 
 export interface SaasRequest extends Request {
@@ -41,7 +41,7 @@ export const createTemplateRouter = (io: Server) => {
         );
         res.json({ success: true, data: collections });
       } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ success: false, message: err.message });
       }
     },
   );
@@ -61,7 +61,7 @@ export const createTemplateRouter = (io: Server) => {
         );
         res.json({ success: true, data: fields });
       } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ success: false, message: err.message });
       }
     },
   );
@@ -77,7 +77,7 @@ export const createTemplateRouter = (io: Server) => {
 
         const secrets = await ClientSecrets.findOne({ clientCode });
         if (!secrets)
-          return res.status(404).json({ error: "Client secrets not found" });
+          return res.status(404).json({ success: false, message: "Client secrets not found" });
 
         const token = secrets.getDecrypted("whatsappToken");
         const wabaId = secrets.getDecrypted("whatsappBusinessId");
@@ -85,18 +85,18 @@ export const createTemplateRouter = (io: Server) => {
         if (!token || !wabaId) {
           return res
             .status(400)
-            .json({ error: "WhatsApp credentials not configured" });
+            .json({ success: false, message: "WhatsApp credentials not configured" });
         }
 
         const tenantConn = await getTenantConnection(clientCode);
         const result = await syncTemplatesFromMeta(tenantConn, token, wabaId);
 
-        res.json(result);
+        res.json({ success: true, data: result });
       } catch (error: any) {
         console.error("Sync error:", error);
         res
           .status(500)
-          .json({ error: error.message || "Failed to sync templates" });
+          .json({ success: false, message: error.message || "Failed to sync templates" });
       }
     },
   );
@@ -123,10 +123,10 @@ export const createTemplateRouter = (io: Server) => {
       if (channel) query.channel = channel;
 
       const templates = await Template.find(query).sort({ updatedAt: -1 });
-      res.json({ data: templates });
-    } catch (error) {
+      res.json({ success: true, data: templates });
+    } catch (error: any) {
       console.error("Fetch templates error:", error);
-      res.status(500).json({ error: "Failed to fetch templates" });
+      res.status(500).json({ success: false, message: "Failed to fetch templates" });
     }
   });
 
@@ -149,12 +149,12 @@ export const createTemplateRouter = (io: Server) => {
 
         const template = await Template.findOne({ name: templateName });
         if (!template)
-          return res.status(404).json({ error: "Template not found" });
+          return res.status(404).json({ success: false, message: "Template not found" });
 
-        res.json(template);
-      } catch (error) {
+        res.json({ success: true, data: template });
+      } catch (error: any) {
         console.error("Fetch template error:", error);
-        res.status(500).json({ error: "Failed to fetch template" });
+        res.status(500).json({ success: false, message: "Failed to fetch template" });
       }
     },
   );
@@ -178,10 +178,10 @@ export const createTemplateRouter = (io: Server) => {
           onEmptyVariable,
         );
 
-        res.json(result);
+        res.json({ success: true, data: result });
       } catch (error: any) {
         console.error("Update mapping error:", error);
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, message: error.message });
       }
     },
   );
@@ -202,9 +202,9 @@ export const createTemplateRouter = (io: Server) => {
           templateName,
         );
 
-        res.json(result);
+        res.json({ success: true, data: result });
       } catch (error: any) {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, message: error.message });
       }
     },
   );
@@ -240,9 +240,9 @@ export const createTemplateRouter = (io: Server) => {
           previewText = previewText.replace(regex, val);
         });
 
-        res.json({ resolvedVariables, previewText });
+        res.json({ success: true, data: { resolvedVariables, previewText } });
       } catch (error: any) {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, message: error.message });
       }
     },
   );
@@ -259,9 +259,9 @@ export const createTemplateRouter = (io: Server) => {
         const tenantConn = await getTenantConnection(clientCode);
         const result = await detectOutdatedMappings(tenantConn);
 
-        res.json(result);
+        res.json({ success: true, data: result });
       } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ success: false, message: error.message });
       }
     },
   );
@@ -284,12 +284,12 @@ export const createTemplateRouter = (io: Server) => {
         wabaId,
         templateData,
       );
-      res.json(result);
+      res.json({ success: true, data: result });
     } catch (error: any) {
       console.error("Create template error:", error);
       res
         .status(500)
-        .json({ error: error.message || "Failed to create template" });
+        .json({ success: false, message: error.message || "Failed to create template" });
     }
   });
 

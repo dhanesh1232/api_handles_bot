@@ -36,7 +36,8 @@ import { cronJobs } from "./src/jobs/cron.ts";
 import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
 import { startWorkflowProcessor } from "./src/jobs/saas/workflowProcessor.ts";
 import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
-import { limiter } from "./src/middleware/rate-limit.ts";
+import { requestLogger } from "./src/middleware/logger.ts";
+import { limiter, triggerLimiter } from "./src/middleware/rate-limit.ts";
 import { validateClientKey } from "./src/middleware/saasAuth.ts";
 
 const PORT = process.env.PORT || 4000;
@@ -129,6 +130,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next(err);
   });
 });
+
+/**
+ * @Start Request Logger Middleware
+ */
+app.use(requestLogger);
 
 /**
  * @Start URL Encoded Parser
@@ -268,9 +274,11 @@ const initializeRoutes = async () => {
   app.use("/api/saas/cors", corsRouter);
   app.use("/api/auth/google", googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);
-  app.use("/api/saas", healthRouter);
-  app.use("/api/saas", eventLogRouter);
-  app.use("/api/saas/workflows", triggerRouter);
+  app.use("/api/saas", validateClientKey, healthRouter);
+  app.use("/api/saas", validateClientKey, eventLogRouter);
+  
+  // Override for trigger endpoint (stricter limit)
+  app.use("/api/saas/workflows", validateClientKey, triggerLimiter, triggerRouter);
 
   /**
    * @Start Global Error Handler
@@ -278,10 +286,12 @@ const initializeRoutes = async () => {
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error(`❌ Global Error Handler: ${err.message}`, err.stack);
     res.status(err.status || 500).json({
-      error:
+      success: false,
+      message:
         process.env.NODE_ENV === "production"
           ? "Internal Server Error"
           : err.message,
+      code: err.code ?? "INTERNAL_ERROR",
     });
   });
 

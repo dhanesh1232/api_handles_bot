@@ -3,8 +3,8 @@ import multer from "multer";
 import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.ts";
 import {
-  getTenantConnection,
-  getTenantModel,
+    getTenantConnection,
+    getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
@@ -43,10 +43,10 @@ export const createChatRouter = (io: Server) => {
         const conversations = await ConversationModel.find({}).sort({
           lastMessageAt: -1,
         });
-        res.json(conversations);
-      } catch (err) {
+        res.json({ success: true, data: conversations });
+      } catch (err: any) {
         console.error("Error fetching conversations:", err);
-        res.status(500).json({ error: "Failed to fetch chats" });
+        res.status(500).json({ success: false, message: err.message || "Failed to fetch chats" });
       }
     },
   );
@@ -74,10 +74,10 @@ export const createChatRouter = (io: Server) => {
             createdAt: 1,
           });
 
-        res.json(messages);
-      } catch (err) {
+        res.json({ success: true, data: messages });
+      } catch (err: any) {
         console.error("Error fetching messages:", err);
-        res.status(500).json({ error: "Failed to fetch messages" });
+        res.status(500).json({ success: false, message: err.message || "Failed to fetch messages" });
       }
     },
   );
@@ -105,9 +105,9 @@ export const createChatRouter = (io: Server) => {
         );
 
         res.json({ success: true });
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error marking read:", err);
-        res.status(500).json({ error: "Failed to mark as read" });
+        res.status(500).json({ success: false, message: err.message || "Failed to mark as read" });
       }
     },
   );
@@ -148,10 +148,10 @@ export const createChatRouter = (io: Server) => {
           );
         }
 
-        res.json(conversation);
-      } catch (err) {
+        res.json({ success: true, data: conversation });
+      } catch (err: any) {
         console.error("Error creating chat:", err);
-        res.status(500).json({ error: "Failed to create chat" });
+        res.status(500).json({ success: false, message: err.message || "Failed to create chat" });
       }
     },
   );
@@ -185,9 +185,9 @@ export const createChatRouter = (io: Server) => {
         io.to(clientCode).emit("conversation_deleted", { conversationId: id });
 
         res.json({ success: true });
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error deleting conversation:", err);
-        res.status(500).json({ error: "Failed to delete conversation" });
+        res.status(500).json({ success: false, message: err.message || "Failed to delete conversation" });
       }
     },
   );
@@ -204,14 +204,14 @@ export const createChatRouter = (io: Server) => {
         const file = req.file;
 
         if (!file) {
-          return res.status(400).json({ error: "No file provided" });
+          return res.status(400).json({ success: false, message: "No file provided" });
         }
 
         await dbConnect("services");
         const secrets = await ClientSecrets.findOne({ clientCode });
 
         if (!secrets) {
-          return res.status(404).json({ error: "Client secrets not found" });
+          return res.status(404).json({ success: false, message: "Client secrets not found" });
         }
 
         const result = await optimizeAndUploadMedia(
@@ -227,10 +227,10 @@ export const createChatRouter = (io: Server) => {
         else if (result.mimeType.startsWith("video/")) type = "video";
         else if (result.mimeType.startsWith("audio/")) type = "audio";
 
-        res.json({ url: result.url, type });
+        res.json({ success: true, data: { url: result.url, type } });
       } catch (err: any) {
         console.error("Upload error:", err);
-        res.status(500).json({ error: err.message || "Upload failed" });
+        res.status(500).json({ success: false, message: err.message || "Upload failed" });
       }
     },
   );
@@ -260,7 +260,7 @@ export const createChatRouter = (io: Server) => {
         if (!conversationId && !to) {
           return res
             .status(400)
-            .json({ error: "Missing conversationId or to phone number" });
+            .json({ success: false, message: "Missing conversationId or to phone number" });
         }
 
         let targetConvId = conversationId;
@@ -299,10 +299,10 @@ export const createChatRouter = (io: Server) => {
           context,
         );
 
-        res.json({ success: true, message });
+        res.json({ success: true, data: { message } });
       } catch (err: any) {
         console.error("❌ Outgoing Chat Error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, message: err.message });
       }
     },
   );
@@ -327,7 +327,7 @@ export const createChatRouter = (io: Server) => {
 
         const message = await MessageModel.findById(messageId as string);
         if (!message) {
-          return res.status(404).json({ error: "Message not found" });
+          return res.status(404).json({ success: false, message: "Message not found" });
         }
 
         message.isStarred =
@@ -342,10 +342,10 @@ export const createChatRouter = (io: Server) => {
           });
         }
 
-        res.json({ success: true, isStarred: message.isStarred });
-      } catch (err) {
+        res.json({ success: true, data: { isStarred: message.isStarred } });
+      } catch (err: any) {
         console.error("Error toggling star:", err);
-        res.status(500).json({ error: "Failed to toggle star" });
+        res.status(500).json({ success: false, message: err.message || "Failed to toggle star" });
       }
     },
   );
@@ -366,10 +366,10 @@ export const createChatRouter = (io: Server) => {
           messageId as string,
           reaction,
         );
-        res.json(result);
+        res.json({ success: true, data: result });
       } catch (err: any) {
         console.error("Error reacting to message:", err);
-        res.status(500).json({ error: err.message || "Failed to react" });
+        res.status(500).json({ success: false, message: err.message || "Failed to react" });
       }
     },
   );
@@ -392,7 +392,7 @@ export const createChatRouter = (io: Server) => {
         if (!templateName || !recipients.length) {
           return res
             .status(400)
-            .json({ error: "Missing templateName or recipients" });
+            .json({ success: false, message: "Missing templateName or recipients" });
         }
 
         const conn = await getTenantConnection(clientCode);
@@ -412,7 +412,7 @@ export const createChatRouter = (io: Server) => {
           language: templateLanguage,
         });
         if (!template) {
-          return res.status(404).json({ error: "Template not found" });
+          return res.status(404).json({ success: false, message: "Template not found" });
         }
 
         const broadcast = await BroadcastModel.create({
@@ -441,12 +441,12 @@ export const createChatRouter = (io: Server) => {
           });
         }
 
-        res.json(broadcast);
+        res.json({ success: true, data: broadcast });
       } catch (err: any) {
         console.error("Broadcast creation error:", err);
         res
           .status(500)
-          .json({ error: err.message || "Failed to create broadcast" });
+          .json({ success: false, message: err.message || "Failed to create broadcast" });
       }
     },
   );
@@ -469,10 +469,10 @@ export const createChatRouter = (io: Server) => {
         const broadcasts = await BroadcastModel.find({}).sort({
           createdAt: -1,
         });
-        res.json(broadcasts);
-      } catch (err) {
+        res.json({ success: true, data: broadcasts });
+      } catch (err: any) {
         console.error("Error fetching broadcasts:", err);
-        res.status(500).json({ error: "Failed to fetch broadcasts" });
+        res.status(500).json({ success: false, message: err.message || "Failed to fetch broadcasts" });
       }
     },
   );
