@@ -17,7 +17,7 @@ import { LeadActivitySchema } from "../../model/saas/crm/leadActivity.model.ts";
 import { LeadNoteSchema } from "../../model/saas/crm/leadNote.model.ts";
 import { PipelineSchema } from "../../model/saas/crm/pipeline.model.ts";
 import { PipelineStageSchema } from "../../model/saas/crm/pipelineStage.model.ts";
-import { GetURI, tenantDBConnect } from "./connection.ts";
+import { getTenantConnection } from "../connectionManager.ts";
 
 // ─── Model registry per connection ────────────────────────────────────────────
 // Each tenant Connection caches its own compiled models.
@@ -48,8 +48,7 @@ export interface CrmModels {
  * The connection is cached — subsequent calls for the same clientCode are free.
  */
 export async function getCrmModels(clientCode: string): Promise<CrmModels> {
-  const uri = await GetURI(clientCode);
-  const conn = await tenantDBConnect(uri);
+  const conn = await getTenantConnection(clientCode);
 
   return {
     Lead: getOrCreate<ILead>(conn, "Lead", LeadSchema),

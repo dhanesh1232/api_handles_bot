@@ -242,6 +242,56 @@ declare global {
     createdAt: Date;
     updatedAt: Date;
   }
+  export type MappingSource =
+    | "crm"
+    | "static"
+    | "computed"
+    | "system"
+    | "manual";
+  export type OnEmptyVariable = "skip_send" | "use_fallback" | "send_anyway";
+  export type MappingStatus = "unmapped" | "partial" | "complete" | "outdated";
+  export type TemplateStatus =
+    | "APPROVED"
+    | "REJECTED"
+    | "PENDING"
+    | "PAUSED"
+    | "DISABLED";
+  export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
+
+  export interface IVariableMapping {
+    position: number;
+    label: string;
+    source: MappingSource;
+    field?: string;
+    staticValue?: string;
+    formula?: string;
+    fallback?: string;
+    required?: boolean;
+  }
+
+  export interface ITemplateConfigFields {
+    templateId?: string;
+    category?: TemplateCategory;
+    headerText?: string;
+    variablePositions: number[];
+    variableMapping: IVariableMapping[];
+    onEmptyVariable: OnEmptyVariable;
+    mappingStatus: MappingStatus;
+    lastSyncedAt?: Date;
+    lastMappingUpdatedAt?: Date;
+    isActive?: boolean;
+  }
+
+  export interface ResolvedVariables {
+    variables: string[];
+  }
+
+  export interface SyncResult {
+    synced: number;
+    updated: number;
+    outdated: string[];
+    new: string[];
+  }
 }
 
 export {};

@@ -6,7 +6,6 @@ import {
   getTenantConnection,
   getTenantModel,
 } from "../../../lib/connectionManager.ts";
-import { GetURI, tenantDBConnect } from "../../../lib/tenant/connection.ts";
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
@@ -34,8 +33,7 @@ export const createChatRouter = (io: Server) => {
       try {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
-        const uri = await GetURI(clientCode);
-        const conn = await tenantDBConnect(uri);
+        const conn = await getTenantConnection(clientCode);
         const ConversationModel = getTenantModel<IConversation>(
           conn,
           "Conversation",
@@ -63,8 +61,7 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
-        const uri = await GetURI(clientCode);
-        const conn = await tenantDBConnect(uri);
+        const conn = await getTenantConnection(clientCode);
         const MessageModel = getTenantModel<IMessage>(
           conn,
           "Message",
@@ -95,8 +92,7 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
-        const uri = await GetURI(clientCode);
-        const conn = await tenantDBConnect(uri);
+        const conn = await getTenantConnection(clientCode);
         const ConversationModel = getTenantModel<IConversation>(
           conn,
           "Conversation",
@@ -126,8 +122,7 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { phone, name } = req.body;
 
-        const uri = await GetURI(clientCode);
-        const conn = await tenantDBConnect(uri);
+        const conn = await getTenantConnection(clientCode);
         const ConversationModel = getTenantModel<IConversation>(
           conn,
           "Conversation",
@@ -136,14 +131,18 @@ export const createChatRouter = (io: Server) => {
 
         let conversation = await ConversationModel.findOne({ phone });
         if (!conversation) {
+          const count = await ConversationModel.countDocuments();
           conversation = await ConversationModel.create({
             phone,
-            userName: name || "New Contact",
+            userName: name || `Customer ${count + 1}`,
             status: "open",
             channel: "whatsapp",
             unreadCount: 0,
             lastMessageAt: new Date(),
           });
+
+          // Emit to socket so sidebar updates everywhere
+          io.to(clientCode).emit("conversation_updated", conversation.toObject());
         }
 
         res.json(conversation);
@@ -153,7 +152,43 @@ export const createChatRouter = (io: Server) => {
       }
     },
   );
-
+ 
+  // 4a. Delete Conversation
+  router.delete(
+    "/conversations/:id",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const { id } = req.params;
+ 
+        const conn = await getTenantConnection(clientCode);
+        const ConversationModel = getTenantModel<IConversation>(
+          conn,
+          "Conversation",
+          schemas.conversations,
+        );
+        const MessageModel = getTenantModel<IMessage>(
+          conn,
+          "Message",
+          schemas.messages,
+        );
+ 
+        await MessageModel.deleteMany({ conversationId: id });
+        await ConversationModel.findByIdAndDelete(id);
+ 
+        // Notify all clients
+        io.to(clientCode).emit("conversation_deleted", { conversationId: id });
+ 
+        res.json({ success: true });
+      } catch (err) {
+        console.error("Error deleting conversation:", err);
+        res.status(500).json({ error: "Failed to delete conversation" });
+      }
+    },
+  );
+ 
   // 5. Upload Media to R2
   router.post(
     "/upload",
@@ -216,6 +251,7 @@ export const createChatRouter = (io: Server) => {
           variables = [],
           userId = "admin",
           replyToId = null,
+          context = null,
         } = req.body;
 
         if (!conversationId && !to) {
@@ -257,6 +293,7 @@ export const createChatRouter = (io: Server) => {
           templateLanguage,
           variables,
           replyToId,
+          context,
         );
 
         res.json({ success: true, message });
@@ -278,8 +315,7 @@ export const createChatRouter = (io: Server) => {
         const { messageId } = req.params;
         const { isStarred } = req.body;
 
-        const uri = await GetURI(clientCode);
-        const conn = await tenantDBConnect(uri);
+        const conn = await getTenantConnection(clientCode);
         const MessageModel = getTenantModel<IMessage>(
           conn,
           "Message",
@@ -331,6 +367,103 @@ export const createChatRouter = (io: Server) => {
       } catch (err: any) {
         console.error("Error reacting to message:", err);
         res.status(500).json({ error: err.message || "Failed to react" });
+      }
+    },
+  );
+
+  // 9. Create Broadcast Campaign
+  router.post(
+    "/broadcast",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const {
+          name,
+          templateName,
+          templateLanguage = "en_US",
+          recipients = [], // List of { phone: string, variables: string[] }
+        } = req.body;
+
+        if (!templateName || !recipients.length) {
+          return res
+            .status(400)
+            .json({ error: "Missing templateName or recipients" });
+        }
+
+        const conn = await getTenantConnection(clientCode);
+        const BroadcastModel = getTenantModel(
+          conn,
+          "Broadcast",
+          schemas.broadcasts,
+        );
+        const TemplateModel = getTenantModel(conn, "Template", schemas.templates);
+
+        const template = await TemplateModel.findOne({
+          name: templateName,
+          language: templateLanguage,
+        });
+        if (!template) {
+          return res.status(404).json({ error: "Template not found" });
+        }
+
+        const broadcast = await BroadcastModel.create({
+          name: name || `Broadcast ${new Date().toLocaleString()}`,
+          templateId: template._id,
+          status: "processing",
+          totalRecipients: recipients.length,
+          sentCount: 0,
+          failedCount: 0,
+        });
+
+        // Enqueue jobs
+        const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+
+        for (const recipient of recipients) {
+          await crmQueue.add({
+            clientCode,
+            type: "crm.whatsapp_broadcast",
+            payload: {
+              broadcastId: broadcast._id.toString(),
+              phone: recipient.phone,
+              templateName,
+              templateLanguage,
+              variables: recipient.variables || [],
+            },
+          });
+        }
+
+        res.json(broadcast);
+      } catch (err: any) {
+        console.error("Broadcast creation error:", err);
+        res
+          .status(500)
+          .json({ error: err.message || "Failed to create broadcast" });
+      }
+    },
+  );
+
+  // 10. List Broadcasts
+  router.get(
+    "/broadcasts",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const conn = await getTenantConnection(clientCode);
+        const BroadcastModel = getTenantModel(
+          conn,
+          "Broadcast",
+          schemas.broadcasts,
+        );
+
+        const broadcasts = await BroadcastModel.find({}).sort({ createdAt: -1 });
+        res.json(broadcasts);
+      } catch (err) {
+        console.error("Error fetching broadcasts:", err);
+        res.status(500).json({ error: "Failed to fetch broadcasts" });
       }
     },
   );

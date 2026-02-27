@@ -75,7 +75,7 @@ export class MongoWorker {
         },
         { $set: { status: "active" } },
         {
-          new: true,
+          returnDocument: "after",
           sort: { priority: 1, runAt: 1 }, // highest priority (lowest number), oldest first
         },
       ).lean<IJob>();

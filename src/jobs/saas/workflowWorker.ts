@@ -56,6 +56,48 @@ export const executeWorkflow = async (data: any) => {
         targetConversationId = conv._id;
       }
 
+      let finalVariables = variables || [];
+
+      // New way: Resolve variables from context
+      if (templateName && data.context) {
+        try {
+          const tenantConn = await getTenantConnection(clientCode);
+          const { resolveTemplateVariables } =
+            await import("../../services/saas/whatsapp/template.service.ts");
+
+          finalVariables = await resolveTemplateVariables(
+            tenantConn,
+            templateName,
+            data.context,
+          );
+
+          console.log(
+            `[WorkflowExecutor] Resolved variables for ${templateName}:`,
+            finalVariables,
+          );
+        } catch (err: any) {
+          console.error(
+            `[WorkflowExecutor] Variable resolution failed:`,
+            err.message,
+          );
+
+          // Legacy fallback: if variables array is also present, use it
+          if (variables && variables.length > 0) {
+            console.warn(
+              `[WorkflowExecutor] Falling back to static variables for ${templateName}`,
+            );
+            finalVariables = variables;
+          } else {
+            // Handle specific error types if needed or just rethrow
+            throw err;
+          }
+        }
+      } else if (variables && variables.length > 0) {
+        console.log(
+          `[WorkflowExecutor] Using static variables (deprecated) for ${templateName}`,
+        );
+      }
+
       await whatsappService.sendOutboundMessage(
         clientCode,
         targetConversationId,
@@ -65,7 +107,7 @@ export const executeWorkflow = async (data: any) => {
         "system-worker", // userId
         templateName,
         "en_US",
-        variables || [],
+        finalVariables,
       );
 
       // Handle Callback if provided

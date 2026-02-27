@@ -18,6 +18,8 @@
 import { MongoQueue } from "../../lib/mongoQueue/index.ts";
 import { MongoWorker } from "../../lib/mongoQueue/worker.ts";
 import type { IJob } from "../../model/queue/job.model.ts";
+import type { IBroadcast } from "../../model/saas/whatsapp/broadcast.model.ts";
+import type { IConversation } from "../../model/saas/whatsapp/conversation.model.ts";
 
 // ─── Exported queue singleton ─────────────────────────────────────────────────
 // Use this everywhere you need to enqueue a CRM job:
@@ -42,7 +44,8 @@ type CrmJobType =
   | "crm.meeting"
   | "crm.reminder"
   | "crm.score_refresh"
-  | "crm.webhook_notify";
+  | "crm.webhook_notify"
+  | "crm.whatsapp_broadcast";
 
 interface CrmJobData {
   clientCode: string;
@@ -62,124 +65,34 @@ const processCrmJob = async (job: IJob): Promise<void> => {
   switch (type) {
     // ── 1. Delayed automation action ─────────────────────────────────────────
     case "crm.automation_action": {
-      const { actionType, actionConfig, leadId } = payload;
-
-      switch (actionType) {
-        case "send_whatsapp": {
-          const { createWhatsappService } =
-            await import("../../services/saas/whatsapp/whatsapp.service.ts");
-          const svc = createWhatsappService(globalIo);
-          // Find or create a conversation for this phone, then send
-          const { getTenantConnection, getTenantModel } =
-            await import("../../lib/connectionManager.ts");
-          const { schemas } =
-            await import("../../model/saas/tenant.schemas.ts");
-          const tenantConn = await getTenantConnection(clientCode);
-          const Conversation = getTenantModel(
-            tenantConn,
-            "Conversation",
-            schemas.conversations,
-          );
-          let conv = await Conversation.findOne({
-            clientCode,
-            phone: actionConfig.phone,
-          });
-          if (!conv) {
-            conv = await Conversation.create({
-              clientCode,
-              phone: actionConfig.phone,
-              userName: actionConfig.phone,
-              status: "open",
-              channel: "whatsapp",
-            });
-          }
-          await svc.sendOutboundMessage(
-            clientCode,
-            conv._id.toString(),
-            undefined,
-            undefined,
-            undefined,
-            "automation",
-            actionConfig.templateName,
-            actionConfig.language ?? "en_US",
-            actionConfig.variables ?? [],
-          );
-          break;
-        }
-
-        case "send_email": {
-          const { createEmailService } =
-            await import("../../services/saas/mail/email.service.ts");
-          const svc = createEmailService();
-          await svc.sendEmail(clientCode, {
-            to: actionConfig.email,
-            subject: actionConfig.subject,
-            html: actionConfig.htmlBody,
-            text: actionConfig.textBody,
-          });
-          break;
-        }
-
-        case "move_stage": {
-          const { moveLead } =
-            await import("../../services/saas/crm/lead.service.ts");
-          await moveLead(
-            clientCode,
-            leadId,
-            actionConfig.stageId,
-            "automation",
-          );
-          break;
-        }
-
-        case "assign_to": {
-          const { getCrmModels } =
-            await import("../../lib/tenant/get.crm.model.ts");
-          const { Lead } = await getCrmModels(clientCode);
-          const { logActivity } =
-            await import("../../services/saas/crm/activity.service.ts");
-          await Lead.updateOne(
-            { _id: leadId, clientCode },
-            { $set: { assignedTo: actionConfig.assignTo } },
-          );
-          await logActivity(clientCode, {
-            leadId,
-            type: "lead_assigned",
-            title: `Assigned to ${actionConfig.assignTo}`,
-            performedBy: "automation",
-          });
-          break;
-        }
-
-        case "add_tag":
-        case "remove_tag": {
-          const { updateTags } =
-            await import("../../services/saas/crm/lead.service.ts");
-          const toAdd = actionType === "add_tag" ? [actionConfig.tag] : [];
-          const toRemove =
-            actionType === "remove_tag" ? [actionConfig.tag] : [];
-          await updateTags(clientCode, leadId, toAdd, toRemove);
-          break;
-        }
-
-        case "webhook_notify": {
-          await fetch(actionConfig.callbackUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              event: actionConfig.event ?? "crm.automation_triggered",
-              leadId,
-              timestamp: new Date().toISOString(),
-            }),
-          });
-          break;
-        }
-
-        default:
-          throw new Error(
-            `[crmWorker] Unknown automation actionType: ${actionType}`,
-          );
+      const { actionType, actionConfig, leadId, ctxVariables } = payload;
+      const { getCrmModels } =
+        await import("../../lib/tenant/get.crm.model.ts");
+      const { Lead } = await getCrmModels(clientCode);
+      const lead = await Lead.findById(leadId);
+      if (!lead) {
+        throw new Error(`[crmWorker] Lead ${leadId} not found`);
       }
+
+      const { executeAction } =
+        await import("../../services/saas/crm/automation.service.ts");
+
+      // Construct action object for executeAction
+      const action = {
+        type: actionType,
+        config: actionConfig,
+        delayMinutes: 0, // It was already delayed by the queue
+      };
+
+      // Pass variables from config (stored in enqueueDelayedAction)
+      await executeAction(
+        clientCode,
+        action as any,
+        lead as any,
+        {
+          variables: ctxVariables,
+        } as any,
+      );
       break;
     }
 
@@ -369,6 +282,101 @@ const processCrmJob = async (job: IJob): Promise<void> => {
           `Webhook notify failed [${res.status}]: ${payload.callbackUrl}`,
         );
       }
+      break;
+    }
+
+    // ── 7. WhatsApp Broadcast — sending individual messages in a campaign ──
+    case "crm.whatsapp_broadcast": {
+      const { broadcastId, phone, templateName, templateLanguage, variables } =
+        payload;
+
+      const { createWhatsappService } = await import(
+        "../../services/saas/whatsapp/whatsapp.service.ts"
+      );
+      const { getTenantConnection, getTenantModel } = await import(
+        "../../lib/connectionManager.ts"
+      );
+      const { schemas } = await import("../../model/saas/tenant.schemas.ts");
+
+      const svc = createWhatsappService(globalIo);
+      const tenantConn = await getTenantConnection(clientCode);
+      const Broadcast = getTenantModel<IBroadcast>(
+        tenantConn,
+        "Broadcast",
+        schemas.broadcasts,
+      );
+      const Conversation = getTenantModel<IConversation>(
+        tenantConn,
+        "Conversation",
+        schemas.conversations,
+      );
+
+      let success = false;
+      try {
+        let conv = await Conversation.findOne({ phone });
+        if (!conv) {
+          conv = await Conversation.create({
+            phone,
+            userName: "Customer",
+            status: "open",
+            channel: "whatsapp",
+            unreadCount: 0,
+          });
+        }
+
+        await svc.sendOutboundMessage(
+          clientCode,
+          conv._id.toString(),
+          undefined,
+          undefined,
+          undefined,
+          "broadcast",
+          templateName,
+          templateLanguage || "en_US",
+          variables || [],
+        );
+        success = true;
+      } catch (err: any) {
+        console.error(
+          `[crmWorker] Broadcast send failed for ${phone}:`,
+          err.message,
+        );
+      }
+
+      // Update broadcast stats
+      const update: any = {
+        $inc: {},
+      };
+      if (success) update.$inc.sentCount = 1;
+      else update.$inc.failedCount = 1;
+
+      const updatedBroadcast = await Broadcast.findByIdAndUpdate(
+        broadcastId,
+        update,
+        { new: true, returnDocument: "after" },
+      );
+
+      if (updatedBroadcast) {
+        const totalProcessed =
+          updatedBroadcast.sentCount + updatedBroadcast.failedCount;
+        if (totalProcessed >= updatedBroadcast.totalRecipients) {
+          updatedBroadcast.status =
+            updatedBroadcast.failedCount > 0 ? "partially_failed" : "completed";
+          updatedBroadcast.completedAt = new Date();
+          await updatedBroadcast.save();
+        }
+
+        // Optional: Emit broadcast progress via socket
+        if (globalIo) {
+          globalIo.to(clientCode).emit("broadcast_progress", {
+            broadcastId,
+            sentCount: updatedBroadcast.sentCount,
+            failedCount: updatedBroadcast.failedCount,
+            status: updatedBroadcast.status,
+          });
+        }
+      }
+
       break;
     }
 

@@ -1,6 +1,6 @@
 import express from "express";
-import { verifyCoreToken } from "../../../lib/auth.ts";
 import { dbConnect } from "../../../lib/config.ts";
+import { verifyCoreToken } from "../../../middleware/auth.ts";
 import { CorsOrigin } from "../../../model/cors-origin.model.ts";
 import { refreshOriginsCache } from "../../../model/cors-origins.ts";
 
@@ -64,7 +64,7 @@ router.patch("/:id", async (req, res) => {
   try {
     await dbConnect("saas");
     const origin = await CorsOrigin.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: "after",
     });
 
     if (!origin) {

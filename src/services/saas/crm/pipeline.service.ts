@@ -217,7 +217,7 @@ export const updatePipeline = async (
   return Pipeline.findOneAndUpdate(
     { _id: pipelineId, clientCode },
     { $set: updates },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -312,7 +312,7 @@ export const updateStage = async (
   return PipelineStage.findOneAndUpdate(
     { _id: stageId, clientCode },
     { $set: updates },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 

@@ -6,6 +6,7 @@ import {
   followUpLimitJob,
   remindersJob,
   researchJob,
+  templateSyncJob,
 } from "./index.ts";
 
 /**
@@ -17,7 +18,7 @@ import {
  * @param {remindersJob} - Reminders job
  * @param {autoCloseJob} - Auto-close job
  * @param {followUpLimitJob} - Follow-up limit job
- * @param {followUpLimitJob} - Follow-up limit job
+ * @param {templateSyncJob} - Template sync job
  *
  */
 export function cronJobs() {
@@ -40,6 +41,15 @@ export function cronJobs() {
       await followUpLimitJob();
     } catch (err) {
       console.error("❌ Midnight jobs failed:", err);
+    }
+  });
+
+  // Every day at 2:00 AM
+  cron.schedule("0 2 * * *", async () => {
+    try {
+      await templateSyncJob();
+    } catch (err) {
+      console.error("❌ 2 AM jobs failed:", err);
     }
   });
 }

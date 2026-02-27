@@ -43,60 +43,6 @@ export const createWhatsappService = (io: Server) => {
   /**
    * Helper to get tenant context: Connection, Models, Secrets
    */
-  const extractEnrichedFields = (components: any[]) => {
-    let headerType: any = "NONE";
-    let variablesCount = 0;
-
-    const headerComp = components.find((c: any) => c.type === "HEADER");
-    if (headerComp) {
-      if (headerComp.format) {
-        headerType = headerComp.format;
-      }
-      if (headerComp.text) {
-        variablesCount += (headerComp.text.match(/{{[0-9]+}}/g) || []).length;
-      }
-    }
-
-    const bodyComp = components.find((c: any) => c.type === "BODY");
-    const rawBodyText = bodyComp ? bodyComp.text : "";
-    const bodyText = rawBodyText.replace(/\n{3,}/g, "\n\n");
-    const bodyVars = (bodyText.match(/{{[0-9]+}}/g) || []).length;
-    variablesCount += bodyVars;
-
-    const footerComp = components.find((c: any) => c.type === "FOOTER");
-    const footerText = footerComp ? footerComp.text : undefined;
-
-    const buttonsData: any[] = [];
-    const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
-    let buttonVars = 0;
-    if (buttonsComp && buttonsComp.buttons) {
-      buttonsComp.buttons.forEach((b: any) => {
-        buttonsData.push({
-          type: b.type,
-          text: b.text,
-          url: b.url,
-          phoneNumber: b.phone_number || b.phoneNumber,
-        });
-        if (b.url) {
-          buttonVars += (b.url.match(/{{[0-9]+}}/g) || []).length;
-        }
-      });
-    }
-    variablesCount += buttonVars;
-
-    console.log(
-      `[WhatsAppService] Extracted: bodyVars=${bodyVars}, buttonVars=${buttonVars}, total=${variablesCount}`,
-    );
-
-    return {
-      headerType,
-      bodyText,
-      variablesCount,
-      footerText,
-      buttons: buttonsData,
-    };
-  };
-
   // Helper to get tenant context: Connection, Models, Secrets
   const getContext = async (
     clientCode: string,
@@ -184,15 +130,55 @@ export const createWhatsappService = (io: Server) => {
       const { secrets, Conversation, Message } = await getContext(clientCode);
 
       const phone = from;
-      const userName = contacts?.profile?.name || "Customer";
+      const metaName = contacts?.profile?.name || "Customer";
       const profilePicture = contacts?.profile?.profile_picture;
+
+      // --- Lead Syncing Logic ---
+      const { getCrmModels } = await import(
+        "../../../lib/tenant/get.crm.model.ts"
+      );
+      const { Lead } = await getCrmModels(clientCode);
+
+      let lead: any = await Lead.findOne({ phone, clientCode, isArchived: false }).lean();
+      if (!lead) {
+        // Create a new lead automatically
+        const { createLead } = await import("../crm/lead.service.ts");
+        try {
+          lead = await createLead(clientCode, {
+            firstName: metaName !== "Customer" ? metaName : "WhatsApp User",
+            phone: phone,
+            source: "whatsapp",
+            tags: ["auto-created"],
+          });
+          console.log(`[${clientCode}] Auto-created Lead for ${phone}`);
+        } catch (err: any) {
+          console.warn(`[${clientCode}] Failed to auto-create lead:`, err.message);
+        }
+      }
+
+      // Determine the best name for the conversation:
+      // Priority: 1. Lead Full Name (if they have a real name), 2. Meta Name, 3. Phone/Customer
+      let bestName = metaName !== "Customer" ? metaName : phone;
+      if (lead) {
+        // lead.fullName is a virtual, we can construct it manually if not populated
+        const leadFullName = [lead.firstName, lead.lastName]
+          .filter(Boolean)
+          .join(" ");
+        if (
+          leadFullName &&
+          leadFullName !== "WhatsApp User" &&
+          leadFullName !== phone
+        ) {
+          bestName = leadFullName;
+        }
+      }
 
       // 1. Find or Create Conversation
       let conversation = await Conversation.findOne({ phone });
       if (!conversation) {
         conversation = await Conversation.create({
           phone,
-          userName: userName !== "Customer" ? userName : phone,
+          userName: bestName,
           profilePicture: profilePicture,
           status: "open",
           channel: "whatsapp",
@@ -202,17 +188,9 @@ export const createWhatsappService = (io: Server) => {
           `[${clientCode}] New Conversation Created: ${conversation._id}`,
         );
       } else {
-        // Update name if currently a placeholder (phone or "Customer") or different
-        const isPlaceholder =
-          conversation.userName === "Customer" ||
-          conversation.userName === conversation.phone ||
-          !conversation.userName;
-
-        if (
-          userName !== "Customer" &&
-          (conversation.userName !== userName || isPlaceholder)
-        ) {
-          conversation.userName = userName;
+        // Update name if changed
+        if (conversation.userName !== bestName) {
+          conversation.userName = bestName;
         }
         if (profilePicture && conversation.profilePicture !== profilePicture) {
           conversation.profilePicture = profilePicture;
@@ -490,8 +468,9 @@ export const createWhatsappService = (io: Server) => {
     templateLanguage: string = "en_US",
     variables: string[] = [],
     replyToId: string | null = null,
+    context?: any,
   ) => {
-    const { secrets, Conversation, Message, Template } =
+    const { secrets, Conversation, Message, Template, tenantConn } =
       await getContext(clientCode);
     const token = secrets.getDecrypted("whatsappToken");
     const phoneId = secrets.getDecrypted("whatsappPhoneNumberId");
@@ -519,6 +498,28 @@ export const createWhatsappService = (io: Server) => {
         name: templateName,
         language: templateLanguage,
       });
+
+      if (tmpl && context) {
+        try {
+          const { resolveTemplateVariables } =
+            await import("./template.service.ts");
+          variables = await resolveTemplateVariables(
+            tenantConn,
+            templateName,
+            context,
+          );
+          console.log(
+            `[WhatsAppService] Resolved dynamic variables from context:`,
+            variables,
+          );
+        } catch (resErr) {
+          console.warn(
+            "[WhatsAppService] Dynamic resolution failed, using provided variables:",
+            resErr,
+          );
+        }
+      }
+
       if (tmpl) {
         let content = tmpl.bodyText;
         if (variables && variables.length > 0) {
@@ -578,7 +579,7 @@ export const createWhatsappService = (io: Server) => {
         lastMessageStatus: "queued",
         unreadCount: 0,
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (io && conv) {
@@ -835,65 +836,6 @@ export const createWhatsappService = (io: Server) => {
     }
   };
 
-  const syncTemplates = async (clientCode: string) => {
-    try {
-      console.log("Syncing templates for client:", clientCode);
-      const { secrets, Template } = await getContext(clientCode);
-      const token = secrets.getDecrypted("whatsappToken");
-      const wabaId = secrets.getDecrypted("whatsappBusinessId");
-
-      if (!wabaId) {
-        throw new Error("WhatsApp Business Account ID not found.");
-      }
-
-      const res = await axios.get(
-        `${WHATSAPP_API_URL}/${wabaId}/message_templates`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      const templates = res.data.data || [];
-
-      for (const t of templates) {
-        const enriched = extractEnrichedFields(t.components);
-
-        await Template.findOneAndUpdate(
-          { name: t.name, language: t.language },
-          {
-            name: t.name,
-            language: t.language,
-            channel: "whatsapp",
-            status: t.status,
-            headerType: enriched.headerType,
-            bodyText: enriched.bodyText,
-            footerText: enriched.footerText,
-            variablesCount: enriched.variablesCount,
-            buttons: enriched.buttons,
-            components: t.components, // Save raw components
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
-        );
-      }
-      return { success: true };
-    } catch (err: any) {
-      console.error("Template sync error:", err.message);
-      throw err;
-    }
-  };
-
-  const getTemplates = async (clientCode: string, channel?: string) => {
-    try {
-      const { Template } = await getContext(clientCode);
-      const query: any = {};
-      if (channel) query.channel = channel;
-      return await Template.find(query).lean();
-    } catch (err) {
-      console.error("Get Templates Error:", err);
-      return [];
-    }
-  };
-
   const sendReaction = async (
     clientCode: string,
     messageId: string,
@@ -961,89 +903,10 @@ export const createWhatsappService = (io: Server) => {
     return { success: true };
   };
 
-  const createTemplate = async (clientCode: string, templateData: any) => {
-    try {
-      const { secrets, Template } = await getContext(clientCode);
-      let status = templateData.status;
-
-      if (templateData.channel === "whatsapp") {
-        const token = secrets.getDecrypted("whatsappToken");
-        const wabaId = secrets.getDecrypted("whatsappBusinessId");
-
-        if (!wabaId) {
-          throw new Error("WhatsApp Business ID not found.");
-        }
-
-        // Submit to Meta for approval
-        console.log(
-          `[${clientCode}] Submitting WhatsApp template to Meta:`,
-          templateData.name,
-        );
-        console.log(
-          `[${clientCode}] Payload:`,
-          JSON.stringify(
-            {
-              name: templateData.name,
-              category: templateData.category || "UTILITY",
-              language: templateData.language || "en_US",
-              components: templateData.components,
-            },
-            null,
-            2,
-          ),
-        );
-
-        const res = await axios.post(
-          `${WHATSAPP_API_URL}/${wabaId}/message_templates`,
-          {
-            name: templateData.name,
-            category: templateData.category || "UTILITY",
-            language: templateData.language || "en_US",
-            components: templateData.components,
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 15000, // 15 seconds timeout
-          },
-        );
-
-        status = res.data.status || "PENDING_APPROVAL";
-      }
-
-      let enriched = {};
-      if (templateData.channel === "whatsapp" && templateData.components) {
-        enriched = extractEnrichedFields(templateData.components);
-      }
-
-      const template = await Template.findOneAndUpdate(
-        {
-          name: templateData.name,
-          language: templateData.language || "en_US",
-          channel: templateData.channel,
-        },
-        {
-          ...templateData,
-          ...enriched,
-          status,
-        },
-        { upsert: true, new: true },
-      );
-      return { success: true, data: template };
-    } catch (err: any) {
-      const metaError =
-        err.response?.data?.error?.message || err.response?.data || err.message;
-      console.error("Create Template Error:", metaError);
-      throw new Error(metaError);
-    }
-  };
-
   return {
     handleIncomingMessage,
     handleStatusUpdate,
     sendOutboundMessage,
-    getTemplates,
-    syncTemplates,
     sendReaction,
-    createTemplate,
   };
 };

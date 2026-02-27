@@ -316,7 +316,7 @@ export const updateLead = async (
   const lead = await Lead.findOneAndUpdate(
     { _id: leadId, clientCode },
     { $set: updates },
-    { new: true },
+    { returnDocument: "after" },
   )
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
@@ -358,7 +358,7 @@ export const updateMetadataRefs = async (
   const lead = await Lead.findOneAndUpdate(
     { _id: leadId, clientCode },
     updateOp,
-    { new: true },
+    { returnDocument: "after" },
   )
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
@@ -404,7 +404,7 @@ export const moveLead = async (
         ...extraUpdates,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   )
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
@@ -469,7 +469,7 @@ export const convertLead = async (
   const updated = await Lead.findOneAndUpdate(
     { _id: leadId, clientCode },
     { $set: { status: outcome, convertedAt: new Date() } },
-    { new: true },
+    { returnDocument: "after" },
   )
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
@@ -504,7 +504,7 @@ export const updateTags = async (
     { _id: leadId, clientCode },
     update,
     {
-      new: true,
+      returnDocument: "after",
     },
   )
     .populate(PIPELINE_POPULATE)
@@ -673,7 +673,7 @@ export const bulkUpsertLeads = async (
               "metadata.refs": metadataRefs,
             },
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: "after" },
         );
         if (result) (result as any).__v === 0 ? created++ : updated++;
       } catch {
@@ -695,6 +695,52 @@ export const bulkDelete = async (
     _id: { $in: leadIds.map((id) => new mongoose.Types.ObjectId(id)) },
     clientCode,
   });
+};
+
+// ─── 16. Get available fields (discovery) ─────────────────────────────────────
+
+export const getLeadFields = async (
+  clientCode: string,
+): Promise<{ key: string; label: string; type: string }[]> => {
+  const { Lead } = await getCrmModels(clientCode);
+
+  const coreFields = [
+    { key: "firstName", label: "First Name", type: "string" },
+    { key: "lastName", label: "Last Name", type: "string" },
+    { key: "email", label: "Email", type: "string" },
+    { key: "phone", label: "Phone", type: "string" },
+    { key: "dealValue", label: "Deal Value", type: "number" },
+    { key: "dealTitle", label: "Deal Title", type: "string" },
+    { key: "source", label: "Source", type: "string" },
+    { key: "status", label: "Status", type: "string" },
+    { key: "assignedTo", label: "Assigned To", type: "string" },
+    { key: "createdAt", label: "Created Date", type: "date" },
+  ];
+
+  // Discover dynamic fields from metadata.extra
+  // PEAK PERFORMANCE: We sample recent leads to see what extra fields are used.
+  const sampleLeads = await Lead.find({ clientCode, isArchived: false })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .select("metadata.extra")
+    .lean();
+
+  const extraKeys = new Set<string>();
+  sampleLeads.forEach((l: any) => {
+    if (l.metadata?.extra) {
+      Object.keys(l.metadata.extra).forEach((key) => extraKeys.add(key));
+    }
+  });
+
+  const dynamicFields = Array.from(extraKeys).map((key) => ({
+    key: `metadata.extra.${key}`,
+    label: key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (str) => str.toUpperCase()),
+    type: "dynamic",
+  }));
+
+  return [...coreFields, ...dynamicFields];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

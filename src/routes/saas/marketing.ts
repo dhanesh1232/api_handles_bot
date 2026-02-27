@@ -1,5 +1,5 @@
 import express, { type Response } from "express";
-import { GetURI, tenantDBConnect } from "../../lib/tenant/connection.ts";
+import { getTenantConnection } from "../../lib/connectionManager.ts";
 import {
   validateClientKey,
   type AuthRequest,
@@ -23,8 +23,7 @@ router.get(
       const { clientCode } = req;
       if (!clientCode) return res.status(401).json({ error: "Unauthorized" });
 
-      const uri = await GetURI(clientCode);
-      const conn = await tenantDBConnect(uri);
+      const conn = await getTenantConnection(clientCode);
       const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
 
       const leads = await Lead.find({}).sort({ createdAt: -1 });
@@ -49,11 +48,14 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
-      const uri = await GetURI(clientCode);
-      const conn = await tenantDBConnect(uri);
+      const conn = await getTenantConnection(clientCode);
       const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
 
-      const lead = await Lead.findByIdAndUpdate(id, { status }, { new: true });
+      const lead = await Lead.findByIdAndUpdate(
+        id,
+        { status },
+        { returnDocument: "after" },
+      );
       res.json(lead);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

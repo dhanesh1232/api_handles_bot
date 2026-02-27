@@ -1,7 +1,18 @@
+import "dotenv/config";
 import type { NextFunction, Request, Response } from "express";
 
 /**
  * Middleware to verify the core API key for internal automated requests
+ * @param req - Request object
+ * @param res - Response object
+ * @param next - Next function
+ *
+ * @returns {void}
+ *
+ * @throws {Error}
+ *
+ * @example
+ * verifyCoreToken(req, res, next);
  */
 export const verifyCoreToken = (
   req: Request,

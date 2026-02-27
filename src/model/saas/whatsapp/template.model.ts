@@ -1,4 +1,4 @@
-import mongoose, { type Document, type Model } from "mongoose";
+import mongoose, { type Document } from "mongoose";
 
 export interface ITemplateButton {
   type: "URL" | "PHONE_NUMBER" | "QUICK_REPLY";
@@ -20,9 +20,40 @@ export interface ITemplate extends Document {
   footerText?: string;
   buttons?: ITemplateButton[];
   components?: any[];
+
+  // New Fields for Template Configuration
+  templateId?: string;
+  category?: TemplateCategory;
+  headerText?: string;
+  variablePositions: number[];
+  variableMapping: IVariableMapping[];
+  onEmptyVariable: OnEmptyVariable;
+  mappingStatus: MappingStatus;
+  lastSyncedAt?: Date;
+  lastMappingUpdatedAt?: Date;
+  isActive: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 }
+
+const VariableMappingSchema = new mongoose.Schema(
+  {
+    position: { type: Number, required: true },
+    label: { type: String, required: true },
+    source: {
+      type: String,
+      enum: ["crm", "static", "computed", "system", "manual"],
+      required: true,
+    },
+    field: { type: String },
+    staticValue: { type: String },
+    formula: { type: String },
+    fallback: { type: String },
+    required: { type: Boolean, default: false },
+  },
+  { _id: false },
+);
 
 export const TemplateSchema = new mongoose.Schema<ITemplate>(
   {
@@ -30,7 +61,6 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
       type: String,
       required: true,
       trim: true,
-      unique: true,
     },
     language: {
       type: String,
@@ -84,13 +114,34 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
       },
     ],
     components: [], // Store raw Meta components for future-reference
+
+    // New Fields
+    templateId: { type: String },
+    category: {
+      type: String,
+      enum: ["MARKETING", "UTILITY", "AUTHENTICATION"],
+    },
+    headerText: { type: String },
+    variablePositions: [{ type: Number }],
+    variableMapping: [VariableMappingSchema],
+    onEmptyVariable: {
+      type: String,
+      enum: ["skip_send", "use_fallback", "send_anyway"],
+      default: "use_fallback",
+    },
+    mappingStatus: {
+      type: String,
+      enum: ["unmapped", "partial", "complete", "outdated"],
+      default: "unmapped",
+    },
+    lastSyncedAt: { type: Date },
+    lastMappingUpdatedAt: { type: Date },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true, collection: "templates" },
 );
 
 // Unique index on name + language + channel
 TemplateSchema.index({ name: 1, language: 1, channel: 1 }, { unique: true });
-
-// ─── Model ────────────────────────────────────────────────────────────────────
 
 export default TemplateSchema;

@@ -12,6 +12,20 @@ import * as leadService from "../../../services/saas/crm/lead.service.ts";
 
 const router = Router();
 
+// ─── Field Discovery ────────────────────────────────────────────────────────
+/**
+ * GET /api/crm/fields
+ * Returns a list of all mappable fields (core + discovered from metadata).
+ */
+router.get("/fields", async (req: Request, res: Response) => {
+  try {
+    const fields = await leadService.getLeadFields(req.clientCode!);
+    res.json({ success: true, data: fields });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
 // ─── Create lead ──────────────────────────────────────────────────────────────
 /**
  * POST /api/crm/leads

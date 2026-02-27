@@ -45,10 +45,23 @@ export async function getTenantConnection(
     throw new Error(`Invalid DB URI for tenant: ${code}`);
   }
 
-  console.log(`🔌 Establishing dynamic connection to tenant: ${code}`);
+  try {
+    const url = new URL(
+      uri.startsWith("mongodb+srv")
+        ? uri
+        : uri.replace("mongodb://", "http://"),
+    );
+    console.log(
+      `🔌 Establishing dynamic connection to tenant: ${code} (Host: ${url.host})`,
+    );
+  } catch (e) {
+    console.log(
+      `🔌 Establishing dynamic connection to tenant: ${code} (URI format unusual)`,
+    );
+  }
 
   const conn = mongoose.createConnection(uri, {
-    serverSelectionTimeoutMS: 10000,
+    serverSelectionTimeoutMS: 20000, // Increased timeout
     maxPoolSize: 10,
     bufferCommands: false, // Fail fast if not connected
   });

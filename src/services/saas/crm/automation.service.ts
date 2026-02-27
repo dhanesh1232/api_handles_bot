@@ -8,6 +8,12 @@
 import mongoose from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { logActivity } from "./activity.service.ts";
+import {
+  getTenantConnection,
+  getTenantModel,
+} from "../../../lib/connectionManager.ts";
+import { ConversationSchema } from "../../../model/saas/tenant.schemas.ts";
+import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,23 +69,26 @@ const executeRule = async (
 
   if (rule.condition && !evaluateCondition(rule.condition, ctx.lead)) return;
 
+  console.log(
+    `[automationService] Triggering rule: "${rule.name}" for lead: ${ctx.lead._id}`,
+  );
+
   for (const action of rule.actions) {
-    if (action.delayMinutes === 0) {
-      await executeAction(clientCode, action, ctx.lead);
-    } else {
-      await enqueueDelayedAction(
-        clientCode,
-        action,
-        ctx.lead,
-        (rule as any)._id.toString(),
-      );
-    }
+    // Enqueue ALL actions as jobs to ensure persistence and background processing
+    await enqueueDelayedAction(
+      clientCode,
+      action,
+      ctx.lead,
+      (rule as any)._id.toString(),
+      ctx.variables,
+    );
   }
 
-  await AutomationRule.updateOne(
+  const updateRes = await AutomationRule.updateOne(
     { _id: (rule as any)._id },
     { $inc: { executionCount: 1 }, $set: { lastExecutedAt: new Date() } },
   );
+  console.log(`[automationService] Rule execution count updated:`, updateRes);
 
   await logActivity(clientCode, {
     leadId: ctx.lead._id.toString(),
@@ -93,23 +102,65 @@ const executeRule = async (
 
 // ─── Execute one action immediately ──────────────────────────────────────────
 
-const executeAction = async (
+export const executeAction = async (
   clientCode: string,
   action: IAutomationAction,
   lead: ILead,
+  ctx?: AutomationContext,
 ): Promise<void> => {
+  // Resolve placeholders in config strings
+  const config = resolvePlaceholders(action.config || {}, lead, ctx?.variables);
+
   switch (action.type) {
     case "send_whatsapp": {
       const { createWhatsappService } =
         await import("../whatsapp/whatsapp.service.ts");
-      const service = createWhatsappService(null as any);
-      const cfg = action.config as {
+      // Use global.io if available, or fall back to null
+      const service = createWhatsappService((global as any).io);
+      const cfg = config as {
         templateName: string;
         variables?: string[];
+        phone?: string; // Potential override
       };
+
+      const phone = cfg.phone || lead.phone;
+      if (!phone) {
+        console.error(
+          "❌ [automationService] Cannot send WhatsApp: Lead has no phone",
+        );
+        return;
+      }
+
+      // Resolve or create conversation in tenant DB
+      const tenantConn = await getTenantConnection(clientCode);
+      const Conversation = getTenantModel<IConversation>(
+        tenantConn,
+        "Conversation",
+        ConversationSchema,
+      );
+
+      let conv = await Conversation.findOne({ phone });
+      console.log(
+        `[automationService] Searching for conversation with phone: ${phone}. Found: ${conv?._id}`,
+      );
+
+      if (!conv) {
+        conv = await Conversation.create({
+          phone,
+          userName: lead.firstName || phone,
+          status: "open",
+          channel: "whatsapp",
+          unreadCount: 0,
+          leadId: lead._id,
+        });
+        console.log(
+          `[automationService] Created new conversation: ${conv._id}`,
+        );
+      }
+
       await service.sendOutboundMessage(
         clientCode,
-        "",
+        conv._id.toString(),
         undefined,
         undefined,
         undefined,
@@ -123,7 +174,7 @@ const executeAction = async (
     case "send_email": {
       const { createEmailService } = await import("../mail/email.service.ts");
       const service = createEmailService();
-      const cfg = action.config as { subject: string; htmlBody: string };
+      const cfg = config as { subject: string; htmlBody: string };
       await service.sendEmail(clientCode, {
         to: lead.email ?? "",
         subject: cfg.subject,
@@ -133,7 +184,7 @@ const executeAction = async (
     }
     case "move_stage": {
       const { moveLead } = await import("./lead.service.ts");
-      const cfg = action.config as { stageId: string };
+      const cfg = config as { stageId: string };
       await moveLead(
         clientCode,
         lead._id.toString(),
@@ -144,7 +195,7 @@ const executeAction = async (
     }
     case "assign_to": {
       const { Lead } = await getCrmModels(clientCode);
-      const assignTo = (action.config as { assignTo: string }).assignTo;
+      const assignTo = (config as { assignTo: string }).assignTo;
       await Lead.updateOne(
         { _id: lead._id, clientCode },
         { $set: { assignedTo: assignTo } },
@@ -162,7 +213,7 @@ const executeAction = async (
       await updateTags(
         clientCode,
         lead._id.toString(),
-        [(action.config as { tag: string }).tag],
+        [(config as { tag: string }).tag],
         [],
       );
       break;
@@ -173,13 +224,13 @@ const executeAction = async (
         clientCode,
         lead._id.toString(),
         [],
-        [(action.config as { tag: string }).tag],
+        [(config as { tag: string }).tag],
       );
       break;
     }
     case "webhook_notify": {
       const axios = (await import("axios")).default;
-      const cfg = action.config as { callbackUrl: string; event: string };
+      const cfg = config as { callbackUrl: string; event: string };
       try {
         await axios.post(cfg.callbackUrl, {
           event: cfg.event ?? "crm.automation_triggered",
@@ -187,6 +238,7 @@ const executeAction = async (
           phone: lead.phone,
           metadata: lead.metadata,
           timestamp: new Date().toISOString(),
+          variables: ctx?.variables,
         });
       } catch (err) {
         console.error("CRM Webhook failed:", (err as Error).message);
@@ -197,8 +249,9 @@ const executeAction = async (
       const { createGoogleMeetService } =
         await import("../meet/google.meet.service.ts");
       const service = createGoogleMeetService();
+      const cfg = config as { summary?: string };
       await service.createMeeting(clientCode, {
-        summary: `Meeting with ${lead.firstName}`,
+        summary: cfg.summary || `Meeting with ${lead.firstName}`,
         attendees: lead.email ? [lead.email] : [],
       });
       break;
@@ -213,16 +266,19 @@ const enqueueDelayedAction = async (
   action: IAutomationAction,
   lead: ILead,
   ruleId: string,
+  variables?: Record<string, string>,
 ): Promise<void> => {
   const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
 
-  // Merge phone into actionConfig so crmWorker can find/create a conversation
-  // for send_whatsapp delayed jobs without needing a separate lookup.
+  // Merge context into actionConfig
   const actionConfig: Record<string, unknown> = {
     ...(action.config as Record<string, unknown>),
     phone: (action.config as any).phone ?? lead.phone,
     email: (action.config as any).email ?? lead.email ?? "",
   };
+
+  // Resolve any placeholders BEFORE enqueuing so the job document stores final values
+  const resolvedConfig = resolvePlaceholders(actionConfig, lead, variables);
 
   await crmQueue.add(
     {
@@ -230,14 +286,46 @@ const enqueueDelayedAction = async (
       type: "crm.automation_action",
       payload: {
         actionType: action.type,
-        actionConfig,
+        actionConfig: resolvedConfig,
         leadId: lead._id.toString(),
         ruleId,
+        ctxVariables: variables, // Keep as fallback/context
       },
     },
     { delayMs: action.delayMinutes * 60 * 1000 },
   );
 };
+
+// ─── Placeholder Resolver ─────────────────────────────────────────────────────
+
+/**
+ * Replaces {{vars.key}} with values from variables object,
+ * and {{lead.field}} with values from lead object.
+ */
+function resolvePlaceholders(
+  obj: any,
+  lead: ILead,
+  variables?: Record<string, string>,
+): any {
+  const str = JSON.stringify(obj);
+  const resolved = str.replace(
+    /\{\{(vars|lead)\.([^}]+)\}\}/g,
+    (match, type, key) => {
+      if (type === "vars") {
+        return variables?.[key] ?? match;
+      }
+      if (type === "lead") {
+        // Handle nested lead fields (metadata.city)
+        return (
+          key.split(".").reduce((o: any, i: string) => (o as any)?.[i], lead) ??
+          match
+        ).toString();
+      }
+      return match;
+    },
+  );
+  return JSON.parse(resolved);
+}
 
 // ─── Condition evaluator ──────────────────────────────────────────────────────
 
@@ -315,7 +403,7 @@ export const updateRule = async (
   return AutomationRule.findOneAndUpdate(
     { _id: ruleId, clientCode },
     { $set: updates },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -337,7 +425,7 @@ export const toggleRule = async (
   return AutomationRule.findByIdAndUpdate(
     ruleId,
     { $set: { isActive: !rule.isActive } },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 

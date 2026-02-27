@@ -8,6 +8,7 @@ import PipelineStageSchema from "./crm/pipelineStage.model.ts";
 import ConversationSchema from "./whatsapp/conversation.model.ts";
 import MessageSchema from "./whatsapp/message.model.ts";
 import TemplateSchema from "./whatsapp/template.model.ts";
+import BroadcastSchema from "./whatsapp/broadcast.model.ts";
 
 export {
   AutomationRuleSchema,
@@ -19,6 +20,7 @@ export {
   PipelineSchema,
   PipelineStageSchema,
   TemplateSchema,
+  BroadcastSchema,
 };
 
 export const schemas: Record<string, Schema<any>> = {
@@ -31,4 +33,5 @@ export const schemas: Record<string, Schema<any>> = {
   automationRules: AutomationRuleSchema,
   leadActivities: LeadActivitySchema,
   leadNotes: LeadNoteSchema,
+  broadcasts: BroadcastSchema,
 };

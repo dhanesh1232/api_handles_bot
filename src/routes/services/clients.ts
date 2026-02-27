@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 
-import { verifyCoreToken } from "../../lib/auth.ts";
 import { dbConnect } from "../../lib/config.ts";
+import { verifyCoreToken } from "../../middleware/auth.ts";
 import { Client } from "../../model/clients/client.ts";
 import { ClientServiceConfig } from "../../model/clients/config.ts";
 import { ClientDataSource } from "../../model/clients/dataSource.ts";
@@ -147,7 +147,7 @@ router.patch(
       const config = await ClientServiceConfig.findOneAndUpdate(
         { clientCode: (req.params.code as string).toUpperCase() },
         { $set: req.body },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       );
       res.status(200).json({ success: true, data: config });
     } catch (error: any) {

@@ -179,7 +179,7 @@ export const updateNote = async (
   return LeadNote.findOneAndUpdate(
     { _id: noteId, clientCode },
     { $set: { content } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean() as Promise<ILeadNote | null>;
 };
 
@@ -195,7 +195,7 @@ export const togglePin = async (
   return LeadNote.findByIdAndUpdate(
     noteId,
     { $set: { isPinned: !note.isPinned } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean() as Promise<ILeadNote | null>;
 };
 
