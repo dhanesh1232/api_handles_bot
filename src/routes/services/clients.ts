@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 
 import { dbConnect } from "../../lib/config.ts";
@@ -393,29 +392,55 @@ router.patch(
   },
 );
 
-// 8. GENERATE API KEY (Admin Only)
+// 9. GOOGLE RE-AUTH (Refresh token or manual link generation)
 router.post(
-  "/clients/:code/api-key",
+  "/clients/:code/google/reauth",
   verifyCoreToken,
   async (req: Request, res: Response) => {
     await dbConnect("services");
     try {
-      const client = await Client.findOne({
-        clientCode: (req.params.code as string).toUpperCase(),
-      });
+      const clientCode = (req.params.code as string).toUpperCase();
+      const secrets = await ClientSecrets.findOne({ clientCode });
 
-      if (!client) {
+      if (!secrets) {
         return res
           .status(404)
-          .json({ success: false, message: "Client not found" });
+          .json({ success: false, message: "Secrets not found" });
       }
 
-      // Generate a secure random key
-      const apiKey = `ERIX${crypto.randomBytes(24).toString("hex").toUpperCase()}`;
-      client.apiKey = apiKey;
-      await client.save();
+      const clientId = secrets.getDecrypted("googleClientId");
+      const clientSecret = secrets.getDecrypted("googleClientSecret");
 
-      res.status(200).json({ success: true, apiKey });
+      if (!clientId || !clientSecret) {
+        return res.status(400).json({
+          success: false,
+          message: "Google Client ID/Secret missing in secrets",
+        });
+      }
+
+      // If they provide a new code from a manual login link
+      const { authCode } = req.body;
+      if (authCode) {
+        const { google } = await import("googleapis");
+        const oauth2Client = new google.auth.OAuth2(
+          clientId,
+          clientSecret,
+          "postmessage",
+        );
+        const { tokens } = await oauth2Client.getToken(authCode);
+        if (tokens.refresh_token) {
+          secrets.set("googleRefreshToken", tokens.refresh_token);
+          await secrets.save();
+          return res.json({ success: true, message: "Refresh token updated" });
+        }
+      }
+
+      // Otherwise, return a simplified re-auth intent
+      res.json({
+        success: true,
+        message: "Re-authentication triggered",
+        reauthUrl: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=postmessage&response_type=code&scope=https://www.googleapis.com/auth/calendar.events&access_type=offline&prompt=consent`,
+      });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }

@@ -192,8 +192,15 @@ export const executeAction = async (
             lead.metadata?.refs as any
           )?.orderId?.toString(),
         },
-        // Merge any event variables client sent (e.g. { name: "Ravi", time: "3pm" })
-        ...(ctx?.variables ? { event: ctx.variables } : {}),
+        // Support both "vars" (legacy) and "event" (preferred)
+        event: ctx?.variables || {},
+        vars: ctx?.variables || {},
+        // Enrichment: Add some commonly resolved fields
+        resolved: {
+          today: new Date().toLocaleDateString(),
+          now: new Date().toLocaleTimeString(),
+          ...(ctx?.variables || {}), // Fallback
+        },
       };
 
       // Try smart resolution first, fall back to static variables
@@ -236,7 +243,8 @@ export const executeAction = async (
       });
       break;
     }
-    case "move_stage": {
+    case "move_stage":
+    case "move_pipeline": {
       const { moveLead } = await import("./lead.service.ts");
       const cfg = config as { stageId: string };
       await moveLead(
@@ -363,9 +371,9 @@ function resolvePlaceholders(
 ): any {
   const str = JSON.stringify(obj);
   const resolved = str.replace(
-    /\{\{(vars|lead)\.([^}]+)\}\}/g,
+    /\{\{(vars|lead|event|resolved)\.([^}]+)\}\}/g,
     (match, type, key) => {
-      if (type === "vars") {
+      if (type === "vars" || type === "event") {
         return variables?.[key] ?? match;
       }
       if (type === "lead") {
@@ -374,6 +382,12 @@ function resolvePlaceholders(
           key.split(".").reduce((o: any, i: string) => (o as any)?.[i], lead) ??
           match
         ).toString();
+      }
+      if (type === "resolved") {
+        // Support some basic resolved vars
+        if (key === "today") return new Date().toLocaleDateString();
+        if (key === "now") return new Date().toLocaleTimeString();
+        return variables?.[key] ?? match;
       }
       return match;
     },

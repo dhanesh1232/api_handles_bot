@@ -183,6 +183,7 @@ The following modules exist. See `README.md` for detailed endpoint docs.
 | ---------------------- | -------------------------- | ---------------------------- |
 | Workflow Triggers      | `/api/saas/workflows`      | `validateClientKey`          |
 | CRM Leads              | `/api/crm`                 | `validateClientKey`          |
+| CRM Sequences          | `/api/crm/sequences`       | `validateClientKey`          |
 | CRM Pipelines & Stages | `/api/crm`                 | `validateClientKey`          |
 | CRM Activities & Notes | `/api/crm`                 | `validateClientKey`          |
 | CRM Automations        | `/api/crm`                 | `validateClientKey`          |

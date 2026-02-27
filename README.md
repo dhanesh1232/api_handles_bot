@@ -104,7 +104,9 @@ Before a client can call the API, you (ECODrIx admin) must complete these setup 
 
 ☐ 7. POST /api/crm/automations  ← configure at least one automation rule
 
-☐ 8. Share with client: API_URL, API_KEY, CLIENT_CODE, WEBHOOK_SECRET
+☐ 8. POST /api/clients/:code/google/reauth ← Link Google Meet refresh token
+
+☐ 9. Share with client: API_URL, API_KEY, CLIENT_CODE, WEBHOOK_SECRET
 ```
 
 ---
@@ -246,7 +248,7 @@ Create a new lead. Auto-assigns to default pipeline and stage.
 ```
 
 > [!NOTE]
-> If the client has no pipeline yet, ECODrIx auto-creates a default "sales" pipeline with 7 stages. This prevents crashes on first trigger for brand-new tenants.
+> **Resilience**: If a client has no pipeline or stages yet, ECODrIx auto-bootstraps a default "Sales Pipeline" with template-based stages. This ensures `/trigger` and `/leads` endpoints never fail for brand-new tenants.
 
 ---
 
@@ -584,6 +586,20 @@ Create an automation rule.
 }
 ```
 
+#### Structured Variables & Context
+
+ECODrIx automations now support a nested context for template resolution:
+
+- `{{lead.<field>}}`: `firstName`, `lastName`, `email`, `phone`, `score`, `dealValue`, `source`.
+- `{{event.<key>}}`: Data passed in the trigger `variables` object.
+- `{{vars.<key>}}`: Legacy alias for `event`.
+- `{{resolved.<key>}}`: Enriched data like `today`, `now`.
+
+**Example in a WhatsApp template:**
+`"Hello {{lead.firstName}}, your appointment for {{event.appointmentTime}} is confirmed!"`
+
+````
+
 **Available action types:**
 
 | Type            | Config fields              | Description              |
@@ -613,7 +629,24 @@ Dry-run a rule against a specific lead. Does NOT execute actions.
 
 ```json
 { "leadId": "65b2..." }
-```
+````
+
+### Sequence Enrollments
+
+Manually enroll or remove leads from automated sequences (rules marked as `isSequence: true`).
+
+#### `POST /api/crm/sequences/enroll`
+
+Enroll a lead into a specific sequence rule.
+**Body**: `{ "leadId": "...", "ruleId": "...", "variables": { ... } }`
+
+#### `DELETE /api/crm/sequences/unenroll/:enrollmentId`
+
+Manually stop an active sequence for a lead.
+
+#### `GET /api/crm/sequences/lead/:leadId`
+
+List all active sequence enrollments for a specific lead.
 
 > [!WARNING]
 > `POST /api/crm/automations/events` is **deprecated**. Use `POST /api/saas/workflows/trigger` instead — it supports Meet links, callbacks, EventLog, and delayed execution.

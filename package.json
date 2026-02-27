@@ -1,6 +1,6 @@
 {
   "name": "@ecod/backend",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "ECOD Backend — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and MongoDB-backed job queuing.",
   "main": "server.ts",
   "type": "module",
@@ -17,6 +17,7 @@
     "build": "tsc",
     "test:worker": "tsx scripts/test-worker.ts",
     "test": "tsx --test src/smoke.test.ts",
+    "test:all": "tsx --test src/tests/smoke.test.ts && pnpm run test:worker",
     "tunnel": "bash tunnel.sh"
   },
   "keywords": [

@@ -7,9 +7,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.6.0] — 2026-02-27
 
-_Changes staged for the next release._
+### Added
+
+- **Manual Sequence Enrollments**: New API routes under `/api/crm/sequences` for lead enrollment/unenrollment.
+- **Google Meet Re-auth**: Triggered OAuth flow for refreshing expired or broken tokens.
+- **Structured Automation Context**: Templates now support `lead`, `event`, and `resolved` namespaces.
+- **Production Smoke Tests**: Automated suite in `src/tests/smoke.test.ts`.
+
+### Fixed
+
+- **Lead Creation Resilience**: Auto-bootstrapping of pipeline stages for brand-new tenants.
+- **WhatsApp Webhook**: Verified Meta Cloud API connectivity and fixed GET verification challenge.
+- **Google Meet Links**: Improved link extraction from `conferenceData` fallbacks.
 
 ---
 

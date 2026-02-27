@@ -140,10 +140,26 @@ export const createChatRouter = (io: Server) => {
 
         let conversation = await ConversationModel.findOne({ phone });
         if (!conversation) {
-          const count = await ConversationModel.countDocuments();
+          // Attempt to find lead for a better name
+          const { getCrmModels } =
+            await import("../../../lib/tenant/get.crm.model.ts");
+          const { Lead } = await getCrmModels(clientCode);
+          const lead = await Lead.findOne({ phone, clientCode }).lean();
+
+          let resolvedName = name;
+          if (!resolvedName && lead) {
+            resolvedName = [lead.firstName, lead.lastName]
+              .filter(Boolean)
+              .join(" ");
+          }
+          if (!resolvedName) {
+            const count = await ConversationModel.countDocuments();
+            resolvedName = `Customer ${count + 1}`;
+          }
+
           conversation = await ConversationModel.create({
             phone,
-            userName: name || `Customer ${count + 1}`,
+            userName: resolvedName,
             status: "open",
             channel: "whatsapp",
             unreadCount: 0,
@@ -296,9 +312,22 @@ export const createChatRouter = (io: Server) => {
           );
           let conv = await ConversationModel.findOne({ phone: to });
           if (!conv) {
+            // Attempt to find lead for name resolution
+            const { getCrmModels } =
+              await import("../../../lib/tenant/get.crm.model.ts");
+            const { Lead } = await getCrmModels(clientCode);
+            const lead = await Lead.findOne({ phone: to, clientCode }).lean();
+
+            let resolvedName = "Customer";
+            if (lead) {
+              resolvedName = [lead.firstName, lead.lastName]
+                .filter(Boolean)
+                .join(" ");
+            }
+
             conv = await ConversationModel.create({
               phone: to,
-              userName: "Customer",
+              userName: resolvedName || "Customer",
               status: "open",
               channel: "whatsapp",
               unreadCount: 0,

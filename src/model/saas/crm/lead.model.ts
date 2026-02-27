@@ -98,6 +98,8 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
         "phone",
         "email",
         "walk_in",
+        "webhook",
+        "manual",
         "other",
       ],
       default: "other",
@@ -149,8 +151,8 @@ leadSchema.index({ clientCode: 1, pipelineId: 1, stageId: 1, isArchived: 1 });
 // Lead list: filter by status + sort by score
 leadSchema.index({ clientCode: 1, status: 1, "score.total": -1 });
 
-// Phone lookup: link WhatsApp conversation → lead
-leadSchema.index({ clientCode: 1, phone: 1, pipelineId: 1 }, { unique: true });
+// Global phone uniqueness per client (One Phone = One Master Lead)
+leadSchema.index({ clientCode: 1, phone: 1 }, { unique: true });
 leadSchema.index({ clientCode: 1, pipelineId: 1 });
 
 // Email lookup

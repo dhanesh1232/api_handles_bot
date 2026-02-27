@@ -100,8 +100,6 @@ export const createLead = async (
   if (!pipelineId) {
     let defaultPipeline = await getDefaultPipeline(clientCode);
     if (!defaultPipeline) {
-      // Auto-bootstrap a default pipeline for brand-new clients.
-      // This prevents the trigger endpoint from crashing on a fresh tenant.
       console.log(
         `[leadService] No pipeline found for ${clientCode} — auto-creating default.`,
       );
@@ -117,11 +115,28 @@ export const createLead = async (
     )._id.toString();
   }
 
+  // Ensure stageId exists. If pipeline has 0 stages, we bootstrap them now.
   if (!stageId) {
-    const defaultStage = await getDefaultStage(clientCode, pipelineId!);
-    if (!defaultStage)
-      throw new Error("No stages found in this pipeline. Add stages first.");
-    stageId = defaultStage._id.toString();
+    let defaultStage = await getDefaultStage(clientCode, pipelineId!);
+    if (!defaultStage) {
+      console.log(
+        `[leadService] No stages found in pipeline ${pipelineId} — bootstrapping default stages.`,
+      );
+      const { stages } = await createPipeline(
+        clientCode,
+        { name: "Sales Pipeline", stages: [] }, // This will use the "sales" template
+        "sales",
+      );
+      defaultStage = stages[0];
+      // If we just created a new pipeline, we should use its ID for this lead
+      const { Pipeline } = await getCrmModels(clientCode);
+      const p = await Pipeline.findOne({
+        clientCode,
+        _id: defaultStage.pipelineId,
+      });
+      if (p) pipelineId = p._id.toString();
+    }
+    stageId = defaultStage!._id.toString();
   }
 
   const metadataRefs = buildMetadataRefs(input.metadata?.refs);

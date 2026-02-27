@@ -205,6 +205,7 @@ declare global {
     | "send_whatsapp"
     | "send_email"
     | "move_stage"
+    | "move_pipeline"
     | "assign_to"
     | "add_tag"
     | "remove_tag"

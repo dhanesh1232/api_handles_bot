@@ -30,9 +30,11 @@ export const createWebhookRouter = async (io: Server) => {
       console.log(
         `✅ WhatsApp Webhook Verified for client: ${secrets.clientCode}`,
       );
-      return res.status(200).send(challenge);
+      return res.status(200).set("Content-Type", "text/plain").send(challenge);
     } else {
-      console.warn("❌ Webhook Verification Failed. Token mismatch.");
+      console.warn(
+        "❌ Webhook Verification Failed. Token mismatch or unknown mode.",
+      );
     }
 
     res.status(403).send("Verification failed");

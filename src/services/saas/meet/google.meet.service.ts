@@ -99,9 +99,17 @@ export const createGoogleMeetService = () => {
         conferenceDataVersion: 1,
       });
 
+      let hangoutLink = response.data.hangoutLink;
+      if (!hangoutLink && response.data.conferenceData?.entryPoints) {
+        const meetPoint = response.data.conferenceData.entryPoints.find(
+          (ep) => ep.entryPointType === "video",
+        );
+        hangoutLink = meetPoint?.uri;
+      }
+
       return {
         success: true,
-        hangoutLink: response.data.hangoutLink as string | undefined, // from conferenceData
+        hangoutLink: hangoutLink as string | undefined,
         eventId: response.data.id as string | undefined,
         summary: response.data.summary as string | undefined,
       };

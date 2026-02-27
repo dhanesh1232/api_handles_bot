@@ -315,11 +315,7 @@ app.use("/api", clientsRouter);
 // Using top-level await pattern natively or wrap carefully.
 // Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router
 const initializeRoutes = async () => {
-  app.use(
-    "/api/saas/whatsapp",
-    validateClientKey,
-    await createWebhookRouter(io),
-  );
+  app.use("/api/saas/whatsapp", await createWebhookRouter(io));
   app.use("/api/saas/chat", validateClientKey, createChatRouter(io));
   app.use("/api/saas/images", validateClientKey, createImagesRouter(io));
   app.use(

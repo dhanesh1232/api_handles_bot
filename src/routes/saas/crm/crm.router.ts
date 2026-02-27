@@ -17,6 +17,7 @@ import automationRouter from "./automation.routes.ts";
 import leadRouter from "./lead.routes.ts";
 import pipelineRouter from "./pipeline.routes.ts";
 import scoringRouter from "./scoring.routes.ts";
+import sequenceRouter from "./sequence.routes.ts";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(activityRouter);
 router.use(automationRouter);
 router.use(analyticsRouter);
 router.use(scoringRouter);
+router.use("/sequences", sequenceRouter);
 
 export default router;

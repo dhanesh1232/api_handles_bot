@@ -219,7 +219,7 @@ Expected response:
     "status": "ok",
     "uptime": 12345,
     "db": "connected",
-    "version": "1.0.0",
+    "version": "1.6.0",
     "env": "production"
   }
 }
