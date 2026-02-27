@@ -290,9 +290,14 @@ app.get("/", (_req: Request, res: Response) => {
   res.send(html);
 });
 
-app.use("/health-check", req: Request, res: Response)=>{
-  res.json('Server wake-up')
-}
+app.get("/health-check", (req: Request, res: Response) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Server running",
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+  });
+});
 
 /**
  * @Start Routes
