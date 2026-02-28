@@ -277,6 +277,12 @@ app.use((req: any, res: Response, next: NextFunction) => {
 // Served from src/views/index.html — renderView caches the file at first call.
 const SERVER_BOOT_TS = Date.now();
 
+/**
+ * @Start Root Route
+ * @borrows Root route for saas
+ *
+ * @param {req.io} - Middleware to attach io to req
+ */
 app.get("/", (_req: Request, res: Response) => {
   const html = renderView("index.html", {
     VERSION: process.env.npm_package_version ?? "1.5.0",
@@ -290,6 +296,12 @@ app.get("/", (_req: Request, res: Response) => {
   res.send(html);
 });
 
+/**
+ * @Start Health Check
+ * @borrows Health check for saass
+ *
+ * @param {req.io} - Middleware to attach io to req
+ */
 app.get("/health-check", (req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
