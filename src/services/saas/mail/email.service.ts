@@ -32,6 +32,7 @@ export const createEmailService = () => {
     const pass = secrets.getDecrypted("smtpPass");
     const fromName =
       secrets.getDecrypted("emailFromName") || "Business Support";
+    const fromEmail = secrets.getDecrypted("smtpFrom") || user;
 
     if (!host || !user || !pass) {
       throw new Error("SMTP credentials not configured for this client");
@@ -41,13 +42,13 @@ export const createEmailService = () => {
       transporter: nodemailer.createTransport({
         host: host as string,
         port: Number(port),
-        secure: Number(port) === 465,
+        secure: secrets.smtpSecure ?? Number(port) === 465,
         auth: {
           user: user as string,
           pass: pass as string,
         },
       }),
-      from: `"${fromName}" <${user}>`,
+      from: `"${fromName}" <${fromEmail}>`,
     };
   };
 
@@ -71,8 +72,18 @@ export const createEmailService = () => {
 
       return { success: true, messageId: info.messageId };
     } catch (error: any) {
-      console.error(`❌ Email Error [${clientCode}]:`, error.message);
-      return { success: false, error: error.message };
+      let friendlyError = error.message;
+
+      if (error.code === "ENOTFOUND") {
+        friendlyError = `SMTP Host not found: ${error.hostname}. Please check for typos (e.g., 'smpt' vs 'smtp').`;
+      } else if (error.code === "ECONNREFUSED") {
+        friendlyError = `Connection refused at ${error.address}:${error.port}. Please check your firewall or port setting.`;
+      } else if (error.code === "ETIMEDOUT") {
+        friendlyError = `Connection to SMTP server timed out. Check your network or use port 465 (SSL).`;
+      }
+
+      console.error(`❌ Email Error [${clientCode}]:`, friendlyError);
+      return { success: false, error: friendlyError };
     }
   };
 

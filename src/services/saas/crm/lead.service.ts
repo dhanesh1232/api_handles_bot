@@ -661,6 +661,21 @@ export const bulkDelete = async (
   });
 };
 
+// ─── 16. Bulk archive ────────────────────────────────────────────────────────
+export const bulkArchive = async (
+  clientCode: string,
+  leadIds: string[],
+): Promise<void> => {
+  const { Lead } = await getCrmModels(clientCode);
+  await Lead.updateMany(
+    {
+      _id: { $in: leadIds.map((id) => new mongoose.Types.ObjectId(id)) },
+      clientCode,
+    },
+    { $set: { isArchived: true, status: "archived" } },
+  );
+};
+
 // ─── 16. Get available fields (discovery) ─────────────────────────────────────
 
 export const getLeadFields = async (

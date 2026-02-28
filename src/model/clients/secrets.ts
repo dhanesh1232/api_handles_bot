@@ -75,7 +75,7 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     r2PublicDomain: { type: String, default: null },
 
     emailApiKey: { type: String, default: null },
-    emailProvider: { type: String, default: "sendgrid" },
+    emailProvider: { type: String, default: "nodemailer" },
 
     automationWebhookSecret: { type: String, default: null },
 

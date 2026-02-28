@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connection Successful</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      color: #1e293b;
+    }
+    .card {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      max-width: 440px;
+      width: 90%;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+    .icon-wrapper {
+      width: 64px;
+      height: 64px;
+      background: #f0fdf4;
+      color: #16a34a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .business-tag {
+      display: inline-block;
+      background: #f1f5f9;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      color: #475569;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #0f172a;
+    }
+    p {
+      color: #64748b;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      font-size: 16px;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 12px 24px;
+      color: #4f46e5;
+      border-color: #4f46e5 !important;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: 1px solid #4f46e5 !important;
+      box-sizing: border-box;
+      margin-top: 10px;
+    }
+    .btn:hover {
+      background-color: #4338ca;
+      transform: translateY(-1px);
+    }
+    .timer {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrapper">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    </div>
+    <div class="business-tag">__BUSINESS_NAME__</div>
+    <h1>Connection Successful</h1>
+    <p>
+      Your Google Account is now securely connected with <strong>__BUSINESS_NAME__</strong>. 
+      Google Meet and Calendar integrations are active.
+    </p>
+    
+    <strong>Close Window</strong>
+
+    <p style="margin-top: 10px;">You can safely close this tab.</p>
+    <div class="timer" id="timerContainer">
+      Closing in <span id="secs">8</span>s...
+    </div>
+  </div>
+
+<script>
+  (function() {
+    console.log("OAuth Success Page Loaded. Opener exists:", !!window.opener);
+    
+    let timeLeft = 8;
+    const closeBtn = document.getElementById('closeBtn');
+    const secsSpan = document.getElementById('secs');
+    const timerContainer = document.getElementById('timerContainer');
+
+    const safeClose = () => {
+      console.log("Attempting to close. Sending message to opener...");
+      
+      // Tell parent to close this popup (most reliable)
+      if (window.opener) {
+        try {
+          window.opener.postMessage({ type: 'GOOGLE_OAUTH_SUCCESS' }, '*');
+          console.log("Message sent to opener.");
+        } catch (e) {
+          console.error("Failed to postMessage:", e);
+        }
+      } else {
+        console.warn("No window.opener found! Parent window might have been closed or restricted.");
+      }
+      
+      // Also try closing self
+      window.close();
+
+      setTimeout(() => {
+        if (!window.closed) {
+          console.log("Window still open, showing manual close message.");
+          timerContainer.innerHTML = '<strong>You can safely close this tab manually now.</strong>';
+          timerContainer.style.color = '#4f46e5';
+        }
+      }, 1000);
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', safeClose);
+
+    const interval = setInterval(() => {
+      timeLeft--;
+      if (secsSpan) secsSpan.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        safeClose();
+      }
+    }, 1000);
+  })();
+</script>
+</body>
+</html>

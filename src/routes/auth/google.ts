@@ -1,5 +1,7 @@
 import express, { type Request, type Response } from "express";
 import { google } from "googleapis";
+import { renderView } from "../../lib/renderView.ts";
+import { Client } from "../../model/clients/client.ts";
 import { ClientSecrets } from "../../model/clients/secrets.ts";
 
 const router = express.Router();
@@ -111,17 +113,18 @@ router.get("/callback", async (req: Request, res: Response) => {
       await secrets.save();
     }
 
-    // 4. Success Response
-    res.send(`
-      <div style="font-family: sans-serif; text-align: center; padding: 50px;">
-        <h1 style="color: #4caf50;">Connection Successful!</h1>
-        <p>Google Meet integration is now active for client <strong>${clientCode}</strong>.</p>
-        <p>You can close this window and return to the Admin Panel.</p>
-        <script>
-            setTimeout(() => window.close(), 5000);
-        </script>
-      </div>
-    `);
+    // 4. Fetch Client Name for Personalization
+    const client = await Client.findOne({ clientCode }, "name business");
+    const businessName = client?.name || "Your Business";
+    const website = client?.business?.website;
+
+    // 5. Success Response
+    const html = renderView("auth/google-success.html", {
+      BUSINESS_NAME: businessName,
+    });
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
   } catch (error: any) {
     console.error("OAuth Callback Error:", error);
     res

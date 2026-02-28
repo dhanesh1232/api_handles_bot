@@ -162,9 +162,12 @@ router.get(
   async (req: Request, res: Response) => {
     await dbConnect("services");
     try {
-      const secrets = await ClientSecrets.findOne({
-        clientCode: (req.params.code as string).toUpperCase(),
-      });
+      const clientCode = (req.params.code as string).toUpperCase();
+      const [secrets, client] = await Promise.all([
+        ClientSecrets.findOne({ clientCode }),
+        Client.findOne({ clientCode }, "name"),
+      ]);
+
       if (!secrets)
         return res
           .status(404)
@@ -204,6 +207,7 @@ router.get(
         customSecrets: {},
         _id: secrets._id,
         clientCode: secrets.clientCode,
+        clientName: client?.name || "Your Business",
       };
 
       // Decrypt custom fields
@@ -230,33 +234,87 @@ router.post(
     try {
       const clientCode = (req.params.code as string).toUpperCase();
       const client = await Client.findOne({ clientCode });
-
-      if (!client) {
+      if (!client)
         return res
           .status(404)
           .json({ success: false, message: "Client not found" });
-      }
 
       let secrets = await ClientSecrets.findOne({ clientCode });
-
       if (!secrets) {
-        secrets = new ClientSecrets({
-          clientCode,
-          clientId: client._id,
-        });
+        secrets = new ClientSecrets({ clientCode, clientId: client._id });
       }
 
-      // Use set() which is more reliable for Mongoose documents
-      // We only update fields present in req.body
       Object.keys(req.body).forEach((key) => {
         secrets!.set(key, req.body[key]);
       });
 
       await secrets.save();
-
       res
         .status(200)
         .json({ success: true, message: "Secrets updated and encrypted" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+router.put(
+  "/clients/:code/secrets",
+  verifyCoreToken,
+  async (req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const clientCode = (req.params.code as string).toUpperCase();
+      const secrets = await ClientSecrets.findOne({ clientCode });
+      if (!secrets)
+        return res
+          .status(404)
+          .json({ success: false, message: "Secrets not found" });
+
+      // Full replacement (except immutable fields)
+      const { customSecrets, ...rest } = req.body;
+      Object.keys(rest).forEach((key) => secrets.set(key, rest[key]));
+
+      if (customSecrets) {
+        secrets.customSecrets = new Map(Object.entries(customSecrets));
+      }
+
+      await secrets.save();
+      res.json({ success: true, message: "Secrets replaced successfully" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+router.patch(
+  "/clients/:code/secrets",
+  verifyCoreToken,
+  async (req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const clientCode = (req.params.code as string).toUpperCase();
+      const secrets = await ClientSecrets.findOne({ clientCode });
+      if (!secrets)
+        return res
+          .status(404)
+          .json({ success: false, message: "Secrets not found" });
+
+      const { customSecrets, ...rest } = req.body;
+
+      // Merge standard fields
+      Object.keys(rest).forEach((key) => secrets.set(key, rest[key]));
+
+      // Merge customSecrets Map if provided
+      if (customSecrets && typeof customSecrets === "object") {
+        if (!secrets.customSecrets) secrets.customSecrets = new Map();
+        Object.entries(customSecrets).forEach(([k, v]) => {
+          secrets.customSecrets!.set(k, v as string);
+        });
+      }
+
+      await secrets.save();
+      res.json({ success: true, message: "Secrets patched successfully" });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }

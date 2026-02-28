@@ -465,6 +465,30 @@ router.delete("/leads/:leadId", async (req: Request, res: Response) => {
   }
 });
 
+// ─── Bulk delete ──────────────────────────────────────────────────────────────
+/**
+ * DELETE /api/crm/leads
+ * Delete multiple leads by ID.
+ * Body: { "ids": ["6789abc...", "6789def...", ...] }
+ */
+router.delete("/leads", async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "ids must be a non-empty array",
+      });
+      return;
+    }
+
+    const result = await leadService.bulkDelete(req.clientCode as string, ids);
+    res.json({ success: true, deleted: result });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
 // ─── Bulk import ──────────────────────────────────────────────────────────────
 /**
  * POST /api/crm/leads/import
