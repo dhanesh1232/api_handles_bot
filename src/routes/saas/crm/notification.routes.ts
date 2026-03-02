@@ -55,19 +55,22 @@ router.patch(
 );
 
 // ─── Clear all unread notifications ──────────────────────────────────────────
-router.delete("/notifications/clear-all", async (req: Request, res: Response) => {
-  try {
-    const { Notification } = await getCrmModels(req.clientCode!);
-    await Notification.updateMany(
-      { clientCode: req.clientCode, status: "unread" },
-      { $set: { status: "dismissed" } },
-    );
+router.delete(
+  "/notifications/clear-all",
+  async (req: Request, res: Response) => {
+    try {
+      const { Notification } = await getCrmModels(req.clientCode!);
+      await Notification.updateMany(
+        { clientCode: req.clientCode, status: "unread" },
+        { $set: { status: "dismissed" } },
+      );
 
-    res.json({ success: true, message: "All notifications cleared" });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+      res.json({ success: true, message: "All notifications cleared" });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
 
 // ─── Retry Action Required Notification ────────────────────────────────────────
 router.post("/notifications/:id/retry", async (req: Request, res: Response) => {

@@ -5,15 +5,15 @@ import path from "path";
 import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.ts";
 import {
-    getTenantConnection,
-    getTenantModel,
+  getTenantConnection,
+  getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type {
-    IMessage,
-    IMessageTemplateData,
+  IMessage,
+  IMessageTemplateData,
 } from "../../../model/saas/whatsapp/message.model.ts";
 import type { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 import { normalizePhone } from "../../../utils/phone.ts";
@@ -506,12 +506,10 @@ export const createWhatsappService = (io: Server | null) => {
       // Unified resolution attempt if it's a template
       if (context || !variables || variables.length === 0) {
         try {
-          const { resolveUnifiedWhatsAppTemplate } = await import(
-            "./template.service.ts"
-          );
-          const { getCrmModels } = await import(
-            "../../lib/tenant/get.crm.model.ts"
-          );
+          const { resolveUnifiedWhatsAppTemplate } =
+            await import("./template.service.ts");
+          const { getCrmModels } =
+            await import("../../lib/tenant/get.crm.model.ts");
           const { Lead } = await getCrmModels(clientCode);
 
           // We try to find a lead if context has an ID but not the object

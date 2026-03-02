@@ -1,7 +1,7 @@
 import { crmQueue } from "../../../jobs/saas/crmWorker.ts";
 import {
-    getTenantConnection,
-    getTenantModel,
+  getTenantConnection,
+  getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
@@ -239,12 +239,10 @@ async function executeStepAction(
 ): Promise<any> {
   switch (action.type) {
     case "send_whatsapp": {
-      const { resolveUnifiedWhatsAppTemplate } = await import(
-        "../whatsapp/template.service.ts"
-      );
-      const { createWhatsappService } = await import(
-        "../whatsapp/whatsapp.service.ts"
-      );
+      const { resolveUnifiedWhatsAppTemplate } =
+        await import("../whatsapp/template.service.ts");
+      const { createWhatsappService } =
+        await import("../whatsapp/whatsapp.service.ts");
       const tenantConn = await getTenantConnection(clientCode);
       const Conversation = getTenantModel<any>(
         tenantConn,
