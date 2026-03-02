@@ -57,71 +57,196 @@ const DEFAULT_STAGE_TEMPLATES: Record<
     isLost?: boolean;
   }>
 > = {
+  // ─── Sales & CRM ──────────────────────────────────────────────────────────
   sales: [
     { name: "New Lead", color: "#6366f1", probability: 10 },
     { name: "Contacted", color: "#3b82f6", probability: 25 },
     { name: "Qualified", color: "#06b6d4", probability: 40 },
-    { name: "Proposal", color: "#f59e0b", probability: 60 },
+    { name: "Proposal Sent", color: "#f59e0b", probability: 60 },
     { name: "Negotiation", color: "#f97316", probability: 80 },
     { name: "Won", color: "#10b981", probability: 100, isWon: true },
     { name: "Lost", color: "#ef4444", probability: 0, isLost: true },
-  ],
-  support: [
-    { name: "Open", color: "#6366f1", probability: 0 },
-    { name: "In Progress", color: "#f59e0b", probability: 50 },
-    { name: "Waiting", color: "#f97316", probability: 50 },
-    { name: "Resolved", color: "#10b981", probability: 100, isWon: true },
-    { name: "Closed", color: "#6b7280", probability: 100, isLost: true },
-  ],
-  recruitment: [
-    { name: "Applied", color: "#6366f1", probability: 10 },
-    { name: "Screening", color: "#3b82f6", probability: 25 },
-    { name: "Interview", color: "#8b5cf6", probability: 50 },
-    { name: "Offer", color: "#f59e0b", probability: 75 },
-    { name: "Hired", color: "#10b981", probability: 100, isWon: true },
-    { name: "Rejected", color: "#ef4444", probability: 0, isLost: true },
   ],
   marketing: [
-    { name: "New Lead", color: "#6366f1", probability: 10 },
-    { name: "Contacted", color: "#3b82f6", probability: 25 },
-    { name: "Qualified", color: "#06b6d4", probability: 40 },
-    { name: "Proposal", color: "#f59e0b", probability: 60 },
-    { name: "Negotiation", color: "#f97316", probability: 80 },
-    { name: "Won", color: "#10b981", probability: 100, isWon: true },
-    { name: "Lost", color: "#ef4444", probability: 0, isLost: true },
+    { name: "Awareness", color: "#6366f1", probability: 5 },
+    { name: "Interest", color: "#3b82f6", probability: 20 },
+    { name: "Engaged", color: "#06b6d4", probability: 35 },
+    { name: "Lead Captured", color: "#f59e0b", probability: 55 },
+    { name: "Nurturing", color: "#f97316", probability: 70 },
+    { name: "Converted", color: "#10b981", probability: 100, isWon: true },
+    { name: "Disqualified", color: "#ef4444", probability: 0, isLost: true },
   ],
+  product_purchase: [
+    { name: "Browsing", color: "#6366f1", probability: 10 },
+    { name: "Interested", color: "#3b82f6", probability: 25 },
+    { name: "Add to Cart", color: "#06b6d4", probability: 50 },
+    { name: "Checkout", color: "#f59e0b", probability: 75 },
+    { name: "Purchased", color: "#10b981", probability: 100, isWon: true },
+    { name: "Abandoned", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Healthcare & Wellness ─────────────────────────────────────────────────
   appointment: [
-    { name: "New Lead", color: "#6366f1", probability: 10 },
-    { name: "Appointment Scheduled", color: "#3b82f6", probability: 25 },
-    { name: "Appointment Completed", color: "#06b6d4", probability: 40 },
-    { name: "Appointment Cancelled", color: "#f59e0b", probability: 60 },
-    { name: "Appointment Rescheduled", color: "#f97316", probability: 80 },
+    { name: "Inquiry", color: "#6366f1", probability: 15 },
+    { name: "Appointment Scheduled", color: "#3b82f6", probability: 40 },
+    { name: "Reminder Sent", color: "#06b6d4", probability: 55 },
     {
-      name: "Appointment No Show",
+      name: "Appointment Completed",
       color: "#10b981",
       probability: 100,
       isWon: true,
     },
-    {
-      name: "Appointment Follow Up",
-      color: "#ef4444",
-      probability: 0,
-      isLost: true,
-    },
+    { name: "Rescheduled", color: "#f59e0b", probability: 40 },
+    { name: "No Show", color: "#f97316", probability: 10 },
+    { name: "Cancelled", color: "#ef4444", probability: 0, isLost: true },
   ],
-  product_purchase: [
-    { name: "New Lead", color: "#6366f1", probability: 10 },
-    { name: "Contacted", color: "#3b82f6", probability: 25 },
-    { name: "Qualified", color: "#06b6d4", probability: 40 },
-    { name: "Proposal", color: "#f59e0b", probability: 60 },
-    { name: "Negotiation", color: "#f97316", probability: 80 },
-    { name: "Won", color: "#10b981", probability: 100, isWon: true },
+  patient_journey: [
+    { name: "Enquiry", color: "#6366f1", probability: 10 },
+    { name: "Consultation Booked", color: "#3b82f6", probability: 30 },
+    { name: "Consultation Done", color: "#06b6d4", probability: 50 },
+    { name: "Treatment Plan Shared", color: "#f59e0b", probability: 65 },
+    { name: "Treatment Started", color: "#f97316", probability: 80 },
+    {
+      name: "Treatment Completed",
+      color: "#10b981",
+      probability: 100,
+      isWon: true,
+    },
+    { name: "Dropped", color: "#ef4444", probability: 0, isLost: true },
+  ],
+  wellness: [
+    { name: "Lead", color: "#6366f1", probability: 10 },
+    { name: "Free Session Booked", color: "#3b82f6", probability: 30 },
+    { name: "Free Session Done", color: "#06b6d4", probability: 50 },
+    { name: "Package Proposed", color: "#f59e0b", probability: 65 },
+    {
+      name: "Package Purchased",
+      color: "#10b981",
+      probability: 100,
+      isWon: true,
+    },
+    { name: "Not Interested", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Education & Coaching ──────────────────────────────────────────────────
+  admissions: [
+    { name: "Enquiry", color: "#6366f1", probability: 10 },
+    { name: "Application Received", color: "#3b82f6", probability: 30 },
+    { name: "Under Review", color: "#06b6d4", probability: 50 },
+    { name: "Interview Scheduled", color: "#8b5cf6", probability: 65 },
+    { name: "Offer Letter Sent", color: "#f59e0b", probability: 80 },
+    { name: "Enrolled", color: "#10b981", probability: 100, isWon: true },
+    { name: "Rejected", color: "#ef4444", probability: 0, isLost: true },
+    { name: "Deferred", color: "#6b7280", probability: 20 },
+  ],
+  coaching: [
+    { name: "Discovery Call", color: "#6366f1", probability: 15 },
+    { name: "Assessment", color: "#3b82f6", probability: 30 },
+    { name: "Proposal Shared", color: "#06b6d4", probability: 50 },
+    { name: "Trial Session", color: "#f59e0b", probability: 70 },
+    { name: "Enrolled", color: "#10b981", probability: 100, isWon: true },
     { name: "Lost", color: "#ef4444", probability: 0, isLost: true },
   ],
+
+  // ─── Real Estate ───────────────────────────────────────────────────────────
+  real_estate: [
+    { name: "Inquiry", color: "#6366f1", probability: 10 },
+    { name: "Site Visit Scheduled", color: "#3b82f6", probability: 25 },
+    { name: "Site Visit Done", color: "#06b6d4", probability: 45 },
+    { name: "Shortlisted", color: "#8b5cf6", probability: 60 },
+    { name: "Token Paid", color: "#f59e0b", probability: 75 },
+    { name: "Agreement Signed", color: "#f97316", probability: 90 },
+    { name: "Closed", color: "#10b981", probability: 100, isWon: true },
+    { name: "Lost", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Recruitment & HR ─────────────────────────────────────────────────────
+  recruitment: [
+    { name: "Applied", color: "#6366f1", probability: 10 },
+    { name: "Screening", color: "#3b82f6", probability: 25 },
+    { name: "Technical Round", color: "#8b5cf6", probability: 45 },
+    { name: "HR Interview", color: "#06b6d4", probability: 65 },
+    { name: "Offer Extended", color: "#f59e0b", probability: 80 },
+    { name: "Hired", color: "#10b981", probability: 100, isWon: true },
+    { name: "Rejected", color: "#ef4444", probability: 0, isLost: true },
+    { name: "On Hold", color: "#6b7280", probability: 20 },
+  ],
+
+  // ─── Customer Support ──────────────────────────────────────────────────────
+  support: [
+    { name: "Open", color: "#6366f1", probability: 0 },
+    { name: "Assigned", color: "#3b82f6", probability: 20 },
+    { name: "In Progress", color: "#f59e0b", probability: 50 },
+    { name: "Waiting on Customer", color: "#f97316", probability: 50 },
+    { name: "Resolved", color: "#10b981", probability: 100, isWon: true },
+    { name: "Closed", color: "#6b7280", probability: 100, isLost: true },
+  ],
+
+  // ─── SaaS & Tech ───────────────────────────────────────────────────────────
+  saas_trial: [
+    { name: "Signed Up", color: "#6366f1", probability: 10 },
+    { name: "Onboarding", color: "#3b82f6", probability: 25 },
+    { name: "Active Trial", color: "#06b6d4", probability: 45 },
+    { name: "Demo Scheduled", color: "#8b5cf6", probability: 60 },
+    { name: "Demo Done", color: "#f59e0b", probability: 75 },
+    { name: "Converted", color: "#10b981", probability: 100, isWon: true },
+    { name: "Churned", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Events & Webinars ─────────────────────────────────────────────────────
+  event: [
+    { name: "Registered", color: "#6366f1", probability: 20 },
+    { name: "Reminder Sent", color: "#3b82f6", probability: 40 },
+    { name: "Attended", color: "#10b981", probability: 100, isWon: true },
+    { name: "No Show", color: "#f97316", probability: 10 },
+    { name: "Followed Up", color: "#06b6d4", probability: 60 },
+    { name: "Converted", color: "#8b5cf6", probability: 80 },
+    { name: "Unsubscribed", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Legal & Consulting ────────────────────────────────────────────────────
+  legal: [
+    { name: "Inquiry", color: "#6366f1", probability: 10 },
+    { name: "Initial Consultation", color: "#3b82f6", probability: 30 },
+    { name: "Documents Collected", color: "#06b6d4", probability: 50 },
+    { name: "Case Filed", color: "#8b5cf6", probability: 65 },
+    { name: "Under Review", color: "#f59e0b", probability: 75 },
+    { name: "Resolved / Won", color: "#10b981", probability: 100, isWon: true },
+    { name: "Closed / Lost", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Insurance ─────────────────────────────────────────────────────────────
+  insurance: [
+    { name: "Lead", color: "#6366f1", probability: 10 },
+    { name: "Needs Analysis", color: "#3b82f6", probability: 25 },
+    { name: "Quotation Sent", color: "#06b6d4", probability: 45 },
+    { name: "Proposal Reviewed", color: "#f59e0b", probability: 65 },
+    { name: "Policy Issued", color: "#10b981", probability: 100, isWon: true },
+    { name: "Declined", color: "#ef4444", probability: 0, isLost: true },
+    { name: "Lapsed", color: "#6b7280", probability: 0, isLost: true },
+  ],
+
+  // ─── E-Commerce / D2C ─────────────────────────────────────────────────────
+  ecommerce: [
+    { name: "Visitor", color: "#6366f1", probability: 5 },
+    { name: "Product Viewed", color: "#3b82f6", probability: 15 },
+    { name: "Wishlist Added", color: "#06b6d4", probability: 30 },
+    { name: "Cart Added", color: "#8b5cf6", probability: 55 },
+    { name: "Payment Initiated", color: "#f59e0b", probability: 75 },
+    { name: "Order Placed", color: "#10b981", probability: 100, isWon: true },
+    { name: "Abandoned", color: "#ef4444", probability: 0, isLost: true },
+  ],
+
+  // ─── Custom (blank) ────────────────────────────────────────────────────────
+  custom: [],
 };
 
 // ─── 1. Get all pipelines ─────────────────────────────────────────────────────
-
+/**
+ * @description This function is used to get all pipelines.
+ * @param {string} clientCode - The client code.
+ * @returns {Promise<any[]>} The list of pipelines.
+ */
 export const getPipelines = async (clientCode: string): Promise<any[]> => {
   const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
   const pipelines = await Pipeline.find({ clientCode, isActive: true })
@@ -140,7 +265,12 @@ export const getPipelines = async (clientCode: string): Promise<any[]> => {
 };
 
 // ─── 2. Get a single pipeline with its stages ─────────────────────────────────
-
+/**
+ * @description This function is used to get a single pipeline with its stages.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<{ pipeline: IPipeline; stages: IPipelineStage[] } | null>} The pipeline with its stages.
+ */
 export const getPipelineWithStages = async (
   clientCode: string,
   pipelineId: string,
@@ -160,7 +290,13 @@ export const getPipelineWithStages = async (
 };
 
 // ─── 3. Create pipeline + stages ─────────────────────────────────────────────
-
+/**
+ * @description This function is used to create a new pipeline with its stages.
+ * @param {string} clientCode - The client code.
+ * @param {CreatePipelineInput} input - The data to create the pipeline.
+ * @param {keyof typeof DEFAULT_STAGE_TEMPLATES} [templateKey] - The template key.
+ * @returns {Promise<{ pipeline: IPipeline; stages: IPipelineStage[] }>} The created pipeline with its stages.
+ */
 export const createPipeline = async (
   clientCode: string,
   input: CreatePipelineInput,
@@ -207,7 +343,13 @@ export const createPipeline = async (
 };
 
 // ─── 4. Update pipeline metadata ─────────────────────────────────────────────
-
+/**
+ * @description This function is used to update the pipeline metadata.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @param {Partial<Pick<IPipeline, "name" | "description" | "order">>} updates - The updates to apply to the pipeline.
+ * @returns {Promise<IPipeline | null>} The updated pipeline.
+ */
 export const updatePipeline = async (
   clientCode: string,
   pipelineId: string,
@@ -222,7 +364,12 @@ export const updatePipeline = async (
 };
 
 // ─── 5. Set default pipeline ─────────────────────────────────────────────────
-
+/**
+ * @description This function is used to set the default pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<void>}
+ */
 export const setDefaultPipeline = async (
   clientCode: string,
   pipelineId: string,
@@ -235,8 +382,32 @@ export const setDefaultPipeline = async (
   );
 };
 
-// ─── 6. Soft delete pipeline ─────────────────────────────────────────────────
+// ─── 6. Check if pipeline is in use ─────────────────────────────────────────
+/**
+ * @description This function is used to check if the pipeline is in use.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<{ inUse: boolean; leadCount: number }>}
+ */
+export const checkPipelineInUse = async (
+  clientCode: string,
+  pipelineId: string,
+): Promise<{ inUse: boolean; leadCount: number }> => {
+  const { Lead } = await getCrmModels(clientCode);
+  const leadCount = await Lead.countDocuments({
+    clientCode,
+    pipelineId: new mongoose.Types.ObjectId(pipelineId),
+  });
+  return { inUse: leadCount > 0, leadCount };
+};
 
+// ─── 7. Soft archive pipeline (isActive: false) ───────────────────────────────
+/**
+ * @description This function is used to archive the pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<void>}
+ */
 export const archivePipeline = async (
   clientCode: string,
   pipelineId: string,
@@ -246,11 +417,53 @@ export const archivePipeline = async (
   if (!pipeline) throw new Error("Pipeline not found");
   if (pipeline.isDefault)
     throw new Error("Cannot archive the default pipeline");
+  const { leadCount } = await checkPipelineInUse(clientCode, pipelineId);
+  if (leadCount > 0)
+    throw new Error(
+      `Cannot archive: ${leadCount} lead(s) are assigned to this pipeline. Reassign them first.`,
+    );
   await Pipeline.findByIdAndUpdate(pipelineId, { $set: { isActive: false } });
 };
 
-// ─── 7. Add a stage ──────────────────────────────────────────────────────────
+// ─── 8. Hard delete pipeline (permanent) ─────────────────────────────────────
+/**
+ * @description This function is used to permanently delete the pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<void>}
+ */
+export const hardDeletePipeline = async (
+  clientCode: string,
+  pipelineId: string,
+): Promise<void> => {
+  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
+  const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
+  if (!pipeline) throw new Error("Pipeline not found");
+  if (pipeline.isDefault) throw new Error("Cannot delete the default pipeline");
+  const { leadCount } = await checkPipelineInUse(clientCode, pipelineId);
+  if (leadCount > 0)
+    throw new Error(
+      `Cannot delete: ${leadCount} lead(s) are assigned to this pipeline. Reassign them first.`,
+    );
+  await PipelineStage.deleteMany({ clientCode, pipelineId });
+  await Pipeline.deleteOne({ _id: pipelineId, clientCode });
+};
 
+// ─── 7. Add a stage ──────────────────────────────────────────────────────────
+/**
+ * @description This function is used to add a new stage to the pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @param {
+ *   name: string;
+ *   color?: string;
+ *   probability?: number;
+ *   isWon?: boolean;
+ *   isLost?: boolean;
+ *   insertAfterOrder?: number;
+ * } input - The data to add the stage.
+ * @returns {Promise<IPipelineStage>}
+ */
 export const addStage = async (
   clientCode: string,
   pipelineId: string,
@@ -297,7 +510,13 @@ export const addStage = async (
 };
 
 // ─── 8. Update a stage ───────────────────────────────────────────────────────
-
+/**
+ * @description This function is used to update a stage.
+ * @param {string} clientCode - The client code.
+ * @param {string} stageId - The ID of the stage.
+ * @param {Partial<Pick<IPipelineStage, "name" | "color" | "probability" | "isWon" | "isLost" | "autoActions">>} updates - The updates to apply to the stage.
+ * @returns {Promise<IPipelineStage | null>}
+ */
 export const updateStage = async (
   clientCode: string,
   stageId: string,
@@ -317,7 +536,13 @@ export const updateStage = async (
 };
 
 // ─── 9. Reorder all stages ───────────────────────────────────────────────────
-
+/**
+ * @description This function is used to reorder the stages in the pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @param {UpdateStageOrderInput[]} newOrder - The new order of the stages.
+ * @returns {Promise<void>}
+ */
 export const reorderStages = async (
   clientCode: string,
   pipelineId: string,
@@ -337,38 +562,49 @@ export const reorderStages = async (
 };
 
 // ─── 10. Delete a stage ──────────────────────────────────────────────────────
-
+/**
+ * @description This function is used to delete a stage.
+ * @param {string} clientCode - The client code.
+ * @param {string} stageId - The ID of the stage.
+ * @param {string} [moveLeadsToStageId] - The ID of the stage to move leads to.
+ * @returns {Promise<void>}
+ */
 export const deleteStage = async (
   clientCode: string,
   stageId: string,
-  moveleadsToStageId?: string,
+  moveLeadsToStageId?: string,
 ): Promise<void> => {
   const { Lead, PipelineStage } = await getCrmModels(clientCode);
   const stage = await PipelineStage.findOne({ _id: stageId, clientCode });
   if (!stage) throw new Error("Stage not found");
 
   const leadCount = await Lead.countDocuments({ clientCode, stageId });
-  if (leadCount > 0 && !moveleadsToStageId) {
+  if (leadCount > 0 && !moveLeadsToStageId) {
     throw new Error(
-      `${leadCount} leads are in this stage. Provide moveleadsToStageId to migrate them first.`,
+      `${leadCount} leads are in this stage. Provide moveLeadsToStageId to migrate them first.`,
     );
   }
-  if (leadCount > 0 && moveleadsToStageId) {
+  if (leadCount > 0 && moveLeadsToStageId) {
     const targetStage = await PipelineStage.findOne({
-      _id: moveleadsToStageId,
+      _id: moveLeadsToStageId,
       clientCode,
     });
     if (!targetStage) throw new Error("Target stage not found");
     await Lead.updateMany(
       { clientCode, stageId },
-      { $set: { stageId: moveleadsToStageId } },
+      { $set: { stageId: moveLeadsToStageId } },
     );
   }
   await PipelineStage.deleteOne({ _id: stageId, clientCode });
 };
 
 // ─── 11. Board summary (Kanban) ──────────────────────────────────────────────
-
+/**
+ * @description This function is used to get the board summary.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<BoardColumn[]>}
+ */
 export const getBoardSummary = async (
   clientCode: string,
   pipelineId: string,
@@ -408,7 +644,12 @@ export const getBoardSummary = async (
 };
 
 // ─── 12. Revenue forecast ────────────────────────────────────────────────────
-
+/**
+ * @description This function is used to get the revenue forecast.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<ForecastRow[]>}
+ */
 export const getRevenueForecast = async (
   clientCode: string,
   pipelineId: string,
@@ -455,7 +696,12 @@ export const getRevenueForecast = async (
 };
 
 // ─── 13. Get default entry stage ─────────────────────────────────────────────
-
+/**
+ * @description This function is used to get the default entry stage.
+ * @param {string} clientCode - The client code.
+ * @param {string} pipelineId - The ID of the pipeline.
+ * @returns {Promise<IPipelineStage | null>}
+ */
 export const getDefaultStage = async (
   clientCode: string,
   pipelineId: string,
@@ -472,7 +718,11 @@ export const getDefaultStage = async (
 };
 
 // ─── 14. Get default pipeline ─────────────────────────────────────────────────
-
+/**
+ * @description This function is used to get the default pipeline.
+ * @param {string} clientCode - The client code.
+ * @returns {Promise<IPipeline | null>}
+ */
 export const getDefaultPipeline = async (
   clientCode: string,
 ): Promise<IPipeline | null> => {
@@ -486,7 +736,13 @@ export const getDefaultPipeline = async (
 };
 
 // ─── 15. Duplicate a pipeline ─────────────────────────────────────────────────
-
+/**
+ * @description This function is used to duplicate a pipeline.
+ * @param {string} clientCode - The client code.
+ * @param {string} sourcePipelineId - The ID of the source pipeline.
+ * @param {string} newName - The name of the new pipeline.
+ * @returns {Promise<{ pipeline: IPipeline; stages: IPipelineStage[] }>}
+ */
 export const duplicatePipeline = async (
   clientCode: string,
   sourcePipelineId: string,

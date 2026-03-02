@@ -14,19 +14,23 @@ import { Router } from "express";
 import activityRouter from "./activity.routes.ts";
 import analyticsRouter from "./analytics.routes.ts";
 import automationRouter from "./automation.routes.ts";
-import leadRouter from "./lead.routes.ts";
-import pipelineRouter from "./pipeline.routes.ts";
+import leadRoutes from "./lead.routes.ts";
+import notificationRoutes from "./notification.routes.ts";
+import paymentRouter from "./payment.routes.ts";
+import pipelineRoutes from "./pipeline.routes.ts";
 import scoringRouter from "./scoring.routes.ts";
 import sequenceRouter from "./sequence.routes.ts";
 
 const router = Router();
 
-router.use(leadRouter);
-router.use(pipelineRouter);
+router.use(leadRoutes);
+router.use(pipelineRoutes);
+router.use(paymentRouter);
 router.use(activityRouter);
 router.use(automationRouter);
 router.use(analyticsRouter);
 router.use(scoringRouter);
+router.use(notificationRoutes);
 router.use("/sequences", sequenceRouter);
 
 export default router;

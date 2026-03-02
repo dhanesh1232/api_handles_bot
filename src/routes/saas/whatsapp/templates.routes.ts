@@ -10,13 +10,11 @@ import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 import {
   createTemplate,
-  detectOutdatedMappings,
   getCollectionFields,
   getTenantCollections,
-  resolveTemplateVariables,
+  resolveUnifiedWhatsAppTemplate,
   saveVariableMapping,
   syncTemplatesFromMeta,
-  validateMappingCompleteness,
 } from "../../../services/saas/whatsapp/template.service.ts";
 
 export interface SaasRequest extends Request {
@@ -207,12 +205,14 @@ export const createTemplateRouter = (io: Server) => {
         const templateName = req.params.templateName as string;
 
         const tenantConn = await getTenantConnection(clientCode);
-        const result = await validateMappingCompleteness(
+        const { isReady } = await resolveUnifiedWhatsAppTemplate(
           tenantConn,
           templateName,
+          {}, // Empty lead for validation
+          {},
         );
 
-        res.json({ success: true, data: result });
+        res.json({ success: true, data: { isReady } });
       } catch (error: any) {
         res.status(400).json({ success: false, message: error.message });
       }
@@ -228,13 +228,14 @@ export const createTemplateRouter = (io: Server) => {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
         const templateName = req.params.templateName as string;
-        const { context } = req.body;
+        const { context: inputContext } = req.body;
 
         const tenantConn = await getTenantConnection(clientCode);
-        const resolvedVariables = await resolveTemplateVariables(
+        const { resolvedVariables } = await resolveUnifiedWhatsAppTemplate(
           tenantConn,
           templateName,
-          context,
+          inputContext?.lead || {},
+          inputContext?.vars || {},
         );
 
         const Template = getTenantModel<ITemplate>(
@@ -253,25 +254,6 @@ export const createTemplateRouter = (io: Server) => {
         res.json({ success: true, data: { resolvedVariables, previewText } });
       } catch (error: any) {
         res.status(400).json({ success: false, message: error.message });
-      }
-    },
-  );
-
-  // GET /outdated - List templates with outdated mappings
-  router.get(
-    "/list/outdated",
-    validateClientKey,
-    async (req: Request, res: Response) => {
-      try {
-        const sReq = req as SaasRequest;
-        const clientCode = sReq.clientCode!;
-
-        const tenantConn = await getTenantConnection(clientCode);
-        const result = await detectOutdatedMappings(tenantConn);
-
-        res.json({ success: true, data: result });
-      } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
       }
     },
   );

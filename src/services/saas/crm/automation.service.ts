@@ -13,6 +13,7 @@ import {
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { ConversationSchema } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
+import { normalizePhone } from "../../../utils/phone.ts";
 import { logActivity } from "./activity.service.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,6 +72,138 @@ export const runAutomations = async (
   );
 };
 
+export const scheduleMeetingReminders = async (
+  clientCode: string,
+  meeting: IMeeting,
+): Promise<void> => {
+  const { AutomationRule, Lead } = await getCrmModels(clientCode);
+  const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+
+  const rules = await AutomationRule.find({
+    clientCode,
+    trigger: "appointment_reminder",
+    isActive: true,
+  });
+
+  if (rules.length === 0) return;
+
+  const lead = await Lead.findById(meeting.leadId);
+  if (!lead) return;
+
+  const meetCode = meeting.meetLink?.split("/").pop() || "";
+  const variables = {
+    meet_link: meeting.meetLink || "",
+    meet_code: meetCode,
+    start_time: meeting.startTime.toISOString(),
+    patient_name: meeting.patientName,
+    doctor_name: meeting.doctorId || "Doctor",
+    consultation_type: meeting.consultationType,
+    amount: meeting.amount?.toString() || "0",
+  };
+
+  for (const rule of rules) {
+    console.log(
+      `[automationService] Processing reminder rule "${rule.name}" for meeting ${meeting._id}`,
+    );
+
+    for (const action of rule.actions) {
+      if (action.type !== "send_whatsapp" && action.type !== "send_email")
+        continue;
+
+      const offsetMinutes = action.delayMinutes || 0;
+      let fireTime: Date;
+
+      // New logic: explicit delayType handling
+      switch (action.delayType) {
+        case "before_event":
+          fireTime = new Date(
+            meeting.startTime.getTime() - offsetMinutes * 60 * 1000,
+          );
+          break;
+        case "at_event":
+          fireTime = new Date(meeting.startTime);
+          break;
+        case "after_event":
+          fireTime = new Date(
+            meeting.startTime.getTime() + offsetMinutes * 60 * 1000,
+          );
+          break;
+        default:
+          // Fallback legacy behavior: interpret as "before" for reminder triggers
+          fireTime = new Date(
+            meeting.startTime.getTime() - offsetMinutes * 60 * 1000,
+          );
+          break;
+      }
+
+      const delayMs = fireTime.getTime() - Date.now();
+
+      // If the reminder is set for a time that has already passed, skip it (with 1m grace)
+      if (delayMs <= -60000) {
+        console.warn(
+          `[automationService] Skipping reminder action ${action.type} as fireTime ${fireTime.toISOString()} is in the past`,
+        );
+        continue;
+      }
+
+      const isValid = await validateActionBeforeEnqueue(
+        clientCode,
+        action,
+        lead,
+        (rule as any)._id?.toString() || "",
+        variables,
+      );
+
+      if (!isValid) {
+        console.warn(
+          `[automationService] Aborting enqueue for reminder ${meeting._id} due to validation failure`,
+        );
+        continue;
+      }
+
+      await crmQueue.add(
+        {
+          clientCode,
+          type: "crm.automation_action",
+          payload: {
+            actionType: action.type,
+            actionConfig: action.config,
+            leadId: lead._id.toString(),
+            ruleId: (rule as any)._id.toString(),
+            meetingId: meeting._id.toString(), // Pass meetingId for tracking
+            actionId: (action as any)._id?.toString(), // Pass actionId
+            ctxVariables: variables,
+          },
+        },
+        { delayMs: Math.max(0, delayMs) },
+      );
+
+      // Track in meeting model
+      if ((meeting as any).reminders) {
+        (meeting as any).reminders.push({
+          actionId:
+            (action as any)._id?.toString() ||
+            new mongoose.Types.ObjectId().toString(),
+          type: action.type,
+          fireTime,
+          status: "pending",
+        });
+      }
+
+      console.log(
+        `[automationService] Scheduled ${action.type} reminder for meeting ${meeting._id} at ${fireTime.toISOString()} (Type: ${action.delayType || "legacy/before"}, Offset: ${offsetMinutes}m)`,
+      );
+    }
+
+    // Save the meeting with reminder tracking
+    const { Meeting } = await getCrmModels(clientCode);
+    await Meeting.updateOne(
+      { _id: meeting._id },
+      { $set: { reminders: (meeting as any).reminders } },
+    );
+  }
+};
+
 // ─── Execute a single rule ────────────────────────────────────────────────────
 
 const executeRule = async (
@@ -115,6 +248,14 @@ const executeRule = async (
 
 // ─── Execute one action immediately ──────────────────────────────────────────
 
+/**
+ *
+ * @param clientCode
+ * @param action
+ * @param lead
+ * @param ctx
+ * @returns
+ */
 export const executeAction = async (
   clientCode: string,
   action: IAutomationAction,
@@ -123,7 +264,6 @@ export const executeAction = async (
 ): Promise<void> => {
   // Resolve placeholders in config strings
   const config = resolvePlaceholders(action.config || {}, lead, ctx?.variables);
-
   switch (action.type) {
     case "send_whatsapp": {
       const { createWhatsappService } =
@@ -136,10 +276,11 @@ export const executeAction = async (
         phone?: string; // Potential override
       };
 
-      const phone = cfg.phone || lead.phone;
+      const rawPhone = cfg.phone || lead.phone;
+      const phone = normalizePhone(rawPhone);
       if (!phone) {
         console.error(
-          "❌ [automationService] Cannot send WhatsApp: Lead has no phone",
+          "❌ [automationService] Cannot send WhatsApp: Lead has no valid phone",
         );
         return;
       }
@@ -171,65 +312,53 @@ export const executeAction = async (
         );
       }
 
-      // Build lead context matching what resolveTemplateVariables expects
-      const context = {
-        lead: {
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-          email: lead.email,
-          phone: lead.phone,
-          dealValue: lead.dealValue,
-          dealTitle: lead.dealTitle,
-          source: lead.source,
-          score: (lead.score as any)?.total,
-          "metadata.refs.appointmentId": (
-            lead.metadata?.refs as any
-          )?.appointmentId?.toString(),
-          "metadata.refs.bookingId": (
-            lead.metadata?.refs as any
-          )?.bookingId?.toString(),
-          "metadata.refs.orderId": (
-            lead.metadata?.refs as any
-          )?.orderId?.toString(),
-        },
-        // Support both "vars" (legacy) and "event" (preferred)
-        event: ctx?.variables || {},
-        vars: ctx?.variables || {},
-        // Enrichment: Add some commonly resolved fields
-        resolved: {
-          today: new Date().toLocaleDateString(),
-          now: new Date().toLocaleTimeString(),
-          ...(ctx?.variables || {}), // Fallback
-        },
-      };
+      // In the new architecture, variables are resolved *AT ENQUEUE TIME*
+      // so the cfg object should already contain the perfect array of strings
+      const cfgAny = cfg as any;
+      const finalVariables: string[] =
+        cfgAny.resolvedVariables ?? cfgAny.variables ?? [];
 
-      // Try smart resolution first, fall back to static variables
-      let finalVariables: string[] = cfg.variables ?? [];
-      try {
-        const { resolveTemplateVariables } =
-          await import("../whatsapp/template.service.ts");
-        finalVariables = await resolveTemplateVariables(
-          tenantConn,
-          cfg.templateName,
-          context,
-        );
-      } catch (err: any) {
+      if (!finalVariables) {
         console.warn(
-          `[executeAction] Template resolution failed for ${cfg.templateName}, using static variables: ${err.message}`,
+          `[executeAction] No variables array found on queued config for ${cfg.templateName}`,
         );
+        return; // Abort sending
       }
 
-      await service.sendOutboundMessage(
-        clientCode,
-        conv._id.toString(),
-        undefined,
-        undefined,
-        undefined,
-        "automation",
-        cfg.templateName,
-        "en_US",
-        finalVariables,
-      );
+      try {
+        await service.sendOutboundMessage(
+          clientCode,
+          conv._id.toString(),
+          undefined,
+          undefined,
+          undefined,
+          "automation",
+          cfg.templateName,
+          cfgAny.languageCode || "en_US",
+          finalVariables,
+        );
+      } catch (err: any) {
+        console.error(
+          `[automationService] WhatsApp send failed for template ${cfg.templateName}:`,
+          err.message,
+        );
+        const { Notification } = await getCrmModels(clientCode);
+        const notif = await Notification.create({
+          clientCode,
+          title: "Automation Failure: WhatsApp",
+          message: `Template "${cfg.templateName}" failed to send to ${phone}. Error: ${err.message}`,
+          type: "action_required",
+          status: "unread",
+          actionData: {
+            actionConfig: action,
+            leadId: lead._id,
+            error: err.message,
+          },
+        });
+        if ((global as any).io)
+          (global as any).io.to(clientCode).emit("notification:new", notif);
+        throw err;
+      }
       break;
     }
     case "send_email": {
@@ -308,13 +437,189 @@ export const executeAction = async (
       break;
     }
     case "create_meeting": {
+      // Config:
+      //   summary?          string   — meeting title (supports {{lead.*}} placeholders)
+      //   startTimeVar?     string   — var key holding ISO date string (defaults to now)
+      //   durationMinutes?  number   — defaults to 30
+      //   attendeeEmailVar? string   — var key holding attendee email
+      //   attendeeEmail?    string   — explicit email (fallback: lead.email)
+      //   callbackUrl?      string   — receives { meetLink, eventId } on success
       const { createGoogleMeetService } =
         await import("../meet/google.meet.service.ts");
-      const service = createGoogleMeetService();
-      const cfg = config as { summary?: string };
-      await service.createMeeting(clientCode, {
+      const gmService = createGoogleMeetService();
+
+      const cfg = config as {
+        summary?: string;
+        startTimeVar?: string;
+        durationMinutes?: number;
+        attendeeEmailVar?: string;
+        attendeeEmail?: string;
+        callbackUrl?: string;
+      };
+
+      const startIso =
+        cfg.startTimeVar && ctx?.variables?.[cfg.startTimeVar]
+          ? ctx.variables[cfg.startTimeVar]
+          : new Date().toISOString();
+
+      const durationMs = (cfg.durationMinutes ?? 30) * 60_000;
+      const endIso = new Date(
+        new Date(startIso).getTime() + durationMs,
+      ).toISOString();
+
+      const attendeeEmail =
+        (cfg.attendeeEmailVar && ctx?.variables?.[cfg.attendeeEmailVar]) ||
+        cfg.attendeeEmail ||
+        lead.email ||
+        "";
+
+      const meetResult = await gmService.createMeeting(clientCode, {
         summary: cfg.summary || `Meeting with ${lead.firstName}`,
-        attendees: lead.email ? [lead.email] : [],
+        start: startIso,
+        end: endIso,
+        attendees: attendeeEmail ? [attendeeEmail] : [],
+        description: `Lead: ${lead._id} | Trigger: ${ctx?.trigger ?? "automation"}`,
+      });
+
+      if (meetResult.success) {
+        console.log(
+          `[automationService] Meet created: ${meetResult.hangoutLink}`,
+        );
+        if (cfg.callbackUrl) {
+          const { sendCallbackWithRetry } =
+            await import("../../../lib/callbackSender.ts");
+          void sendCallbackWithRetry({
+            clientCode,
+            callbackUrl: cfg.callbackUrl,
+            payload: {
+              status: "created",
+              meetLink: meetResult.hangoutLink,
+              eventId: meetResult.eventId,
+              leadId: lead._id.toString(),
+              phone: lead.phone,
+            },
+          });
+        }
+      } else {
+        console.warn(
+          `[automationService] Meet creation failed:`,
+          (meetResult as any).error,
+        );
+      }
+      break;
+    }
+
+    case "send_callback": {
+      // Config:
+      //   url      string   — target URL
+      //   method?  "POST" | "PUT" — defaults to POST
+      //   payload? Record<string, string> — values support {{vars.*}} and {{lead.*}} placeholders
+      const { sendCallbackWithRetry } =
+        await import("../../../lib/callbackSender.ts");
+
+      const cfg = config as {
+        url: string;
+        method?: "POST" | "PUT";
+        payload?: Record<string, string>;
+      };
+
+      if (!cfg.url) {
+        console.warn("[automationService] send_callback: no url configured");
+        break;
+      }
+
+      const resolvedPayload: Record<string, string> = {};
+      if (cfg.payload) {
+        for (const [k, v] of Object.entries(cfg.payload)) {
+          resolvedPayload[k] = resolvePlaceholders(
+            v,
+            lead,
+            ctx?.variables,
+          ) as string;
+        }
+      }
+
+      void sendCallbackWithRetry({
+        clientCode,
+        callbackUrl: cfg.url,
+        method: cfg.method ?? "POST",
+        payload: {
+          ...resolvedPayload,
+          leadId: lead._id.toString(),
+          phone: lead.phone,
+          trigger: ctx?.trigger ?? "",
+          timestamp: new Date().toISOString(),
+        },
+      });
+      break;
+    }
+
+    case "update_lead": {
+      // Config:
+      //   fields  Record<string, string> — lead field names, values support {{vars.*}}
+      const { Lead } = await getCrmModels(clientCode);
+      const cfg = config as { fields: Record<string, string> };
+
+      if (!cfg.fields || !Object.keys(cfg.fields).length) {
+        console.warn("[automationService] update_lead: no fields configured");
+        break;
+      }
+
+      const updatedFields: Record<string, string> = {};
+      for (const [field, value] of Object.entries(cfg.fields)) {
+        updatedFields[field] = resolvePlaceholders(
+          value,
+          lead,
+          ctx?.variables,
+        ) as string;
+      }
+
+      await Lead.updateOne(
+        { _id: lead._id, clientCode },
+        { $set: updatedFields },
+      );
+      await logActivity(clientCode, {
+        leadId: lead._id.toString(),
+        type: "system",
+        title: "Lead fields updated by automation",
+        body: `Fields updated: ${Object.keys(updatedFields).join(", ")}`,
+        metadata: { updatedFields },
+        performedBy: "automation",
+      });
+      break;
+    }
+
+    case "create_note": {
+      // Config:
+      //   body  string — note content, supports {{vars.*}} and {{lead.*}} placeholders
+      const { LeadNote } = await getCrmModels(clientCode);
+      const cfg = config as { body: string };
+
+      if (!cfg.body) {
+        console.warn("[automationService] create_note: no body configured");
+        break;
+      }
+
+      const noteBody = resolvePlaceholders(
+        cfg.body,
+        lead,
+        ctx?.variables,
+      ) as string;
+
+      await LeadNote.create({
+        clientCode,
+        leadId: lead._id,
+        content: noteBody,
+        createdBy: "automation",
+        isPinned: false,
+      });
+
+      await logActivity(clientCode, {
+        leadId: lead._id.toString(),
+        type: "note_added",
+        title: "Note added by automation",
+        body: noteBody,
+        performedBy: "automation",
       });
       break;
     }
@@ -339,8 +644,74 @@ const enqueueDelayedAction = async (
     email: (action.config as any).email ?? lead.email ?? "",
   };
 
-  // Resolve any placeholders BEFORE enqueuing so the job document stores final values
-  const resolvedConfig = resolvePlaceholders(actionConfig, lead, variables);
+  const actionPayload =
+    typeof (action as any).toObject === "function"
+      ? (action as any).toObject()
+      : action;
+
+  // We no longer blindly resolvePlaceholders here, we let validateActionBeforeEnqueue do it
+  // and return the final structurally resolved config (which includes WhatsApp arrays)
+  const validationResult = await validateActionBeforeEnqueue(
+    clientCode,
+    actionPayload,
+    lead,
+    ruleId,
+    variables,
+  );
+
+  if (!validationResult.isValid) {
+    console.warn(
+      `[automationService] Aborting enqueue for lead ${lead._id} due to validation failure on rule ${ruleId}`,
+    );
+    return;
+  }
+
+  // Calculate delay
+  let delayMs = (action.delayMinutes || 0) * 60 * 1000;
+
+  // Handle event-relative delays (e.g. before_event, at_event, after_event)
+  if (action.delayType && action.delayType !== "after_trigger") {
+    // Look for event time in variables (mapping: appointment_confirmed uses vars.date/vars.time, meeting_created uses vars.start_time)
+    const eventTimeStr =
+      variables?.start_time ||
+      variables?.event_time ||
+      (variables?.date && variables?.time
+        ? `${variables.date} ${variables.time}`
+        : null);
+
+    if (eventTimeStr) {
+      const eventTime = new Date(eventTimeStr);
+      if (!isNaN(eventTime.getTime())) {
+        let fireTime: Date;
+        const offsetMs = (action.delayMinutes || 0) * 60 * 1000;
+
+        switch (action.delayType) {
+          case "before_event":
+            fireTime = new Date(eventTime.getTime() - offsetMs);
+            break;
+          case "at_event":
+            fireTime = new Date(eventTime);
+            break;
+          case "after_event":
+            fireTime = new Date(eventTime.getTime() + offsetMs);
+            break;
+          default:
+            fireTime = new Date(Date.now() + offsetMs);
+        }
+
+        delayMs = fireTime.getTime() - Date.now();
+
+        // If fireTime has passed, we can either skip or fire immediately.
+        // For reminders, skipping is often safer to avoid spamming "past" events.
+        if (delayMs < -60000) {
+          console.warn(
+            `[automationService] Skipping delayed action ${action.type} for rule ${ruleId} as fireTime ${fireTime.toISOString()} is in the past`,
+          );
+          return;
+        }
+      }
+    }
+  }
 
   await crmQueue.add(
     {
@@ -348,15 +719,104 @@ const enqueueDelayedAction = async (
       type: "crm.automation_action",
       payload: {
         actionType: action.type,
-        actionConfig: resolvedConfig,
+        actionConfig: validationResult.resolvedConfig,
         leadId: lead._id.toString(),
         ruleId,
         ctxVariables: variables, // Keep as fallback/context
       },
     },
-    { delayMs: action.delayMinutes * 60 * 1000 },
+    { delayMs: Math.max(0, delayMs) },
   );
 };
+
+// ─── Validation before enqueue ────────────────────────────────────────────────
+
+async function validateActionBeforeEnqueue(
+  clientCode: string,
+  action: IAutomationAction,
+  lead: ILead,
+  ruleId: string,
+  variables?: Record<string, string>,
+): Promise<{ isValid: boolean; resolvedConfig?: any }> {
+  const { Notification } = await getCrmModels(clientCode);
+
+  const notifyUser = async (title: string, msg: string) => {
+    const notif = await Notification.create({
+      clientCode,
+      title,
+      message: msg,
+      type: "action_required",
+      status: "unread",
+      actionData: {
+        actionConfig: action,
+        leadId: lead._id,
+        contextSnapshot: variables || {},
+      },
+    });
+    if ((global as any).io) {
+      (global as any).io.to(clientCode).emit("notification:new", notif);
+    }
+  };
+
+  // 1. WhatsApp native mapping check AND early resolution
+  let finalConfig = { ...action.config };
+  if (action.type === "send_whatsapp") {
+    const cfg = action.config as any;
+    if (cfg && cfg.templateName) {
+      const { resolveUnifiedWhatsAppTemplate } =
+        await import("../whatsapp/template.service.ts");
+      const tenantConn = await getTenantConnection(clientCode);
+      try {
+        const { resolvedVariables, languageCode, isReady, contextSnapshot } =
+          await resolveUnifiedWhatsAppTemplate(
+            tenantConn,
+            cfg.templateName,
+            lead,
+            variables,
+          );
+
+        if (!isReady) {
+          await notifyUser(
+            "WhatsApp Template Mapping Incomplete",
+            `The template "${cfg.templateName}" has missing variable mappings in the database.`,
+          );
+          return { isValid: false };
+        }
+
+        // Successfully resolved. Overwrite the config we will store in the job
+        finalConfig = {
+          ...cfg,
+          resolvedVariables,
+          languageCode,
+          _resolvedContext: contextSnapshot,
+        };
+      } catch (err: any) {
+        await notifyUser(
+          "WhatsApp Template Resolution Failed",
+          `Rule tried to resolve template "${cfg.templateName}" but failed: ${err.message}`,
+        );
+        return { isValid: false };
+      }
+    }
+  }
+
+  // 2. Fallback text placeholder checks for NON-WhatsApp actions
+  if (action.type !== "send_whatsapp") {
+    const resolved = resolvePlaceholders(action.config, lead, variables);
+    finalConfig = resolved; // Store the resolved text config
+    const str = JSON.stringify(resolved);
+    const unmappedMatches = str.match(/\{\{(vars|lead|event)[^}]*\}\}/);
+    if (unmappedMatches) {
+      await notifyUser(
+        "Unresolved Variables in Action",
+        `The action (${action.type}) contains unresolved variables (${unmappedMatches[0]}) which will result in broken messages.`,
+      );
+      return { isValid: false };
+    }
+  }
+
+  return { isValid: true, resolvedConfig: finalConfig };
+}
 
 // ─── Placeholder Resolver ─────────────────────────────────────────────────────
 

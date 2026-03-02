@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+.github
+
+# Local env — NEVER bake secrets into the image
+.env
+.env.*
+!.env.example
+
+# Dev tooling
+node_modules
+.prettierrc
+.prettierignore
+eslint.config.js
+
+# Test / debug files
+*.test.ts
+*.bash
+test.bash
+test_multi_pipeline.bash
+check-lead.ts
+get_rule.*
+tunnel_output.txt
+
+# Logs
+logs/
+*.log
+
+# Build artifacts already copied from builder stage
+dist/
+
+# IDE
+.vscode
+.idea

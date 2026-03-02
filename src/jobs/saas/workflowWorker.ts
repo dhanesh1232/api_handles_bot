@@ -3,6 +3,7 @@ import {
   getTenantModel,
 } from "../../lib/connectionManager.ts";
 import { schemas } from "../../model/saas/tenant.schemas.ts";
+import { normalizePhone } from "../../utils/phone.ts";
 
 let globalIo: any = null;
 
@@ -35,6 +36,7 @@ export const executeWorkflow = async (data: any) => {
   try {
     if (channel === "whatsapp") {
       let targetConversationId = conversationId;
+      const normalizedPhone = normalizePhone(phone);
 
       if (!targetConversationId) {
         const tenantConn = await getTenantConnection(clientCode);
@@ -44,11 +46,11 @@ export const executeWorkflow = async (data: any) => {
           schemas.conversations,
         );
 
-        let conv = await Conversation.findOne({ phone });
+        let conv = await Conversation.findOne({ phone: normalizedPhone });
         if (!conv) {
           conv = await Conversation.create({
-            phone,
-            userName: phone,
+            phone: normalizedPhone,
+            userName: normalizedPhone,
             status: "open",
             channel: "whatsapp",
           });
@@ -57,19 +59,24 @@ export const executeWorkflow = async (data: any) => {
       }
 
       let finalVariables = variables || [];
+      let templateLanguage = "en_US";
 
       // New way: Resolve variables from context
       if (templateName && data.context) {
         try {
           const tenantConn = await getTenantConnection(clientCode);
-          const { resolveTemplateVariables } =
+          const { resolveUnifiedWhatsAppTemplate } =
             await import("../../services/saas/whatsapp/template.service.ts");
 
-          finalVariables = await resolveTemplateVariables(
+          const resolution = await resolveUnifiedWhatsAppTemplate(
             tenantConn,
             templateName,
-            data.context,
+            data.context.lead || {},
+            data.context.vars || data.context.event || data.context,
           );
+
+          finalVariables = resolution.resolvedVariables;
+          templateLanguage = resolution.languageCode;
 
           console.log(
             `[WorkflowExecutor] Resolved variables for ${templateName}:`,
@@ -106,7 +113,7 @@ export const executeWorkflow = async (data: any) => {
         undefined, // mediaType
         "system-worker", // userId
         templateName,
-        "en_US",
+        templateLanguage,
         finalVariables,
       );
 

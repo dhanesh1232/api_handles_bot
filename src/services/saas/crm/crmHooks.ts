@@ -5,7 +5,9 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
+import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { logActivity } from "./activity.service.ts";
 import { runAutomations } from "./automation.service.ts";
 import { recalculateScore } from "./lead.service.ts";
@@ -138,6 +140,8 @@ export const onMeetingCreated = async (
   input: {
     phone: string;
     meetLink: string;
+    meetCode?: string;
+    meetingId?: string;
     calendarEventId: string;
     title?: string;
     startTime?: Date;
@@ -172,6 +176,36 @@ export const onMeetingCreated = async (
     }
 
     await recalculateScore(clientCode, lead._id.toString());
+
+    // ─── Trigger optional client callback for meeting sync ──────────
+    if (input.appointmentId) {
+      const secrets = await ClientSecrets.findOne({ clientCode });
+      const callbackUrl = secrets?.getDecrypted(
+        "customSecrets.MEETING_CALLBACK_URL",
+      );
+
+      if (callbackUrl) {
+        console.log(
+          `[crmHooks] Triggering meeting callback for ${clientCode}: ${callbackUrl}`,
+        );
+        sendCallbackWithRetry({
+          clientCode,
+          callbackUrl: callbackUrl as string,
+          method: "POST",
+          payload: {
+            event: "meeting.created",
+            appointmentId: input.appointmentId,
+            meetingId: input.meetingId,
+            meetLink: input.meetLink,
+            meetCode: input.meetCode,
+            status: "scheduled",
+            timestamp: new Date().toISOString(),
+          },
+        }).catch((err) =>
+          console.error(`[crmHooks] Meeting callback failed: ${err.message}`),
+        );
+      }
+    }
   } catch {
     /* Never let CRM errors break meeting creation */
   }
@@ -247,6 +281,15 @@ export const onPaymentCaptured = async (
         paymentAmount: input.amount,
         paymentCurrency: input.currency ?? "INR",
       });
+
+      // Also update Meeting record if it exists
+      if (input.appointmentId) {
+        const { Meeting } = await getCrmModels(clientCode);
+        await Meeting.updateOne(
+          { appointmentId: input.appointmentId, clientCode },
+          { $set: { paymentStatus: "paid" } },
+        );
+      }
     }
 
     await logActivity(clientCode, {

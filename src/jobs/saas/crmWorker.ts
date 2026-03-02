@@ -20,6 +20,7 @@ import { MongoWorker } from "../../lib/mongoQueue/worker.ts";
 import type { IJob } from "../../model/queue/job.model.ts";
 import type { IBroadcast } from "../../model/saas/whatsapp/broadcast.model.ts";
 import type { IConversation } from "../../model/saas/whatsapp/conversation.model.ts";
+import { normalizePhone } from "../../utils/phone.ts";
 
 // ─── Exported queue singleton ─────────────────────────────────────────────────
 // Use this everywhere you need to enqueue a CRM job:
@@ -86,14 +87,49 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       };
 
       // Pass variables from config (stored in enqueueDelayedAction)
-      await executeAction(
-        clientCode,
-        action as any,
-        lead as any,
-        {
-          variables: ctxVariables,
-        } as any,
-      );
+      try {
+        await executeAction(
+          clientCode,
+          action as any,
+          lead as any,
+          {
+            variables: ctxVariables,
+          } as any,
+        );
+
+        // Update status in meeting record
+        if (payload.meetingId && payload.actionId) {
+          const { Meeting } = await getCrmModels(clientCode);
+          await Meeting.updateOne(
+            { _id: payload.meetingId, "reminders.actionId": payload.actionId },
+            {
+              $set: {
+                "reminders.$.status": "sent",
+                "reminders.$.sentAt": new Date(),
+              },
+            },
+          );
+        }
+      } catch (err: any) {
+        console.error(
+          `[crmWorker] executeAction failed for ${actionType}:`,
+          err,
+        );
+        // Mark as failed in meeting record
+        if (payload.meetingId && payload.actionId) {
+          const { Meeting } = await getCrmModels(clientCode);
+          await Meeting.updateOne(
+            { _id: payload.meetingId, "reminders.actionId": payload.actionId },
+            {
+              $set: {
+                "reminders.$.status": "failed",
+                "reminders.$.error": err.message,
+              },
+            },
+          );
+        }
+        throw err;
+      }
       break;
     }
 
@@ -225,18 +261,48 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         schemas.conversations,
       );
 
+      const phone = normalizePhone(payload.phone);
       let conv = await Conversation.findOne({
         clientCode,
-        phone: payload.phone,
+        phone,
       });
       if (!conv) {
         conv = await Conversation.create({
           clientCode,
-          phone: payload.phone,
-          userName: payload.phone,
+          phone,
+          userName: phone,
           status: "open",
           channel: "whatsapp",
         });
+      }
+
+      let finalVariables = payload.variables || [];
+      let templateLanguage = payload.language || "en_US";
+
+      // Final dynamic resolution check
+      try {
+        const { resolveUnifiedWhatsAppTemplate } =
+          await import("../../services/saas/whatsapp/template.service.ts");
+        const { getCrmModels } =
+          await import("../../lib/tenant/get.crm.model.ts");
+        const { Lead } = await getCrmModels(clientCode);
+
+        const lead = payload.leadId ? await Lead.findById(payload.leadId) : {};
+
+        const resolution = await resolveUnifiedWhatsAppTemplate(
+          tenantConn,
+          payload.templateName,
+          lead || {},
+          payload.variables || {},
+        );
+
+        finalVariables = resolution.resolvedVariables;
+        templateLanguage = resolution.languageCode;
+      } catch (err: any) {
+        console.warn(
+          `[crmWorker] Reminder resolution fallback for ${payload.templateName}:`,
+          err.message,
+        );
       }
 
       await svc.sendOutboundMessage(
@@ -247,8 +313,8 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         undefined,
         "system-reminder",
         payload.templateName,
-        payload.language ?? "en_US",
-        payload.variables ?? [],
+        templateLanguage,
+        finalVariables,
       );
 
       // Log reminder to CRM timeline
@@ -312,11 +378,12 @@ const processCrmJob = async (job: IJob): Promise<void> => {
       );
 
       let success = false;
+      const normalizedPhone = normalizePhone(phone);
       try {
-        let conv = await Conversation.findOne({ phone });
+        let conv = await Conversation.findOne({ phone: normalizedPhone });
         if (!conv) {
           conv = await Conversation.create({
-            phone,
+            phone: normalizedPhone,
             userName: "Customer",
             status: "open",
             channel: "whatsapp",

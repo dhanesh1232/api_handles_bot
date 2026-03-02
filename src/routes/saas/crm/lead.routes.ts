@@ -97,6 +97,76 @@ router.post("/leads", async (req: Request, res: Response) => {
   }
 });
 
+// ─── Upsert lead ──────────────────────────────────────────────────────────────
+/**
+ * POST /api/crm/leads/upsert
+ * Used by client websites to create or update a lead based on phone number.
+ *
+ * Body: { leadData: { name, phone, email, source }, moduleInfo?: any }
+ */
+router.post("/leads/upsert", async (req: Request, res: Response) => {
+  try {
+    const { leadData, moduleInfo } = req.body;
+    if (!leadData?.phone) {
+      res.status(400).json({ success: false, message: "phone is required" });
+      return;
+    }
+
+    // Try finding by phone
+    let lead = await leadService.getLeadByPhone(
+      req.clientCode!,
+      leadData.phone,
+    );
+
+    // Prepare metadata refs based on moduleInfo
+    const refs: any = {};
+    if (moduleInfo?.type === "service_enrollment" && moduleInfo.id) {
+      refs.orderId = moduleInfo.id;
+    } else if (moduleInfo?.type === "doctor_consultation" && moduleInfo.id) {
+      refs.appointmentId = moduleInfo.id;
+    } else if (moduleInfo?.type === "product_purchase" && moduleInfo.id) {
+      refs.orderId = moduleInfo.id;
+    }
+
+    if (lead) {
+      // Add refs to existing lead
+      if (Object.keys(refs).length > 0) {
+        lead = await leadService.updateMetadataRefs(
+          req.clientCode!,
+          lead._id.toString(),
+          refs,
+        );
+      }
+    } else {
+      // Create new lead
+      const names = (leadData.name || "").trim().split(" ");
+      const firstName = names[0] || "Unknown";
+      const lastName = names.slice(1).join(" ");
+
+      lead = await leadService.createLead(req.clientCode!, {
+        firstName,
+        lastName,
+        phone: leadData.phone,
+        email: leadData.email,
+        source: leadData.source || "website",
+        metadata: {
+          refs: {
+            appointmentId: refs.appointmentId,
+            orderId: refs.orderId,
+          },
+          extra: {
+            upsertedAt: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    res.status(200).json({ success: true, data: lead });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
 // ─── List leads ───────────────────────────────────────────────────────────────
 /**
  * GET /api/crm/leads

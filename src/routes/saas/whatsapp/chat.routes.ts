@@ -223,6 +223,54 @@ export const createChatRouter = (io: Server) => {
     },
   );
 
+  // 4b. Bulk Delete Conversations
+  router.post(
+    "/conversations/bulk-delete",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const { ids } = req.body;
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid or empty IDs" });
+        }
+
+        const conn = await getTenantConnection(clientCode);
+        const ConversationModel = getTenantModel<IConversation>(
+          conn,
+          "Conversation",
+          schemas.conversations,
+        );
+        const MessageModel = getTenantModel<IMessage>(
+          conn,
+          "Message",
+          schemas.messages,
+        );
+
+        await MessageModel.deleteMany({ conversationId: { $in: ids } });
+        await ConversationModel.deleteMany({ _id: { $in: ids } });
+
+        for (const id of ids) {
+          io.to(clientCode).emit("conversation_deleted", {
+            conversationId: id,
+          });
+        }
+
+        res.json({ success: true });
+      } catch (err: any) {
+        console.error("Error bulk deleting conversations:", err);
+        res.status(500).json({
+          success: false,
+          message: err.message || "Failed to bulk delete conversations",
+        });
+      }
+    },
+  );
+
   // 5. Upload Media to R2
   router.post(
     "/upload",
@@ -466,10 +514,22 @@ export const createChatRouter = (io: Server) => {
           schemas.templates,
         );
 
-        const template = await TemplateModel.findOne({
+        let template = await TemplateModel.findOne({
           name: templateName,
           language: templateLanguage,
         });
+
+        // Fallback: if en_US fails, try to find any template with that name to get the correct language
+        if (!template && templateLanguage === "en_US") {
+          template = await TemplateModel.findOne({ name: templateName });
+          if (template) {
+            console.log(
+              `[Broadcast] Redirecting en_US to resolved language: ${template.language}`,
+            );
+            templateLanguage = template.language;
+          }
+        }
+
         if (!template) {
           return res
             .status(404)

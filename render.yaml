@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ecodrix-backend
+    runtime: node
+    region: singapore # Change to: oregon, frankfurt, ohio as needed
+    plan: starter # Change to: standard, pro as you scale
+
+    buildCommand: pnpm install --frozen-lockfile && pnpm run build
+    startCommand: node dist/server.js
+
+    # Health check — Render will restart if this fails
+    healthCheckPath: /health-check
+
+    # Auto-deploy on push to this branch
+    branch: master
+
+    # Node version
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      # All other secrets (MONGO_URI, API keys, etc.) go in Render dashboard
+      # Do NOT hardcode secrets here — this file is committed to git

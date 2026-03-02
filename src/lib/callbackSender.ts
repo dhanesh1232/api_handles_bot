@@ -118,8 +118,9 @@ async function logCallback(data: {
   attempts: number;
 }): Promise<void> {
   try {
-    const { CallbackLog } =
-      await import("../model/saas/event/callbackLog.model.ts");
+    // Write to the CLIENT's own tenant DB — not the shared services DB.
+    const { getCrmModels } = await import("./tenant/get.crm.model.ts");
+    const { CallbackLog } = await getCrmModels(data.clientCode);
     await CallbackLog.create({
       ...data,
       lastAttemptAt: new Date(),

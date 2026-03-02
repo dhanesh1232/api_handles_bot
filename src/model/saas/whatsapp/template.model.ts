@@ -7,6 +7,23 @@ export interface ITemplateButton {
   phoneNumber?: string;
 }
 
+export interface IVariableMapping {
+  position: number;
+  label: string;
+  source: "crm" | "static" | "computed" | "system" | "manual" | "dynamic";
+  collection?: string;
+  field?: string;
+  staticValue?: string;
+  formula?: string;
+  fallback?: string;
+  required?: boolean;
+
+  // Component awareness
+  componentType?: "HEADER" | "BODY" | "FOOTER" | "BUTTON";
+  componentIndex?: number; // Only for buttons
+  originalIndex?: number; // The {{n}} inside that component
+}
+
 export interface ITemplate extends Document {
   name: string;
   language: string;
@@ -46,11 +63,20 @@ const VariableMappingSchema = new mongoose.Schema(
       enum: ["crm", "static", "computed", "system", "manual"],
       required: true,
     },
+    collection: { type: String },
     field: { type: String },
     staticValue: { type: String },
     formula: { type: String },
     fallback: { type: String },
     required: { type: Boolean, default: false },
+
+    // Component tracking
+    componentType: {
+      type: String,
+      enum: ["HEADER", "BODY", "FOOTER", "BUTTON"],
+    },
+    componentIndex: { type: Number },
+    originalIndex: { type: Number },
   },
   { _id: false },
 );

@@ -5,17 +5,18 @@ import path from "path";
 import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.ts";
 import {
-  getTenantConnection,
-  getTenantModel,
+    getTenantConnection,
+    getTenantModel,
 } from "../../../lib/connectionManager.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
 import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
 import type {
-  IMessage,
-  IMessageTemplateData,
+    IMessage,
+    IMessageTemplateData,
 } from "../../../model/saas/whatsapp/message.model.ts";
 import type { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
+import { normalizePhone } from "../../../utils/phone.ts";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -129,7 +130,7 @@ export const createWhatsappService = (io: Server | null) => {
       console.log(`[${clientCode}] Handling Incoming Message from: ${from}`);
       const { secrets, Conversation, Message } = await getContext(clientCode);
 
-      const phone = from;
+      const phone = normalizePhone(from);
       const metaName = contacts?.profile?.name || "Customer";
       const profilePicture = contacts?.profile?.profile_picture;
 
@@ -500,30 +501,48 @@ export const createWhatsappService = (io: Server | null) => {
     let templateData: IMessageTemplateData | undefined = undefined;
     if (templateName) {
       finalMessageType = "template";
-      const tmpl = await Template.findOne({
-        name: templateName,
-        language: templateLanguage,
-      });
+      let tmpl = null;
 
-      if (tmpl && context) {
+      // Unified resolution attempt if it's a template
+      if (context || !variables || variables.length === 0) {
         try {
-          const { resolveTemplateVariables } =
-            await import("./template.service.ts");
-          variables = await resolveTemplateVariables(
+          const { resolveUnifiedWhatsAppTemplate } = await import(
+            "./template.service.ts"
+          );
+          const { getCrmModels } = await import(
+            "../../lib/tenant/get.crm.model.ts"
+          );
+          const { Lead } = await getCrmModels(clientCode);
+
+          // We try to find a lead if context has an ID but not the object
+          const rootLead =
+            context?.lead ||
+            (context?.leadId ? await Lead.findById(context.leadId) : {});
+
+          const resolution = await resolveUnifiedWhatsAppTemplate(
             tenantConn,
             templateName,
-            context,
+            rootLead || {},
+            context?.vars || context?.event || context || {},
           );
+          variables = resolution.resolvedVariables;
+          templateLanguage = resolution.languageCode;
+          tmpl = resolution.template;
           console.log(
-            `[WhatsAppService] Resolved dynamic variables from context:`,
-            variables,
+            `[WhatsAppService] Unified resolution complete for ${templateName} (${templateLanguage})`,
           );
-        } catch (resErr) {
+        } catch (resErr: any) {
           console.warn(
-            "[WhatsAppService] Dynamic resolution failed, using provided variables:",
-            resErr,
+            `[WhatsAppService] Unified mapping resolution failed for ${templateName}, falling back to static find. Error: ${resErr.message}`,
           );
         }
+      }
+
+      if (!tmpl) {
+        tmpl = await Template.findOne({
+          name: templateName,
+          language: templateLanguage,
+        });
       }
 
       if (tmpl) {
@@ -656,7 +675,26 @@ export const createWhatsappService = (io: Server | null) => {
           console.log(
             `[${clientCode}] Using cached template components for ${templateName}`,
           );
-          let varIndex = 0;
+          const getVarValue = (
+            compType: string,
+            origIdx: number,
+            btnIdx?: number,
+            exampleVal?: string,
+          ) => {
+            const mapping = tmpl.variableMapping.find(
+              (m: any) =>
+                m.componentType === compType &&
+                m.originalIndex === origIdx &&
+                (btnIdx === undefined || m.componentIndex === btnIdx),
+            );
+
+            if (mapping) {
+              return variables[mapping.position - 1] ?? exampleVal ?? "[N/A]";
+            }
+
+            // Fallback for older templates or if mapping is missing one field
+            return variables[origIdx - 1] ?? exampleVal ?? "[N/A]";
+          };
 
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
@@ -669,13 +707,15 @@ export const createWhatsappService = (io: Server | null) => {
                   });
                 }
               }
-              const headerVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
-                .length;
-              for (let i = 0; i < headerVarsCount; i++) {
-                const val =
-                  variables[varIndex] !== undefined
-                    ? variables[varIndex++]
-                    : comp.example?.header_text?.[0] || "[N/A]";
+              const headerVars = comp.text?.match(/{{[0-9]+}}/g) || [];
+              for (const placeholder of headerVars) {
+                const index = parseInt(placeholder.replace(/{{|}}/g, ""), 10);
+                const val = getVarValue(
+                  "HEADER",
+                  index,
+                  undefined,
+                  comp.example?.header_text?.[0],
+                );
                 headerParams.push({
                   type: "text",
                   text: String(val),
@@ -688,14 +728,16 @@ export const createWhatsappService = (io: Server | null) => {
                 });
               }
             } else if (comp.type === "BODY") {
-              const bodyVarsCount = (comp.text?.match(/{{[0-9]+}}/g) || [])
-                .length;
+              const bodyVars = comp.text?.match(/{{[0-9]+}}/g) || [];
               const bodyParams: any[] = [];
-              for (let i = 0; i < bodyVarsCount; i++) {
-                const val =
-                  variables[varIndex] !== undefined
-                    ? variables[varIndex++]
-                    : comp.example?.body_text?.[0]?.[i] || "[N/A]";
+              for (const placeholder of bodyVars) {
+                const index = parseInt(placeholder.replace(/{{|}}/g, ""), 10);
+                const val = getVarValue(
+                  "BODY",
+                  index,
+                  undefined,
+                  comp.example?.body_text?.[0]?.[index - 1],
+                );
                 bodyParams.push({
                   type: "text",
                   text: String(val),
@@ -708,30 +750,34 @@ export const createWhatsappService = (io: Server | null) => {
                 });
               }
             } else if (comp.type === "BUTTONS") {
-              console.log(
-                `[${clientCode}] Processing BUTTONS:`,
-                JSON.stringify(comp.buttons),
-              );
               comp.buttons.forEach((btn: any, btnIdx: number) => {
-                const btnVarsCount = (btn.url?.match(/{{[0-9]+}}/g) || [])
-                  .length;
-                if (btnVarsCount > 0) {
+                const isUrl = btn.type === "URL";
+                const isQuickReply = btn.type === "QUICK_REPLY";
+
+                const btnVars =
+                  (isUrl ? btn.url : btn.text)?.match(/{{[0-9]+}}/g) || [];
+                if (btnVars.length > 0) {
                   const btnParams: any[] = [];
-                  for (let i = 0; i < btnVarsCount; i++) {
-                    const val =
-                      variables[varIndex] !== undefined
-                        ? variables[varIndex++]
-                        : btn.example?.[i] || "[N/A]";
+                  for (const placeholder of btnVars) {
+                    const index = parseInt(
+                      placeholder.replace(/{{|}}/g, ""),
+                      10,
+                    );
+                    const val = getVarValue(
+                      "BUTTON",
+                      index,
+                      btnIdx,
+                      btn.example?.[0],
+                    );
                     btnParams.push({
                       type: "text",
                       text: String(val),
                     });
                   }
-                  // Only push BUTTON component if we actually have parameters for it
                   if (btnParams.length > 0) {
                     payload.template.components.push({
                       type: "BUTTON",
-                      sub_type: btn.type === "URL" ? "url" : "quick_reply",
+                      sub_type: isUrl ? "url" : "quick_reply",
                       index: String(btnIdx),
                       parameters: btnParams,
                     });

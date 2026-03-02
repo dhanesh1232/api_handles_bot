@@ -1,40 +1,54 @@
 import { Router } from "express";
-import { crmQueue } from "../../../jobs/saas/crmWorker.ts";
+import { normalizePhone } from "../../../utils/phone.ts";
 import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { EventLog } from "../../../model/saas/event/eventLog.model.ts";
 import { runAutomations } from "../../../services/saas/crm/automation.service.ts";
 import {
   createLead,
   getLeadByPhone,
 } from "../../../services/saas/crm/lead.service.ts";
-import { createGoogleMeetService } from "../../../services/saas/meet/google.meet.service.ts";
 
 const triggerRouter = Router();
 
+/**
+ * POST /api/saas/workflows/trigger
+ *
+ * Generic event dispatcher. Accepts any named trigger and arbitrary context.
+ * All domain actions (meeting creation, WhatsApp, callbacks, etc.) are handled
+ * by Automation Rules — nothing is hardcoded here.
+ *
+ * Body:
+ *   trigger          string   — event name, no spaces, max 100 chars
+ *   phone            string   — E.164 digits only (normalized server-side)
+ *   email?           string   — optional contact email
+ *   variables?       Record<string, string> — flat KV pairs accessible as {{vars.key}}
+ *   data?            Record<string, any>    — structured event data (flattened to data.key)
+ *   callbackUrl?     string   — receives { status, eventLogId, rulesMatched } after processing
+ *   callbackMetadata? any     — extra metadata echoed back in callback
+ *   createLeadIfMissing? bool — auto-create lead if not found
+ *   leadData?        { firstName?, lastName?, source? } — used only if createLeadIfMissing
+ */
 triggerRouter.post("/trigger", async (req: any, res: any) => {
   const clientCode = req.clientCode;
   if (!clientCode) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  const body = req.body;
   const {
     trigger,
-    phone,
+    phone: rawPhone,
     email,
     variables,
     data,
-    requiresMeet,
-    meetConfig,
     callbackUrl,
     callbackMetadata,
-    delayMinutes,
     createLeadIfMissing,
     leadData,
-  } = body;
+  } = req.body;
 
-  if (!trigger || !phone) {
+  // ── Input validation ──────────────────────────────────────────────────────
+
+  if (!trigger || !rawPhone) {
     return res.status(400).json({
       success: false,
       message: "trigger and phone are required",
@@ -42,56 +56,57 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
     });
   }
 
-  // Phone must be E.164 format (digits only, 10-15 chars)
-  const phoneRegex = /^\d{10,15}$/;
-  if (!phoneRegex.test(phone.replace(/^\+/, ""))) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid phone format. Use E.164 format e.g. 919876543210",
-      code: "INVALID_PHONE",
-    });
-  }
-
-  // Trigger must be a non-empty string, no spaces
   if (
     typeof trigger !== "string" ||
-    trigger.includes(" ") ||
-    trigger.length > 50
+    /\s/.test(trigger) ||
+    trigger.length > 100
   ) {
     return res.status(400).json({
       success: false,
-      message:
-        "Invalid trigger name. Must be a string with no spaces, max 50 chars.",
+      message: "trigger must be a single string with no spaces, max 100 chars",
       code: "INVALID_TRIGGER",
     });
   }
 
-  // Sanitize payload — remove any keys with undefined values before logging
+  const phone = normalizePhone(rawPhone);
+  if (!phone || phone.length < 10) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid phone format. Provide a valid number e.g. 919876543210",
+      code: "INVALID_PHONE",
+    });
+  }
+
+  // ── Processing ────────────────────────────────────────────────────────────
+
+  const { EventLog, AutomationRule } = await getCrmModels(clientCode);
+
+  // Sanitize payload before logging — strip undefined values
   const sanitizedPayload = JSON.parse(
-    JSON.stringify({ trigger, phone, email, variables, data, requiresMeet }),
+    JSON.stringify({ trigger, phone, email, variables, data }),
   );
 
-  let eventLog;
+  let eventLog: any;
   try {
-    // Step 2 — Create EventLog with status "received"
+    // 1. Log the incoming event
     eventLog = await EventLog.create({
       clientCode,
       trigger,
       phone,
       email,
       status: "received",
-      callbackUrl: body.callbackUrl,
+      callbackUrl,
       payload: sanitizedPayload,
     });
 
-    // Step 3 — Find or create lead
+    // 2. Find or auto-create Lead
     let lead = await getLeadByPhone(clientCode, phone);
     if (!lead && createLeadIfMissing) {
       lead = await createLead(clientCode, {
         firstName: leadData?.firstName || phone,
         lastName: leadData?.lastName || "",
         email: email || "",
-        phone: phone,
+        phone,
         source: leadData?.source || "webhook",
       });
     }
@@ -101,41 +116,15 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
         status: "failed",
         error: "Lead not found and createLeadIfMissing is false",
       });
-      return res
-        .status(404)
-        .json({ success: false, message: "Lead not found" });
-    }
-
-    // Step 4 — Generate Google Meet if requiresMeet: true
-    let meetLink: string | null = null;
-    let meetWarning: string | undefined;
-    if (requiresMeet) {
-      const meetService = createGoogleMeetService();
-      const meetResult = await meetService.createMeeting(clientCode, {
-        summary: meetConfig?.title ?? `Meeting for ${trigger}`,
-        start: meetConfig?.startTime ?? new Date().toISOString(),
-        end: new Date(
-          Date.now() + (meetConfig?.durationMinutes ?? 30) * 60000,
-        ).toISOString(),
-        attendees: meetConfig?.attendeeEmail ? [meetConfig.attendeeEmail] : [],
-        description: `Trigger: ${trigger}, Phone: ${phone}`,
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+        code: "LEAD_NOT_FOUND",
+        hint: "Pass createLeadIfMissing: true to auto-create one",
       });
-
-      if (meetResult.success && meetResult.hangoutLink) {
-        meetLink = meetResult.hangoutLink;
-      } else {
-        // Don't fail the whole request but surface the reason to the caller.
-        meetWarning = (meetResult as any).error ?? "Meet creation failed";
-        console.warn(
-          `[trigger] Meet creation failed for ${clientCode}: ${meetWarning}`,
-        );
-      }
-      // Update eventLog with meetLink
-      await EventLog.findByIdAndUpdate(eventLog._id, { meetLink });
     }
 
-    // Step 5 — Count matching rules
-    const { AutomationRule } = await getCrmModels(clientCode);
+    // 3. Count matching rules
     const rulesMatched = await AutomationRule.countDocuments({
       clientCode,
       trigger,
@@ -147,18 +136,17 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
       status: "processing",
     });
 
-    // Step 6 — Send immediate callback to client (status: queued)
+    // 4. Send immediate acknowledgment callback
     if (callbackUrl) {
       void sendCallbackWithRetry({
         clientCode,
         callbackUrl,
         payload: {
-          status: "queued",
+          status: "processing",
           trigger,
-          meetLink,
           rulesMatched,
-          metadata: callbackMetadata ?? {},
           eventLogId: eventLog._id.toString(),
+          metadata: callbackMetadata ?? {},
         },
       });
       await EventLog.findByIdAndUpdate(eventLog._id, {
@@ -166,60 +154,41 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
       });
     }
 
-    // Step 7 — Run automations (with delay support)
-    // Build unified context — merge all sources
-    const enrichedVariables = {
-      ...(variables || {}), // explicit vars from client
-      meetLink: meetLink ?? "", // auto-injected meet link
+    // 5. Build unified event variables context
+    //    Merges: explicit vars + flattened data object + system fields
+    const eventVariables: Record<string, string> = {
+      ...(variables || {}),
       phone,
       email: email ?? "",
       trigger,
-      ...(data // flatten event data into vars
+      ...(data
         ? Object.fromEntries(
-            Object.entries(data).map(([k, v]) => [`data.${k}`, String(v)]),
+            Object.entries(data).map(([k, v]) => [k, String(v)]),
           )
         : {}),
     };
 
-    if ((delayMinutes ?? 0) > 0) {
-      await crmQueue.add(
-        {
-          clientCode,
-          type: "crm.automation_event",
-          payload: {
-            trigger,
-            leadId: lead._id.toString(),
-            variables: enrichedVariables,
-          },
-        },
-        { delayMs: (delayMinutes ?? 0) * 60 * 1000 },
-      );
-    } else {
-      await runAutomations(clientCode, {
-        trigger: trigger as any,
-        lead: lead as any,
-        variables: enrichedVariables,
-      });
-    }
+    // 6. Run matching automation rules
+    await runAutomations(clientCode, {
+      trigger: trigger as any,
+      lead: lead as any,
+      variables: eventVariables,
+    });
 
-    // Step 8 — Finalize EventLog
+    // 7. Finalize EventLog
     await EventLog.findByIdAndUpdate(eventLog._id, {
       status: "completed",
       processedAt: new Date(),
       jobsCreated: rulesMatched,
     });
 
-    // Step 9 — Return response
     return res.json({
       success: true,
       data: {
         eventLogId: eventLog._id.toString(),
         trigger,
         leadId: lead._id.toString(),
-        meetLink,
-        ...(meetWarning ? { meetWarning } : {}),
         rulesMatched,
-        scheduled: (delayMinutes ?? 0) > 0,
       },
     });
   } catch (err: any) {
@@ -227,13 +196,13 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
       await EventLog.findByIdAndUpdate(eventLog._id, {
         status: "failed",
         error: err.message,
-      }).catch(() => {}); // non-fatal
+      }).catch(() => {});
     }
 
     console.error("[triggerRoute] Error:", {
-      clientCode: req.clientCode,
+      clientCode,
       trigger: req.body?.trigger,
-      phone: req.body?.phone,
+      phone,
       error: err.message,
       stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
     });

@@ -66,16 +66,27 @@ router.get("/pipelines/:pipelineId", async (req: Request, res: Response) => {
  */
 router.post("/pipelines", async (req: Request, res: Response) => {
   try {
-    const { name, description, isDefault, template, stages = [] } = req.body;
+    const {
+      name,
+      description,
+      isDefault,
+      template,
+      stages = [],
+      customStages,
+    } = req.body;
 
     if (!name?.trim()) {
       res.status(400).json({ success: false, message: "name is required" });
       return;
     }
 
+    // `customStages` is sent by the frontend custom stage builder;
+    // treat it as `stages` when template is "custom" or stages array is empty.
+    const resolvedStages = stages.length > 0 ? stages : (customStages ?? []);
+
     const result = await pipelineService.createPipeline(
       req.clientCode!,
-      { name: name.trim(), description, isDefault, stages },
+      { name: name.trim(), description, isDefault, stages: resolvedStages },
       template,
     );
 
@@ -127,19 +138,63 @@ router.patch(
 );
 
 /**
- * DELETE /api/crm/pipelines/:pipelineId
+ * GET /api/crm/pipelines/:pipelineId/in-use
+ * Returns whether this pipeline has any leads assigned to it.
+ */
+router.get(
+  "/pipelines/:pipelineId/in-use",
+  async (req: Request, res: Response) => {
+    try {
+      const result = await pipelineService.checkPipelineInUse(
+        req.clientCode!,
+        req.params.pipelineId as string,
+      );
+      res.json({ success: true, data: result });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  },
+);
+
+/**
+ * PATCH /api/crm/pipelines/:pipelineId/archive
  * Soft-archives the pipeline (sets isActive: false).
+ * Blocked if any leads are assigned to this pipeline.
+ */
+router.patch(
+  "/pipelines/:pipelineId/archive",
+  async (req: Request, res: Response) => {
+    try {
+      await pipelineService.archivePipeline(
+        req.clientCode!,
+        req.params.pipelineId as string,
+      );
+      res.json({ success: true, message: "Pipeline archived" });
+    } catch (err: unknown) {
+      const msg = (err as Error).message;
+      const status =
+        msg.includes("default") || msg.includes("Cannot archive") ? 400 : 500;
+      res.status(status).json({ success: false, message: msg });
+    }
+  },
+);
+
+/**
+ * DELETE /api/crm/pipelines/:pipelineId
+ * Permanently deletes the pipeline and all its stages.
+ * Blocked if any leads are assigned to this pipeline.
  */
 router.delete("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   try {
-    await pipelineService.archivePipeline(
+    await pipelineService.hardDeletePipeline(
       req.clientCode!,
       req.params.pipelineId as string,
     );
-    res.json({ success: true, message: "Pipeline archived" });
+    res.json({ success: true, message: "Pipeline deleted" });
   } catch (err: unknown) {
     const msg = (err as Error).message;
-    const status = msg.includes("default") ? 400 : 500;
+    const status =
+      msg.includes("default") || msg.includes("Cannot delete") ? 400 : 500;
     res.status(status).json({ success: false, message: msg });
   }
 });

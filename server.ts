@@ -18,6 +18,7 @@ import eventLogRouter from "./src/routes/saas/eventLog.routes.ts";
 import healthRouter from "./src/routes/saas/health.routes.ts";
 import { createImagesRouter } from "./src/routes/saas/images.ts";
 import marketingRouter from "./src/routes/saas/marketing.ts";
+import meetRouter from "./src/routes/saas/meet/meet.routes.ts";
 import { createChatRouter } from "./src/routes/saas/whatsapp/chat.routes.ts";
 import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.routes.ts";
 import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.routes.ts";
@@ -344,6 +345,7 @@ const initializeRoutes = async () => {
     validateClientKey,
     createTemplateRouter(io),
   );
+  app.use("/api/saas/meet", validateClientKey, meetRouter);
   app.use("/api/saas/marketing", validateClientKey, marketingRouter);
   app.use("/api/saas/cors", validateClientKey, corsRouter);
   app.use("/api/auth/google", googleAuthRouter);

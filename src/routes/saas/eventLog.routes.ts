@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { CallbackLog } from "../../model/saas/event/callbackLog.model.ts";
-import { EventLog } from "../../model/saas/event/eventLog.model.ts";
+import { getCrmModels } from "../../lib/tenant/get.crm.model.ts";
 
 const router = Router();
 
@@ -12,6 +11,7 @@ const router = Router();
 router.get("/events/logs", async (req: Request, res: Response) => {
   try {
     const clientCode = (req as any).clientCode as string;
+    const { EventLog } = await getCrmModels(clientCode);
     const {
       page = 1,
       limit = 25,
@@ -62,6 +62,7 @@ router.get("/events/logs", async (req: Request, res: Response) => {
 router.get("/events/logs/:logId", async (req: Request, res: Response) => {
   try {
     const clientCode = (req as any).clientCode as string;
+    const { EventLog } = await getCrmModels(clientCode);
     const log = await EventLog.findOne({
       _id: req.params.logId,
       clientCode,
@@ -84,6 +85,7 @@ router.get("/events/logs/:logId", async (req: Request, res: Response) => {
 router.get("/events/stats", async (req: Request, res: Response) => {
   try {
     const clientCode = (req as any).clientCode as string;
+    const { EventLog } = await getCrmModels(clientCode);
     const { startDate, endDate } = req.query;
 
     const dateFilter: Record<string, any> = {};
@@ -150,6 +152,7 @@ router.get("/events/stats", async (req: Request, res: Response) => {
 router.get("/callbacks/logs", async (req: Request, res: Response) => {
   try {
     const clientCode = (req as any).clientCode as string;
+    const { CallbackLog } = await getCrmModels(clientCode);
     const { page = 1, limit = 25, status, startDate, endDate } = req.query;
 
     const query: Record<string, any> = { clientCode };

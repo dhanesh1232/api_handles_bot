@@ -37,6 +37,11 @@ const actionSchema = new mongoose.Schema<any>(
       required: true,
     },
     delayMinutes: { type: Number, default: 0 },
+    delayType: {
+      type: String,
+      enum: ["after_trigger", "before_event", "at_event", "after_event"],
+      default: "after_trigger",
+    },
     config: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { _id: false },

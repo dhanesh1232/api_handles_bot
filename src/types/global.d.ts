@@ -11,6 +11,11 @@ declare global {
     | "phone"
     | "email"
     | "walk_in"
+    | "doctor"
+    | "product"
+    | "service"
+    | "webhook"
+    | "manual"
     | "other";
 
   type LeadStatus = "open" | "won" | "lost" | "archived";
@@ -159,6 +164,7 @@ declare global {
     | "lead_created"
     | "lead_assigned"
     | "automation_triggered"
+    | "action_required"
     | "system";
 
   interface ILeadActivity extends mongoose.Document {
@@ -199,6 +205,7 @@ declare global {
     | "product_purchased"
     | "service_enrolled"
     | "payment_captured"
+    | "meeting_created"
     | "form_submitted";
 
   type AutomationActionType =
@@ -210,11 +217,15 @@ declare global {
     | "add_tag"
     | "remove_tag"
     | "webhook_notify"
-    | "create_meeting";
+    | "create_meeting"
+    | "send_callback"
+    | "update_lead"
+    | "create_note";
 
   interface IAutomationAction {
     type: AutomationActionType;
     delayMinutes: number; // 0 = instant
+    delayType?: "after_trigger" | "before_event" | "at_event" | "after_event";
     config: Record<string, unknown>; // templateName, stageId, assignTo, tag, etc.
   }
 
@@ -268,6 +279,7 @@ declare global {
     position: number;
     label: string;
     source: MappingSource;
+    collection?: string;
     field?: string;
     staticValue?: string;
     formula?: string;
@@ -297,6 +309,55 @@ declare global {
     updated: number;
     outdated: string[];
     new: string[];
+  }
+  interface IMeeting extends mongoose.Document {
+    clientCode: string;
+    appointmentId?: mongoose.Types.ObjectId | null;
+    leadId: mongoose.Types.ObjectId;
+    doctorId?: string | null;
+    patientName: string;
+    patientPhone: string;
+    patientEmail?: string | null;
+    startTime: Date;
+    endTime: Date;
+    duration: number;
+    consultationType: "online" | "offline";
+    meetLink?: string | null;
+    meetCode?: string | null;
+    eventId?: string | null;
+    type: "free" | "paid";
+    amount: number;
+    paymentStatus: "pending" | "paid" | "na";
+    status: "scheduled" | "completed" | "cancelled" | "pending";
+    reminders: {
+      actionId: string;
+      type: "send_whatsapp" | "send_email";
+      fireTime: Date;
+      status: "pending" | "sent" | "failed";
+      error?: string;
+      sentAt?: Date;
+    }[];
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  type NotificationType = "action_required" | "alert" | "info";
+  type NotificationStatus = "unread" | "resolved" | "dismissed";
+
+  interface INotification extends mongoose.Document {
+    clientCode: string;
+    title: string;
+    message: string;
+    type: NotificationType;
+    status: NotificationStatus;
+    actionData: {
+      actionConfig?: any;
+      leadId?: mongoose.Types.ObjectId;
+      contextSnapshot?: Record<string, any>;
+      [key: string]: any;
+    };
+    createdAt: Date;
+    updatedAt: Date;
   }
 }
 

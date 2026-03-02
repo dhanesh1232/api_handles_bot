@@ -194,9 +194,13 @@ router.post(
                 <p style="font-size: 15px; color: #6b7280;">
                   If you did not expect this verification, please contact your administrator.
                 </p>
-                ${website ? `<div style="text-align: center; margin-top: 40px;">
+                ${
+                  website
+                    ? `<div style="text-align: center; margin-top: 40px;">
                   <a href="${website}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block;">Return to Dashboard</a>
-                </div>` : ""}
+                </div>`
+                    : ""
+                }
               </div>
 
               <!-- Footer -->

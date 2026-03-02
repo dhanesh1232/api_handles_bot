@@ -14,6 +14,7 @@
 
 import mongoose from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { normalizePhone } from "../../../utils/phone.ts";
 import {
   createPipeline,
   getDefaultPipeline,
@@ -146,7 +147,7 @@ export const createLead = async (
     firstName: input.firstName,
     lastName: input.lastName ?? "",
     email: input.email || undefined,
-    phone: input.phone,
+    phone: normalizePhone(input.phone),
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
     stageId: new mongoose.Types.ObjectId(stageId),
     status: "open",
@@ -202,7 +203,8 @@ export const getLeadByPhone = async (
   phone: string,
 ): Promise<ILead | null> => {
   const { Lead } = await getCrmModels(clientCode);
-  return Lead.findOne({ clientCode, phone, isArchived: false })
+  const normalizedPhone = normalizePhone(phone);
+  return Lead.findOne({ clientCode, phone: normalizedPhone, isArchived: false })
     .populate(PIPELINE_POPULATE)
     .populate(STAGE_POPULATE)
     .lean({ virtuals: true }) as unknown as ILead;

@@ -15,8 +15,18 @@ import { AutomationRuleSchema } from "../../model/saas/crm/automationRule.model.
 import { LeadSchema } from "../../model/saas/crm/lead.model.ts";
 import { LeadActivitySchema } from "../../model/saas/crm/leadActivity.model.ts";
 import { LeadNoteSchema } from "../../model/saas/crm/leadNote.model.ts";
+import { NotificationSchema } from "../../model/saas/crm/notification.model.ts";
 import { PipelineSchema } from "../../model/saas/crm/pipeline.model.ts";
 import { PipelineStageSchema } from "../../model/saas/crm/pipelineStage.model.ts";
+import {
+  callbackLogSchema,
+  type ICallbackLog,
+} from "../../model/saas/event/callbackLog.model.ts";
+import {
+  eventLogSchema,
+  type IEventLog,
+} from "../../model/saas/event/eventLog.model.ts";
+import { MeetingSchema } from "../../model/saas/meet/meeting.model.ts";
 import { getTenantConnection } from "../connectionManager.ts";
 
 // ─── Model registry per connection ────────────────────────────────────────────
@@ -41,6 +51,10 @@ export interface CrmModels {
   LeadActivity: Model<ILeadActivity>;
   LeadNote: Model<ILeadNote>;
   AutomationRule: Model<IAutomationRule>;
+  Meeting: Model<IMeeting>;
+  Notification: Model<INotification>;
+  EventLog: Model<IEventLog>;
+  CallbackLog: Model<ICallbackLog>;
 }
 
 /**
@@ -68,6 +82,18 @@ export async function getCrmModels(clientCode: string): Promise<CrmModels> {
       conn,
       "AutomationRule",
       AutomationRuleSchema,
+    ),
+    Meeting: getOrCreate<IMeeting>(conn, "Meeting", MeetingSchema),
+    Notification: getOrCreate<INotification>(
+      conn,
+      "Notification",
+      NotificationSchema,
+    ),
+    EventLog: getOrCreate<IEventLog>(conn, "EventLog", eventLogSchema),
+    CallbackLog: getOrCreate<ICallbackLog>(
+      conn,
+      "CallbackLog",
+      callbackLogSchema,
     ),
   };
 }

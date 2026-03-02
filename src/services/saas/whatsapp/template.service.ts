@@ -1,12 +1,10 @@
 import axios from "axios";
-import { type Connection } from "mongoose";
+import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { getTenantModel } from "../../../lib/connectionManager.ts";
 import {
-  TemplateMappingIncompleteError,
   TemplateNotFoundError,
   TemplateSyncFailedError,
-  TemplateVariableEmptyError,
 } from "../../../lib/errors.ts";
 import { SchemaScanner } from "../../../lib/tenant/schemaScanner.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
@@ -31,33 +29,73 @@ export const extractEnrichedFields = (components: any[]) => {
   let headerText = "";
   let bodyText = "";
   let footerText = "";
+  const variables: any[] = [];
+  let nextPos = 1;
+
+  const extractFromText = (
+    text: string,
+    componentType: string,
+    compIndex?: number,
+  ) => {
+    const matches = text.match(/{{(\d+)}}/g) || [];
+    const uniqueIndices = [
+      ...new Set(matches.map((m) => parseInt(m.replace(/{{|}}/g, ""), 10))),
+    ].sort((a, b) => a - b);
+
+    uniqueIndices.forEach((idx) => {
+      variables.push({
+        position: nextPos++,
+        label: `${componentType.charAt(0) + componentType.slice(1).toLowerCase()} Variable ${idx}${compIndex !== undefined ? ` (Button ${compIndex + 1})` : ""}`,
+        componentType,
+        componentIndex: compIndex,
+        originalIndex: idx,
+      });
+    });
+  };
 
   const headerComp = components.find((c: any) => c.type === "HEADER");
   if (headerComp) {
     headerType = headerComp.format || "TEXT";
     headerText = headerComp.text || "";
+    if (headerText) extractFromText(headerText, "HEADER");
   }
 
   const bodyComp = components.find((c: any) => c.type === "BODY");
   if (bodyComp) {
     bodyText = bodyComp.text || "";
+    if (bodyText) extractFromText(bodyText, "BODY");
   }
 
   const footerComp = components.find((c: any) => c.type === "FOOTER");
   if (footerComp) {
     footerText = footerComp.text || "";
+    if (footerText) extractFromText(footerText, "FOOTER");
   }
 
-  const fullText = `${headerText} ${bodyText}`;
-  const variablePositions = extractVariablePositions(fullText);
+  const buttonsArr: any[] = [];
+  const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
+  if (buttonsComp && buttonsComp.buttons) {
+    buttonsComp.buttons.forEach((btn: any, idx: number) => {
+      buttonsArr.push({
+        type: btn.type,
+        text: btn.text,
+        url: btn.url,
+        phoneNumber: btn.phone_number,
+      });
+      if (btn.url) extractFromText(btn.url, "BUTTON", idx);
+      if (btn.text) extractFromText(btn.text, "BUTTON", idx);
+    });
+  }
 
   return {
     headerType,
     headerText,
     bodyText,
     footerText,
-    variablePositions,
-    variableCount: variablePositions.length,
+    buttons: buttonsArr,
+    variableMappingSkeleton: variables,
+    variablePositions: variables.map((v) => v.position),
+    variableCount: variables.length,
   };
 };
 
@@ -120,8 +158,13 @@ export const syncTemplatesFromMeta = async (
           headerText: enriched.headerText,
           footerText: enriched.footerText,
           headerType: enriched.headerType,
+          buttons: (enriched as any).buttons,
           variablesCount: enriched.variableCount,
           variablePositions: enriched.variablePositions,
+          // Only initialize mapping if it's new or outdated
+          ...(mappingStatus === "unmapped" || mappingStatus === "outdated"
+            ? { variableMapping: (enriched as any).variableMappingSkeleton }
+            : {}),
           components: t.components,
           mappingStatus,
           lastSyncedAt: new Date(),
@@ -163,6 +206,13 @@ export const saveVariableMapping = async (
     const mapping = mappings.find((m) => m.position === pos);
     if (!mapping) continue; // Will be caught by completeness check if required
 
+    const validSources = ["crm", "static", "computed", "system", "manual"];
+    if (!mapping.source || !validSources.includes(mapping.source)) {
+      throw new Error(
+        `Invalid or missing source type for variable at position ${pos}`,
+      );
+    }
+
     if (mapping.source === "crm" && !mapping.field) {
       throw new Error(`Field is required for CRM source at position ${pos}`);
     }
@@ -193,93 +243,178 @@ export const saveVariableMapping = async (
   return template;
 };
 
-export const resolveTemplateVariables = async (
+/**
+ * ─── Unified & Recursive Template Resolver ────────────────────────────────────
+ * The single source of truth for resolving any WhatsApp template.
+ */
+export const resolveUnifiedWhatsAppTemplate = async (
   tenantDb: Connection,
   templateName: string,
-  contextData: any,
-): Promise<string[]> => {
+  lead: any,
+  eventVariables?: Record<string, any>,
+): Promise<{
+  resolvedVariables: string[];
+  languageCode: string;
+  isReady: boolean;
+  contextSnapshot: any;
+  template: ITemplate;
+}> => {
   const Template = getTenantModel<ITemplate>(
     tenantDb,
     "Template",
     schemas.templates,
   );
   const template = await Template.findOne({ name: templateName });
-
   if (!template) throw new TemplateNotFoundError(templateName);
-  // Allow partial for now if only some variables are used? No, requirement says validate complete
-  if (template.mappingStatus !== "complete" && template.variablesCount! > 0) {
-    throw new TemplateMappingIncompleteError(
-      templateName,
-      template.variablePositions.filter(
-        (pos) => !template.variableMapping.find((m) => m.position === pos),
-      ),
-    );
-  }
 
-  const resolved: string[] = [];
-  const manualOverrides = contextData._manualOverrides || {};
+  // 1. Initial Context
+  const context: any = {
+    lead,
+    event: eventVariables || {},
+    vars: eventVariables || {},
+    resolved: {
+      today: new Date().toLocaleDateString("en-IN"),
+      now: new Date().toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      ...(eventVariables || {}),
+    },
+  };
 
-  // Sort mappings by position to ensure correct order in returned array
+  // 2. Multi-Pass Recursive Discovery
+  const requiredCollections = [
+    ...new Set(
+      template.variableMapping
+        .filter(
+          (m) => m.source === "crm" && m.collection && m.collection !== "leads",
+        )
+        .map((m) => m.collection!),
+    ),
+  ];
+
+  const getRefId = (collName: string) => {
+    const singular = collName.endsWith("ies")
+      ? collName.replace(/ies$/, "y")
+      : collName.replace(/s$/, "");
+    return `${singular}Id`;
+  };
+
+  const fetchedIds = new Set<string>();
+
+  const discover = async (maxPasses = 3) => {
+    for (let pass = 0; pass < maxPasses; pass++) {
+      let newlyFound = false;
+
+      for (const collName of requiredCollections) {
+        if (context[collName]) continue;
+
+        const refKey = getRefId(collName);
+        let targetId: any = eventVariables?.[refKey];
+
+        if (!targetId && lead?.metadata?.refs)
+          targetId = lead.metadata.refs[refKey];
+
+        // Search through existing context documents for references
+        if (!targetId) {
+          for (const doc of Object.values(context)) {
+            if (doc && typeof doc === "object" && (doc as any)[refKey]) {
+              targetId = (doc as any)[refKey];
+              break;
+            }
+          }
+        }
+
+        if (targetId && !fetchedIds.has(targetId.toString())) {
+          try {
+            const doc = await tenantDb.collection(collName).findOne({
+              _id: new mongoose.Types.ObjectId(targetId.toString()),
+            });
+            if (doc) {
+              context[collName] = doc;
+              fetchedIds.add(targetId.toString());
+              newlyFound = true;
+            }
+          } catch (e) {
+            // Skip invalid IDs
+          }
+        }
+      }
+      if (!newlyFound) break;
+    }
+  };
+
+  await discover();
+
+  // 3. Resolve Variables
+  const resolvedVariables: string[] = [];
   const sortedMappings = [...template.variableMapping].sort(
     (a, b) => a.position - b.position,
   );
 
   for (const mapping of sortedMappings) {
     let value: any = null;
+    const mappingType = (mapping as any).type || mapping.source;
 
-    if (manualOverrides[mapping.position]) {
-      value = manualOverrides[mapping.position];
-    } else {
-      const mappingType = (mapping as any).type || mapping.source; // Backward compatibility
-
-      switch (mappingType) {
-        case "dynamic":
-        case "crm": {
-          const collection = mapping.source || "leads";
-          const entityData = contextData[collection] || contextData; // Fallback to root context if collection not found
-          value = getDeep(entityData, mapping.field!);
-          break;
-        }
-        case "static":
-          value = mapping.staticValue;
-          break;
-        case "system":
-          if (mapping.field === "system.currentDate") {
-            value = new Intl.DateTimeFormat("en-IN").format(new Date());
-          } else if (mapping.field === "system.currentTime") {
-            value = new Date().toLocaleTimeString("en-IN", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-          } else if (mapping.field === "system.uniqueId") {
-            value = uuidv4().split("-")[0];
-          }
-          break;
-        case "computed":
-          if (mapping.formula) {
-            value = evaluateFormula(mapping.formula, contextData);
-          }
-          break;
-        case "manual":
-          value = null;
-          break;
+    switch (mappingType) {
+      case "crm":
+      case "dynamic": {
+        const coll = mapping.collection || "leads";
+        const data = context[coll] || (coll === "leads" ? lead : null);
+        value = data ? getDeep(data, mapping.field!) : null;
+        break;
       }
+      case "static":
+        value = mapping.staticValue;
+        break;
+      case "system":
+        if (mapping.field === "system.currentDate")
+          value = context.resolved.today;
+        else if (mapping.field === "system.currentTime")
+          value = context.resolved.now;
+        else if (mapping.field === "system.uniqueId")
+          value = uuidv4().split("-")[0];
+        break;
+      case "computed":
+        if (mapping.formula) value = evaluateFormula(mapping.formula, context);
+        break;
     }
 
-    if (value === null || value === undefined || value === "") {
-      value = mapping.fallback || "";
+    if (value instanceof Date) {
+      value = value.toLocaleDateString("en-IN", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     }
 
-    if (value === "" && mapping.required) {
-      if (template.onEmptyVariable === "skip_send") {
-        throw new TemplateVariableEmptyError(mapping.position, mapping.field);
-      }
+    value =
+      value === null || value === undefined || value === ""
+        ? mapping.fallback || ""
+        : value;
+
+    // Strictness check
+    const strVal = String(value);
+    if (strVal.includes("{{") || strVal.includes("vars.")) {
+      // If it's still a raw placeholder and required, we might want to fail, but let's be lenient if fallback exists
     }
 
-    resolved.push(String(value));
+    resolvedVariables.push(strVal);
   }
 
-  return resolved;
+  // 4. Missing Check
+  const missing = template.variablePositions.filter(
+    (pos) => !template.variableMapping.find((m) => m.position === pos),
+  );
+
+  return {
+    resolvedVariables,
+    languageCode: template.language || "en_US",
+    isReady: missing.length === 0,
+    contextSnapshot: context,
+    template,
+  };
 };
 
 const evaluateFormula = (formula: string, context: any): string => {
@@ -323,45 +458,14 @@ const evaluateFormula = (formula: string, context: any): string => {
   }
 };
 
-export const validateMappingCompleteness = async (
-  tenantDb: Connection,
-  templateName: string,
-) => {
-  const Template = getTenantModel<ITemplate>(
-    tenantDb,
-    "Template",
-    schemas.templates,
-  );
-  const template = await Template.findOne({ name: templateName });
-
-  if (!template) throw new TemplateNotFoundError(templateName);
-
-  const missingPositions = template.variablePositions.filter(
-    (pos) => !template.variableMapping.find((m) => m.position === pos),
-  );
-
-  return {
-    isReady: missingPositions.length === 0,
-    missingPositions,
-    mappingStatus: template.mappingStatus,
-  };
-};
-
-export const detectOutdatedMappings = async (tenantDb: Connection) => {
-  const Template = getTenantModel<ITemplate>(
-    tenantDb,
-    "Template",
-    schemas.templates,
-  );
-  const outdated = await Template.find({ mappingStatus: "outdated" });
-
-  return outdated.map((t) => ({
-    templateName: t.name,
-    variablesCount: t.variablesCount,
-    lastSyncedAt: t.lastSyncedAt,
-  }));
-};
-
+/**
+ *
+ * @param tenantDb
+ * @param whatsappToken
+ * @param businessAccountId
+ * @param templateData
+ * @returns {Object} - { template: ITemplate }
+ */
 export const createTemplate = async (
   tenantDb: Connection,
   whatsappToken: string | null,
@@ -438,12 +542,8 @@ export const getTenantCollections = async (
 ) => {
   console.log(`[getTenantCollections] Discovering for ${clientCode}`);
   const dbCollections = (await tenantDb.db?.listCollections().toArray()) || [];
-  const projectCollections =
-    await SchemaScanner.listProjectCollections(clientCode);
 
-  const allCollectionNames = Array.from(
-    new Set([...dbCollections.map((c) => c.name), ...projectCollections]),
-  ).sort();
+  const allCollectionNames = dbCollections.map((c) => c.name).sort();
 
   const skipCollections = [
     "system.indexes",
@@ -452,6 +552,17 @@ export const getTenantCollections = async (
     "users",
     "sessions",
     "counters",
+    "eventlogs",
+    "activities",
+    "notifications",
+    "chats",
+    "messages",
+    "groups",
+    "pipelines",
+    "pipelinestages",
+    "automationrules",
+    "sequencerenrollments",
+    "scoringconfigs",
   ];
 
   return allCollectionNames
