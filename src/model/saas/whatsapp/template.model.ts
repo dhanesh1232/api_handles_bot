@@ -1,59 +1,5 @@
 import mongoose, { type Document } from "mongoose";
 
-export interface ITemplateButton {
-  type: "URL" | "PHONE_NUMBER" | "QUICK_REPLY";
-  text?: string;
-  url?: string;
-  phoneNumber?: string;
-}
-
-export interface IVariableMapping {
-  position: number;
-  label: string;
-  source: "crm" | "static" | "computed" | "system" | "manual" | "dynamic";
-  collection?: string;
-  field?: string;
-  staticValue?: string;
-  formula?: string;
-  fallback?: string;
-  required?: boolean;
-
-  // Component awareness
-  componentType?: "HEADER" | "BODY" | "FOOTER" | "BUTTON";
-  componentIndex?: number; // Only for buttons
-  originalIndex?: number; // The {{n}} inside that component
-}
-
-export interface ITemplate extends Document {
-  name: string;
-  language: string;
-  channel: "whatsapp" | "email";
-  status: string;
-  headerType?: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" | "TEXT";
-  bodyText: string;
-  subject?: string;
-  attachments?: string[];
-  variablesCount?: number;
-  footerText?: string;
-  buttons?: ITemplateButton[];
-  components?: any[];
-
-  // New Fields for Template Configuration
-  templateId?: string;
-  category?: TemplateCategory;
-  headerText?: string;
-  variablePositions: number[];
-  variableMapping: IVariableMapping[];
-  onEmptyVariable: OnEmptyVariable;
-  mappingStatus: MappingStatus;
-  lastSyncedAt?: Date;
-  lastMappingUpdatedAt?: Date;
-  isActive: boolean;
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 const VariableMappingSchema = new mongoose.Schema(
   {
     position: { type: Number, required: true },

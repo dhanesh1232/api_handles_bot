@@ -9,8 +9,6 @@ import {
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
-import type { IMessage } from "../../../model/saas/whatsapp/message.model.ts";
 import { optimizeAndUploadMedia } from "../../../services/saas/media/media.service.ts";
 import { createWhatsappService } from "../../../services/saas/whatsapp/whatsapp.service.ts";
 
@@ -488,7 +486,7 @@ export const createChatRouter = (io: Server) => {
       try {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
-        const {
+        let {
           name,
           templateName,
           templateLanguage = "en_US",
@@ -508,7 +506,7 @@ export const createChatRouter = (io: Server) => {
           "Broadcast",
           schemas.broadcasts,
         );
-        const TemplateModel = getTenantModel(
+        const TemplateModel = getTenantModel<ITemplate>(
           conn,
           "Template",
           schemas.templates,

@@ -12,7 +12,7 @@ import {
 } from "../../../lib/connectionManager.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { ConversationSchema } from "../../../model/saas/tenant.schemas.ts";
-import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
+
 import { normalizePhone } from "../../../utils/phone.ts";
 import { logActivity } from "./activity.service.ts";
 

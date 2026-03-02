@@ -8,7 +8,6 @@ import {
 } from "../../../lib/errors.ts";
 import { SchemaScanner } from "../../../lib/tenant/schemaScanner.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
 /**
@@ -225,7 +224,7 @@ export const saveVariableMapping = async (
 
   // Calculate status
   const mappedPositions = mappings.map((m) => m.position);
-  const allPositionsMapped = template.variablePositions.every((pos) =>
+  const allPositionsMapped = template.variablePositions.every((pos: number) =>
     mappedPositions.includes(pos),
   );
   const mappingStatus: MappingStatus = allPositionsMapped
@@ -287,9 +286,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
     ...new Set(
       template.variableMapping
         .filter(
-          (m) => m.source === "crm" && m.collection && m.collection !== "leads",
+          (m: IVariableMapping) =>
+            m.source === "crm" && m.collection && m.collection !== "leads",
         )
-        .map((m) => m.collection!),
+        .map((m: IVariableMapping) => m.collection!),
     ),
   ];
 
@@ -306,7 +306,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
     for (let pass = 0; pass < maxPasses; pass++) {
       let newlyFound = false;
 
-      for (const collName of requiredCollections) {
+      for (const collName of requiredCollections as string[]) {
         if (context[collName]) continue;
 
         const refKey = getRefId(collName);
@@ -405,7 +405,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
 
   // 4. Missing Check
   const missing = template.variablePositions.filter(
-    (pos) => !template.variableMapping.find((m) => m.position === pos),
+    (pos: number) =>
+      !template.variableMapping.find(
+        (m: IVariableMapping) => m.position === pos,
+      ),
   );
 
   return {

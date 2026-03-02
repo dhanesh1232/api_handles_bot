@@ -1,30 +1,5 @@
 import mongoose, { type Document } from "mongoose";
 
-export interface IConversation extends Document {
-  leadId?: mongoose.Types.ObjectId;
-  channel: "whatsapp";
-  phone: string;
-  userName?: string;
-  profilePicture?: string;
-  lastMessage?: string;
-  lastMessageId?: mongoose.Types.ObjectId;
-  lastMessageStatus?: string;
-  lastMessageSender: "admin" | "user";
-  lastMessageType:
-    | "text"
-    | "image"
-    | "document"
-    | "template"
-    | "video"
-    | "audio";
-  lastMessageAt?: Date;
-  unreadCount: number;
-  status: "open" | "closed";
-  lastUserMessageAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export const ConversationSchema = new mongoose.Schema<IConversation>(
   {
     leadId: {

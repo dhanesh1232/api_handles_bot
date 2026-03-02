@@ -10,12 +10,7 @@ import {
 } from "../../../lib/connectionManager.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import type { IConversation } from "../../../model/saas/whatsapp/conversation.model.ts";
-import type {
-  IMessage,
-  IMessageTemplateData,
-} from "../../../model/saas/whatsapp/message.model.ts";
-import type { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
+
 import { normalizePhone } from "../../../utils/phone.ts";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
@@ -509,7 +504,7 @@ export const createWhatsappService = (io: Server | null) => {
           const { resolveUnifiedWhatsAppTemplate } =
             await import("./template.service.ts");
           const { getCrmModels } =
-            await import("../../lib/tenant/get.crm.model.ts");
+            await import("../../../lib/tenant/get.crm.model.ts");
           const { Lead } = await getCrmModels(clientCode);
 
           // We try to find a lead if context has an ID but not the object
@@ -928,9 +923,9 @@ export const createWhatsappService = (io: Server | null) => {
       if (!Array.isArray(message.reactions)) {
         message.reactions = [];
       }
-      const senderReactionIndex = message.reactions.findIndex(
-        (r) => r.reactBy === "admin",
-      );
+      const senderReactionIndex = (
+        message.reactions as IMessageReaction[]
+      ).findIndex((r) => r.reactBy === "admin");
       if (!emoji) {
         if (senderReactionIndex !== -1)
           message.reactions.splice(senderReactionIndex, 1);

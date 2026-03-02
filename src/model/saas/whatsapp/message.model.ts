@@ -1,46 +1,5 @@
 import mongoose, { type Document } from "mongoose";
 
-export interface IMessageReaction {
-  emoji: string;
-  reactBy: string; // 'admin' or contact phone
-}
-
-export interface IMessageTemplateData {
-  name: string;
-  language: string;
-  headerType?: string;
-  footer?: string;
-  buttons?: any;
-  variables?: string[];
-}
-
-export interface IMessageStatusHistory {
-  status: string;
-  timestamp: Date;
-}
-
-export interface IMessage extends Document {
-  conversationId: mongoose.Types.ObjectId;
-  direction: "inbound" | "outbound";
-  messageType: "text" | "image" | "document" | "template" | "video" | "audio";
-  text?: string;
-  mediaUrl?: string;
-  mediaType?: string;
-  caption?: string;
-  whatsappMessageId?: string;
-  sentBy: string; // 'admin', user_id, or system
-  status: "queued" | "sent" | "delivered" | "read" | "failed";
-  error?: string;
-  isStarred: boolean;
-  replyTo?: mongoose.Types.ObjectId;
-  replyToWhatsappId?: string;
-  reactions: IMessageReaction[];
-  statusHistory: IMessageStatusHistory[];
-  templateData?: IMessageTemplateData;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export const MessageSchema = new mongoose.Schema<IMessage>(
   {
     conversationId: {

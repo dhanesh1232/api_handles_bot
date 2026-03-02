@@ -7,7 +7,7 @@ import {
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import { ITemplate } from "../../../model/saas/whatsapp/template.model.ts";
+
 import {
   createTemplate,
   getCollectionFields,

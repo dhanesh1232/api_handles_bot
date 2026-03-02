@@ -1,6 +1,143 @@
 import type mongoose from "mongoose";
 
 declare global {
+  interface IConversation extends mongoose.Document {
+    leadId?: mongoose.Types.ObjectId;
+    channel: "whatsapp";
+    phone: string;
+    userName?: string;
+    profilePicture?: string;
+    lastMessage?: string;
+    lastMessageId?: mongoose.Types.ObjectId;
+    lastMessageStatus?: string;
+    lastMessageSender: "admin" | "user";
+    lastMessageType:
+      | "text"
+      | "image"
+      | "document"
+      | "template"
+      | "video"
+      | "audio";
+    lastMessageAt?: Date;
+    unreadCount: number;
+    status: "open" | "closed";
+    lastUserMessageAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface IMessageReaction {
+    emoji: string;
+    reactBy: string; // 'admin' or contact phone
+  }
+
+  interface IMessageTemplateData {
+    name: string;
+    language: string;
+    headerType?: string;
+    footer?: string;
+    buttons?: any;
+    variables?: string[];
+  }
+
+  interface IMessageStatusHistory {
+    status: string;
+    timestamp: Date;
+  }
+
+  interface IMessage extends mongoose.Document {
+    conversationId: mongoose.Types.ObjectId;
+    direction: "inbound" | "outbound";
+    messageType: "text" | "image" | "document" | "template" | "video" | "audio";
+    text?: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    caption?: string;
+    whatsappMessageId?: string;
+    sentBy: string; // 'admin', user_id, or system
+    status: "queued" | "sent" | "delivered" | "read" | "failed";
+    error?: string;
+    isStarred: boolean;
+    replyTo?: mongoose.Types.ObjectId;
+    replyToWhatsappId?: string;
+    reactions: IMessageReaction[];
+    statusHistory: IMessageStatusHistory[];
+    templateData?: IMessageTemplateData;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface ITemplateButton {
+    type: "URL" | "PHONE_NUMBER" | "QUICK_REPLY";
+    text?: string;
+    url?: string;
+    phoneNumber?: string;
+  }
+
+  export type MappingSource =
+    | "crm"
+    | "static"
+    | "computed"
+    | "system"
+    | "manual"
+    | "dynamic";
+  export type OnEmptyVariable = "skip_send" | "use_fallback" | "send_anyway";
+  export type MappingStatus = "unmapped" | "partial" | "complete" | "outdated";
+  export type TemplateStatus =
+    | "APPROVED"
+    | "REJECTED"
+    | "PENDING"
+    | "PAUSED"
+    | "DISABLED";
+  export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
+
+  interface IVariableMapping {
+    position: number;
+    label: string;
+    source: MappingSource;
+    collection?: string;
+    field?: string;
+    staticValue?: string;
+    formula?: string;
+    fallback?: string;
+    required?: boolean;
+
+    // Component awareness
+    componentType?: "HEADER" | "BODY" | "FOOTER" | "BUTTON";
+    componentIndex?: number; // Only for buttons
+    originalIndex?: number; // The {{n}} inside that component
+  }
+
+  interface ITemplate extends mongoose.Document {
+    name: string;
+    language: string;
+    channel: "whatsapp" | "email";
+    status: string;
+    headerType?: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" | "TEXT";
+    bodyText: string;
+    subject?: string;
+    attachments?: string[];
+    variablesCount?: number;
+    footerText?: string;
+    buttons?: ITemplateButton[];
+    components?: any[];
+
+    // New Fields for Template Configuration
+    templateId?: string;
+    category?: TemplateCategory;
+    headerText?: string;
+    variablePositions: number[];
+    variableMapping: IVariableMapping[];
+    onEmptyVariable: OnEmptyVariable;
+    mappingStatus: MappingStatus;
+    lastSyncedAt?: Date;
+    lastMappingUpdatedAt?: Date;
+    isActive: boolean;
+
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
   type LeadSource =
     | "website"
     | "whatsapp"
@@ -259,34 +396,6 @@ declare global {
     createdAt: Date;
     updatedAt: Date;
   }
-  export type MappingSource =
-    | "crm"
-    | "static"
-    | "computed"
-    | "system"
-    | "manual";
-  export type OnEmptyVariable = "skip_send" | "use_fallback" | "send_anyway";
-  export type MappingStatus = "unmapped" | "partial" | "complete" | "outdated";
-  export type TemplateStatus =
-    | "APPROVED"
-    | "REJECTED"
-    | "PENDING"
-    | "PAUSED"
-    | "DISABLED";
-  export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
-
-  export interface IVariableMapping {
-    position: number;
-    label: string;
-    source: MappingSource;
-    collection?: string;
-    field?: string;
-    staticValue?: string;
-    formula?: string;
-    fallback?: string;
-    required?: boolean;
-  }
-
   export interface ITemplateConfigFields {
     templateId?: string;
     category?: TemplateCategory;

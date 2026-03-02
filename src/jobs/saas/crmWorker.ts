@@ -19,7 +19,7 @@ import { MongoQueue } from "../../lib/mongoQueue/index.ts";
 import { MongoWorker } from "../../lib/mongoQueue/worker.ts";
 import type { IJob } from "../../model/queue/job.model.ts";
 import type { IBroadcast } from "../../model/saas/whatsapp/broadcast.model.ts";
-import type { IConversation } from "../../model/saas/whatsapp/conversation.model.ts";
+
 import { normalizePhone } from "../../utils/phone.ts";
 
 // ─── Exported queue singleton ─────────────────────────────────────────────────
