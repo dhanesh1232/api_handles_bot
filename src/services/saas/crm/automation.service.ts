@@ -95,10 +95,21 @@ export const scheduleMeetingReminders = async (
     meet_link: meeting.meetLink || "",
     meet_code: meetCode,
     start_time: meeting.startTime.toISOString(),
+    date: meeting.startTime.toLocaleDateString("en-IN", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: meeting.startTime.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }),
     patient_name: meeting.patientName,
     doctor_name: meeting.doctorId || "Doctor",
     consultation_type: meeting.consultationType,
-    amount: meeting.amount?.toString() || "0",
+    amount: (meeting.amount / 100)?.toString() || "0", // Convert paise/cents to major unit
   };
 
   for (const rule of rules) {
