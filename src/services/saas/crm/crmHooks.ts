@@ -147,6 +147,9 @@ export const onMeetingCreated = async (
     startTime?: Date;
     appointmentId?: string;
     performedBy?: string;
+    participantName?: string;
+    meetingMode?: string;
+    amount?: number;
   },
 ): Promise<void> => {
   try {
@@ -157,7 +160,7 @@ export const onMeetingCreated = async (
     await logActivity(clientCode, {
       leadId: lead._id.toString(),
       type: "meeting_created",
-      title: `Google Meet: ${input.title ?? "Meeting scheduled"}`,
+      title: `Meeting: ${input.title ?? "Meeting scheduled"}`,
       body: input.meetLink,
       metadata: {
         meetLink: input.meetLink,
@@ -200,6 +203,10 @@ export const onMeetingCreated = async (
             meetCode: input.meetCode,
             status: "scheduled",
             timestamp: new Date().toISOString(),
+            participant_phone: input.phone, // Added
+            participant_name: input.participantName, // Added
+            meeting_mode: input.meetingMode, // Added
+            amount: input.amount, // Added
           },
         }).catch((err) =>
           console.error(`[crmHooks] Meeting callback failed: ${err.message}`),
@@ -286,7 +293,7 @@ export const onPaymentCaptured = async (
       if (input.appointmentId) {
         const { Meeting } = await getCrmModels(clientCode);
         await Meeting.updateOne(
-          { appointmentId: input.appointmentId, clientCode },
+          { "metadata.refs.appointmentId": input.appointmentId, clientCode },
           { $set: { paymentStatus: "paid" } },
         );
       }

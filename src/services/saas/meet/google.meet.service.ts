@@ -74,8 +74,8 @@ export const createGoogleMeetService = () => {
       } = meetingDetails;
 
       const event = {
-        summary: summary || "Business Consultation",
-        description: description || "Scheduled via ECODrIx Bot",
+        summary: summary || "Meeting",
+        description: description || "Scheduled via ECODrIx",
         start: {
           dateTime: start || new Date().toISOString(),
           timeZone: "UTC",

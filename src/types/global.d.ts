@@ -63,6 +63,7 @@ declare global {
     reactions: IMessageReaction[];
     statusHistory: IMessageStatusHistory[];
     templateData?: IMessageTemplateData;
+    metadata?: Record<string, any>;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -148,9 +149,9 @@ declare global {
     | "phone"
     | "email"
     | "walk_in"
-    | "doctor"
     | "product"
     | "service"
+    | "doctor"
     | "webhook"
     | "manual"
     | "other";
@@ -421,16 +422,14 @@ declare global {
   }
   interface IMeeting extends mongoose.Document {
     clientCode: string;
-    appointmentId?: mongoose.Types.ObjectId | null;
     leadId: mongoose.Types.ObjectId;
-    doctorId?: string | null;
-    patientName: string;
-    patientPhone: string;
-    patientEmail?: string | null;
+    participantName: string;
+    participantPhone: string;
+    participantEmails: string[];
     startTime: Date;
     endTime: Date;
     duration: number;
-    consultationType: "online" | "offline";
+    meetingMode: "online" | "offline";
     meetLink?: string | null;
     meetCode?: string | null;
     eventId?: string | null;
@@ -446,6 +445,10 @@ declare global {
       error?: string;
       sentAt?: Date;
     }[];
+    metadata: {
+      refs: Record<string, mongoose.Types.ObjectId | string | null>;
+      extra: Record<string, any>;
+    };
     createdAt: Date;
     updatedAt: Date;
   }

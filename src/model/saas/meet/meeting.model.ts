@@ -7,34 +7,24 @@ const meetingSchema: Schema<IMeeting> = new mongoose.Schema(
       required: true,
       index: true,
     },
-    appointmentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
     leadId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
     },
-    doctorId: {
-      type: String, // Can be ObjectId or string ID from client
-      default: null,
-    },
-    patientName: {
+    participantName: {
       type: String,
       required: true,
       trim: true,
     },
-    patientPhone: {
+    participantPhone: {
       type: String,
       required: true,
       trim: true,
     },
-    patientEmail: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: null,
+    participantEmails: {
+      type: [String],
+      default: [],
     },
     startTime: {
       type: Date,
@@ -48,7 +38,7 @@ const meetingSchema: Schema<IMeeting> = new mongoose.Schema(
       type: Number, // minutes
       required: true,
     },
-    consultationType: {
+    meetingMode: {
       type: String,
       enum: ["online", "offline"],
       default: "online",
@@ -102,13 +92,27 @@ const meetingSchema: Schema<IMeeting> = new mongoose.Schema(
         sentAt: { type: Date, default: null },
       },
     ],
+    metadata: {
+      refs: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        default: () => ({}),
+      },
+      extra: {
+        type: mongoose.Schema.Types.Mixed,
+        default: () => ({}),
+      },
+    },
   },
   { timestamps: true },
 );
 
 // Indexes
 meetingSchema.index({ clientCode: 1, leadId: 1 });
-meetingSchema.index({ clientCode: 1, appointmentId: 1 });
+meetingSchema.index(
+  { clientCode: 1, "metadata.refs.appointmentId": 1 },
+  { sparse: true },
+);
 meetingSchema.index({ clientCode: 1, startTime: 1 });
 
 export { meetingSchema as MeetingSchema };

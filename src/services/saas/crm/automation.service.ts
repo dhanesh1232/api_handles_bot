@@ -102,13 +102,10 @@ export const scheduleMeetingReminders = async (
       year: "numeric",
     }),
     time: meeting.startTime.toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
       hour12: true,
     }),
-    patient_name: meeting.patientName,
-    doctor_name: meeting.doctorId || "Doctor",
-    consultation_type: meeting.consultationType,
+    participant_name: meeting.participantName,
+    meeting_mode: meeting.meetingMode,
     amount: (meeting.amount / 100)?.toString() || "0", // Convert paise/cents to major unit
   };
 
@@ -190,16 +187,15 @@ export const scheduleMeetingReminders = async (
       );
 
       // Track in meeting model
-      if ((meeting as any).reminders) {
-        (meeting as any).reminders.push({
-          actionId:
-            (action as any)._id?.toString() ||
-            new mongoose.Types.ObjectId().toString(),
-          type: action.type,
-          fireTime,
-          status: "pending",
-        });
-      }
+      if (!(meeting as any).reminders) (meeting as any).reminders = [];
+      (meeting as any).reminders.push({
+        actionId:
+          (action as any)._id?.toString() ||
+          new mongoose.Types.ObjectId().toString(),
+        type: action.type,
+        fireTime,
+        status: "pending",
+      });
 
       console.log(
         `[automationService] Scheduled ${action.type} reminder for meeting ${meeting._id} at ${fireTime.toISOString()} (Type: ${action.delayType || "legacy/before"}, Offset: ${offsetMinutes}m)`,
@@ -216,7 +212,6 @@ export const scheduleMeetingReminders = async (
 };
 
 // ─── Execute a single rule ────────────────────────────────────────────────────
-
 const executeRule = async (
   clientCode: string,
   rule: IAutomationRule,

@@ -398,6 +398,8 @@ export const createWhatsappService = (io: Server | null) => {
 
       const currentPriority = STATUS_PRIORITY[message.status] || 0;
       const newPriority = STATUS_PRIORITY[status] || 0;
+
+      // GUARD: Only update if the new status has higher priority (e.g., don't let 'failed' override 'delivered')
       if (newPriority > currentPriority) {
         message.status = status;
 
@@ -410,10 +412,39 @@ export const createWhatsappService = (io: Server | null) => {
 
         message.statusHistory.push({ status, timestamp: new Date() });
         await message.save();
+
+        // 🎉 Also update Meeting reminders if linked
+        if (message.metadata?.meetingId && message.metadata?.actionId) {
+          const { getCrmModels } =
+            await import("../../../lib/tenant/get.crm.model.ts");
+          const { Meeting } = await getCrmModels(clientCode);
+          // Only update if current status in meeting is lower priority
+          const meeting = await Meeting.findById(message.metadata.meetingId);
+          if (meeting && meeting.reminders) {
+            const reminderIndex = meeting.reminders.findIndex(
+              (r: any) => r.actionId === message.metadata?.actionId,
+            );
+            if (reminderIndex !== -1) {
+              const currentRemStatus =
+                meeting.reminders[reminderIndex].status || "pending";
+              const currentRemPriority = STATUS_PRIORITY[currentRemStatus] || 0;
+
+              if (newPriority > currentRemPriority) {
+                meeting.reminders[reminderIndex].status = status as any;
+                if (status === "failed") {
+                  meeting.reminders[reminderIndex].error = message.error;
+                } else {
+                  meeting.reminders[reminderIndex].error = undefined;
+                }
+                await meeting.save();
+              }
+            }
+          }
+        }
       } else {
         if (status !== message.status) {
           console.log(
-            `[${clientCode}] Status Update Ignored (Out of Order): Current: ${message.status}, Incoming: ${status} for ${id}`,
+            `[${clientCode}] Status Update Ignored (Priority Protection): Current: ${message.status}, Incoming: ${status} for ${id}`,
           );
         }
         return;
@@ -433,7 +464,7 @@ export const createWhatsappService = (io: Server | null) => {
         }
       }
 
-      // Emit
+      // Emit Status Update
       if (io) {
         io.to(clientCode).emit("message_status_update", {
           messageId: message._id,
@@ -441,6 +472,7 @@ export const createWhatsappService = (io: Server | null) => {
           status,
           statusHistory: message.statusHistory,
           whatsappMessageId: id,
+          meetingId: message.metadata?.meetingId, // Include for frontend sync if needed
         });
 
         // Also emit conversation update if it changed
@@ -470,7 +502,7 @@ export const createWhatsappService = (io: Server | null) => {
     templateLanguage: string = "en_US",
     variables: string[] = [],
     replyToId: string | null = null,
-    context?: any,
+    metadata?: Record<string, any>,
   ) => {
     const { secrets, Conversation, Message, Template, tenantConn } =
       await getContext(clientCode);
@@ -499,7 +531,7 @@ export const createWhatsappService = (io: Server | null) => {
       let tmpl = null;
 
       // Unified resolution attempt if it's a template
-      if (context || !variables || variables.length === 0) {
+      if (metadata || !variables || variables.length === 0) {
         try {
           const { resolveUnifiedWhatsAppTemplate } =
             await import("./template.service.ts");
@@ -507,16 +539,16 @@ export const createWhatsappService = (io: Server | null) => {
             await import("../../../lib/tenant/get.crm.model.ts");
           const { Lead } = await getCrmModels(clientCode);
 
-          // We try to find a lead if context has an ID but not the object
+          // We try to find a lead if metadata has an ID but not the object
           const rootLead =
-            context?.lead ||
-            (context?.leadId ? await Lead.findById(context.leadId) : {});
+            metadata?.lead ||
+            (metadata?.leadId ? await Lead.findById(metadata.leadId) : {});
 
           const resolution = await resolveUnifiedWhatsAppTemplate(
             tenantConn,
             templateName,
             rootLead || {},
-            context?.vars || context?.event || context || {},
+            metadata?.vars || metadata?.event || metadata || {},
           );
           variables = resolution.resolvedVariables;
           templateLanguage = resolution.languageCode;
@@ -572,6 +604,7 @@ export const createWhatsappService = (io: Server | null) => {
       mediaType,
       caption: resolvedText,
       templateData,
+      metadata,
       status: "queued",
       statusHistory: [{ status: "queued", timestamp: new Date() }],
     };

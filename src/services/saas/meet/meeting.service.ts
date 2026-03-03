@@ -6,20 +6,24 @@ export interface CreateMeetingInput {
   leadId: string;
   appointmentId?: string;
   doctorId?: string;
-  patientName: string;
-  patientPhone: string;
-  patientEmail?: string;
+  participantName: string;
+  participantPhone: string;
+  participantEmails?: string[];
   startTime: string | Date;
   endTime: string | Date;
   duration: number;
-  consultationType: "online" | "offline";
+  meetingMode: "online" | "offline";
   type: "free" | "paid";
-  amount: number;
+  amount?: number;
+  metadata?: {
+    refs?: Record<string, string | undefined>;
+    extra?: Record<string, any>;
+  };
 }
 
 /**
- * Meeting Service
- * Handles meeting lifecycle and Google Meet integration.
+ * Backend service for managing meetings and consultations.
+ * Added test comment.
  */
 
 export const createMeeting = async (
@@ -31,43 +35,46 @@ export const createMeeting = async (
   const startTime = new Date(input.startTime);
   const endTime = new Date(input.endTime);
 
+  const emails = input.participantEmails || [];
+
   // 1. Create Google Meet link (only for online meetings)
   let meetResponse: {
     success: boolean;
     hangoutLink: string | null;
     eventId: string | null;
   } = { success: false, hangoutLink: null, eventId: null };
-  if (input.consultationType === "online") {
-    const googleMeetService = createGoogleMeetService();
-    const response = await googleMeetService.createMeeting(clientCode, {
-      summary: `Consultation: ${input.patientName}`,
-      description: `Scheduled via ECODrIx. Type: ${input.type}`,
-      start: startTime.toISOString(),
-      end: endTime.toISOString(),
-      attendees: input.patientEmail ? [input.patientEmail] : [],
-    });
-    meetResponse = {
-      success: response.success,
-      hangoutLink: (response.hangoutLink as any) || null,
-      eventId: (response.eventId as any) || null,
-    };
+
+  if (input.meetingMode === "online") {
+    try {
+      const googleMeetService = createGoogleMeetService();
+      const response = await googleMeetService.createMeeting(clientCode, {
+        summary: `Meeting: ${input.participantName}`,
+        description: `Scheduled via ECODrIx. Type: ${input.type}`,
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        attendees: emails,
+      });
+      meetResponse = {
+        success: response.success,
+        hangoutLink: (response.hangoutLink as any) || null,
+        eventId: (response.eventId as any) || null,
+      };
+    } catch (err: any) {
+      console.error("Google Meet creation failed:", err.message);
+    }
   }
 
   // 2. Create Meeting record
   const meeting = await Meeting.create({
     clientCode,
     leadId: new mongoose.Types.ObjectId(input.leadId),
-    appointmentId: input.appointmentId
-      ? new mongoose.Types.ObjectId(input.appointmentId)
-      : null,
-    doctorId: input.doctorId,
-    patientName: input.patientName,
-    patientPhone: input.patientPhone,
-    patientEmail: input.patientEmail,
+    participantName: input.participantName,
+    participantPhone: input.participantPhone,
+    participantEmails: emails,
     startTime,
     endTime,
     duration: input.duration,
-    consultationType: input.consultationType,
+    meetingMode: input.meetingMode,
     meetLink: meetResponse.hangoutLink,
     meetCode: meetResponse.hangoutLink?.split("/").pop() || null,
     eventId: meetResponse.eventId,
@@ -75,18 +82,28 @@ export const createMeeting = async (
     amount: input.amount,
     paymentStatus: input.type === "free" ? "na" : "pending",
     status: "scheduled",
+    metadata: {
+      refs: {
+        appointmentId: input.appointmentId
+          ? new mongoose.Types.ObjectId(input.appointmentId)
+          : null,
+        doctorId: input.doctorId || null,
+        ...((input.metadata as any)?.refs || {}),
+      },
+      extra: (input.metadata as any)?.extra || {},
+    },
   });
 
   // 3. Log activity and trigger hooks
   try {
     const { onMeetingCreated } = await import("../crm/crmHooks.ts");
     await onMeetingCreated(clientCode, {
-      phone: input.patientPhone,
+      phone: input.participantPhone,
       meetLink: meeting.meetLink || "",
       meetCode: meeting.meetCode || "",
       meetingId: (meeting as any)._id?.toString(),
       calendarEventId: meeting.eventId || "",
-      title: `Consultation: ${input.patientName}`,
+      title: `Meeting: ${input.participantName}`,
       startTime: meeting.startTime,
       appointmentId: input.appointmentId,
       performedBy: "system",
@@ -106,10 +123,10 @@ export const createMeeting = async (
           hour: "2-digit",
           minute: "2-digit",
         }),
-        patient_name: meeting.patientName,
-        doctor_name: meeting.doctorId || "Doctor",
-        consultation_type: meeting.consultationType,
+        participant_name: meeting.participantName,
+        meeting_mode: meeting.meetingMode,
         amount: meeting.amount?.toString() || "0",
+        ...(meeting.metadata as any)?.extra,
       };
 
       await runAutomations(clientCode, {
@@ -146,13 +163,17 @@ export const getMeetingById = async (
 
 export const listMeetings = async (
   clientCode: string,
-  filters: { leadId?: string; status?: string } = {},
+  filters: { leadId?: string; status?: string; appointmentId?: string } = {},
 ): Promise<IMeeting[]> => {
   const { Meeting } = await getCrmModels(clientCode);
   const query: any = { clientCode };
   if (filters.leadId)
     query.leadId = new mongoose.Types.ObjectId(filters.leadId);
   if (filters.status) query.status = filters.status;
+  if (filters.appointmentId)
+    query["metadata.refs.appointmentId"] = new mongoose.Types.ObjectId(
+      filters.appointmentId,
+    );
 
   return Meeting.find(query)
     .sort({ startTime: -1 })

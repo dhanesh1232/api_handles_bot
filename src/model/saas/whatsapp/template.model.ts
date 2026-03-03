@@ -24,7 +24,7 @@ const VariableMappingSchema = new mongoose.Schema(
     componentIndex: { type: Number },
     originalIndex: { type: Number },
   },
-  { _id: false },
+  { _id: false, suppressReservedKeysWarning: true },
 );
 
 export const TemplateSchema = new mongoose.Schema<ITemplate>(

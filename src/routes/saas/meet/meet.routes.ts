@@ -18,19 +18,25 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const {
       leadId,
-      patientName,
-      patientPhone,
+      participantName,
+      participantPhone,
       startTime,
       endTime,
       duration,
       type,
     } = req.body;
 
-    if (!leadId || !patientName || !patientPhone || !startTime || !endTime) {
+    if (
+      !leadId ||
+      !participantName ||
+      !participantPhone ||
+      !startTime ||
+      !endTime
+    ) {
       res.status(400).json({
         success: false,
         message:
-          "Missing required fields (leadId, patientName, patientPhone, startTime, endTime)",
+          "Missing required fields (leadId, participantName, participantPhone, startTime, endTime)",
       });
       return;
     }

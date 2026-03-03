@@ -3,8 +3,8 @@ import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { getTenantModel } from "../../../lib/connectionManager.ts";
 import {
-    TemplateNotFoundError,
-    TemplateSyncFailedError,
+  TemplateNotFoundError,
+  TemplateSyncFailedError,
 } from "../../../lib/errors.ts";
 import { SchemaScanner } from "../../../lib/tenant/schemaScanner.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
@@ -381,29 +381,47 @@ export const resolveUnifiedWhatsAppTemplate = async (
     }
 
     if (value instanceof Date) {
-      const includeTime =
-        mapping.field?.toLowerCase().includes("time") ||
-        mapping.field?.toLowerCase().endsWith("at") ||
-        value.getHours() !== 0 ||
-        value.getMinutes() !== 0;
+      const fieldName = mapping.field?.toLowerCase() || "";
+      const isTimeOnly =
+        fieldName.includes("time") && !fieldName.includes("date");
+      const isDateOnly =
+        (fieldName.includes("date") || fieldName.includes("day")) &&
+        !fieldName.includes("time");
 
-      if (includeTime) {
-        value = value.toLocaleString("en-IN", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          year: "numeric",
+      if (isTimeOnly) {
+        value = value.toLocaleTimeString("en-IN", {
           hour: "2-digit",
           minute: "2-digit",
           hour12: true,
         });
-      } else {
+      } else if (isDateOnly) {
         value = value.toLocaleDateString("en-IN", {
           weekday: "short",
           month: "short",
           day: "numeric",
           year: "numeric",
         });
+      } else {
+        // "Smart" default: include time only if it's not midnight
+        const hasTime = value.getHours() !== 0 || value.getMinutes() !== 0;
+        if (hasTime) {
+          value = value.toLocaleString("en-IN", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+        } else {
+          value = value.toLocaleDateString("en-IN", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
       }
     }
 

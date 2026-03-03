@@ -94,6 +94,11 @@ const processCrmJob = async (job: IJob): Promise<void> => {
           lead as any,
           {
             variables: ctxVariables,
+            replyToId: null,
+            metadata: {
+              meetingId: payload.meetingId,
+              actionId: payload.actionId,
+            },
           } as any,
         );
 
@@ -110,6 +115,40 @@ const processCrmJob = async (job: IJob): Promise<void> => {
             },
           );
         }
+
+        // Log success activity
+        const { logActivity } =
+          await import("../../services/saas/crm/activity.service.ts");
+        await logActivity(clientCode, {
+          leadId: lead._id.toString(),
+          type: "whatsapp_sent",
+          title: `Reminder Sent: ${actionConfig.templateName}`,
+          body: `Sent via automation for meeting ${payload.meetingId || "N/A"}`,
+          metadata: {
+            meetingId: payload.meetingId,
+            templateName: actionConfig.templateName,
+            kind: "reminder",
+          },
+          performedBy: "system",
+        });
+
+        // Resolve any existing unread notifications for this lead/meeting/action
+        const { Notification } = await getCrmModels(clientCode);
+        const resolveFilter: any = {
+          clientCode,
+          status: "unread",
+          "actionData.leadId": lead._id,
+        };
+        if (payload.meetingId) {
+          resolveFilter["actionData.meetingId"] = payload.meetingId;
+        } else if (actionConfig?.templateName) {
+          // Provide a loose tie for regular automations
+          resolveFilter["actionData.actionConfig.templateName"] =
+            actionConfig.templateName;
+        }
+        await Notification.updateMany(resolveFilter, {
+          $set: { status: "resolved" },
+        });
       } catch (err: any) {
         console.error(
           `[crmWorker] executeAction failed for ${actionType}:`,
@@ -127,6 +166,49 @@ const processCrmJob = async (job: IJob): Promise<void> => {
               },
             },
           );
+        }
+
+        // Log failure activity
+        const { logActivity } =
+          await import("../../services/saas/crm/activity.service.ts");
+        await logActivity(clientCode, {
+          leadId: lead._id.toString(),
+          type: "system",
+          title: `Reminder Failed: ${actionConfig.templateName}`,
+          body: `Error: ${err.message}`,
+          metadata: {
+            meetingId: payload.meetingId,
+            templateName: actionConfig.templateName,
+            kind: "reminder",
+            error: err.message,
+          },
+          performedBy: "system",
+        });
+
+        // Add notification
+        let notif: any;
+        try {
+          const { createNotification } =
+            await import("../../services/saas/crm/notification.service.ts");
+          notif = await createNotification(clientCode, {
+            title: "Automation Reminder Failed",
+            message: `Failed to send WhatsApp reminder (${actionConfig.templateName}) to ${lead.phone}: ${err.message}`,
+            type: "alert",
+            status: "unread",
+            actionData: {
+              leadId: lead._id,
+              meetingId: payload.meetingId,
+              error: err.message,
+              actionConfig,
+              contextSnapshot: ctxVariables,
+            },
+          });
+        } catch (notifErr) {
+          console.error("Failed to create notification:", notifErr);
+        }
+
+        if (notif && (global as any).io) {
+          (global as any).io.to(clientCode).emit("notification:new", notif);
         }
         throw err;
       }

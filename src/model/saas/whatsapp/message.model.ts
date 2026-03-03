@@ -1,4 +1,4 @@
-import mongoose, { type Document } from "mongoose";
+import mongoose from "mongoose";
 
 export const MessageSchema = new mongoose.Schema<IMessage>(
   {
@@ -78,6 +78,9 @@ export const MessageSchema = new mongoose.Schema<IMessage>(
       footer: String,
       buttons: mongoose.Schema.Types.Mixed,
       variables: [String],
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
     },
   },
   { timestamps: true, collection: "messages" },
