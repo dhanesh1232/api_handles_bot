@@ -764,41 +764,67 @@ async function validateActionBeforeEnqueue(
     }
   };
 
-  // 1. WhatsApp native mapping check AND early resolution
+  // 1. WhatsApp & Email Template Mapping Check
   let finalConfig = { ...action.config };
-  if (action.type === "send_whatsapp") {
+  if (
+    action.type === "send_whatsapp" ||
+    (action.type === "send_email" && (action.config as any).templateName)
+  ) {
     const cfg = action.config as any;
     if (cfg && cfg.templateName) {
-      const { resolveUnifiedWhatsAppTemplate } =
+      const { resolveUnifiedWhatsAppTemplate, resolveUnifiedEmailTemplate } =
         await import("../whatsapp/template.service.ts");
       const tenantConn = await getTenantConnection(clientCode);
       try {
-        const { resolvedVariables, languageCode, isReady, contextSnapshot } =
-          await resolveUnifiedWhatsAppTemplate(
+        if (action.type === "send_whatsapp") {
+          const { resolvedVariables, languageCode, isReady, contextSnapshot } =
+            await resolveUnifiedWhatsAppTemplate(
+              tenantConn,
+              cfg.templateName,
+              lead,
+              variables,
+            );
+
+          if (!isReady) {
+            await notifyUser(
+              "WhatsApp Template Mapping Incomplete",
+              `The template "${cfg.templateName}" has missing variable mappings.`,
+            );
+            return { isValid: false };
+          }
+
+          finalConfig = {
+            ...cfg,
+            resolvedVariables,
+            languageCode,
+            _resolvedContext: contextSnapshot,
+          };
+        } else {
+          // Email Template
+          const { subject, body, isReady } = await resolveUnifiedEmailTemplate(
             tenantConn,
             cfg.templateName,
             lead,
             variables,
           );
 
-        if (!isReady) {
-          await notifyUser(
-            "WhatsApp Template Mapping Incomplete",
-            `The template "${cfg.templateName}" has missing variable mappings in the database.`,
-          );
-          return { isValid: false };
-        }
+          if (!isReady) {
+            await notifyUser(
+              "Email Template Mapping Incomplete",
+              `The email template "${cfg.templateName}" has missing mappings.`,
+            );
+            return { isValid: false };
+          }
 
-        // Successfully resolved. Overwrite the config we will store in the job
-        finalConfig = {
-          ...cfg,
-          resolvedVariables,
-          languageCode,
-          _resolvedContext: contextSnapshot,
-        };
+          finalConfig = {
+            ...cfg,
+            subject,
+            htmlBody: body, // Map back to what executeAction expects
+          };
+        }
       } catch (err: any) {
         await notifyUser(
-          "WhatsApp Template Resolution Failed",
+          `${action.type === "send_whatsapp" ? "WhatsApp" : "Email"} Template Resolution Failed`,
           `Rule tried to resolve template "${cfg.templateName}" but failed: ${err.message}`,
         );
         return { isValid: false };
@@ -806,10 +832,13 @@ async function validateActionBeforeEnqueue(
     }
   }
 
-  // 2. Fallback text placeholder checks for NON-WhatsApp actions
-  if (action.type !== "send_whatsapp") {
+  // 2. Fallback text placeholder checks for NON-Template actions
+  if (
+    action.type !== "send_whatsapp" &&
+    !(action.type === "send_email" && (action.config as any).templateName)
+  ) {
     const resolved = resolvePlaceholders(action.config, lead, variables);
-    finalConfig = resolved; // Store the resolved text config
+    finalConfig = resolved;
     const str = JSON.stringify(resolved);
     const unmappedMatches = str.match(/\{\{(vars|lead|event)[^}]*\}\}/);
     if (unmappedMatches) {

@@ -12,7 +12,12 @@ import sharp from "sharp";
 import type { IClientSecrets } from "../../../model/clients/secrets.ts";
 
 // Set FFmpeg path
-if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath as unknown as string);
+if (ffmpegPath && fs.existsSync(ffmpegPath as unknown as string)) {
+  ffmpeg.setFfmpegPath(ffmpegPath as unknown as string);
+} else {
+  // Fallback to system ffmpeg if static path is invalid or missing
+  ffmpeg.setFfmpegPath("ffmpeg");
+}
 
 export const compressMedia = async (
   buffer: Buffer,

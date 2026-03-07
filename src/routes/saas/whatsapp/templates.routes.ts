@@ -7,14 +7,17 @@ import {
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
-
 import {
+  checkTemplateUsageInAutomations,
   createTemplate,
+  deleteTemplate,
   getCollectionFields,
   getTenantCollections,
+  removeTemplateFromAutomations,
   resolveUnifiedWhatsAppTemplate,
   saveVariableMapping,
   syncTemplatesFromMeta,
+  updateTemplate,
 } from "../../../services/saas/whatsapp/template.service.ts";
 
 export interface SaasRequest extends Request {
@@ -134,7 +137,7 @@ export const createTemplateRouter = (io: Server) => {
     }
   });
 
-  // GET /:templateName - Get single template details
+  // GET /:templateName - Get single template details (supports both Name and ID)
   router.get(
     "/:templateName",
     validateClientKey,
@@ -151,7 +154,15 @@ export const createTemplateRouter = (io: Server) => {
           schemas.templates,
         );
 
-        const template = await Template.findOne({ name: templateName });
+        // Try searching by ID if it's a valid ObjectId, otherwise search by name
+        let query: any = { name: templateName };
+        if (templateName.match(/^[0-9a-fA-F]{24}$/)) {
+          query = {
+            $or: [{ _id: templateName }, { name: templateName }],
+          };
+        }
+
+        const template = await Template.findOne(query);
         if (!template)
           return res
             .status(404)
@@ -285,6 +296,108 @@ export const createTemplateRouter = (io: Server) => {
       });
     }
   });
+
+  // PUT /:templateId - Update an existing template
+  router.put(
+    "/:templateId",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const templateId = req.params.templateId as string;
+        const templateData = req.body;
+
+        const secrets = await ClientSecrets.findOne({ clientCode });
+        const token = secrets?.getDecrypted("whatsappToken") || null;
+        const wabaId = secrets?.getDecrypted("whatsappBusinessId") || null;
+
+        const tenantConn = await getTenantConnection(clientCode);
+        const result = await updateTemplate(
+          tenantConn,
+          token,
+          wabaId,
+          templateId,
+          templateData,
+        );
+        res.json(result);
+      } catch (error: any) {
+        console.error("Update template error:", error);
+        res.status(error.status || 500).json({
+          success: false,
+          message: error.message || "Failed to update template",
+        });
+      }
+    },
+  );
+
+  // GET /:templateName/usage - Check if template is used in automation rules
+  router.get(
+    "/:templateName/usage",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const templateName = req.params.templateName as string;
+
+        const tenantConn = await getTenantConnection(clientCode);
+        const usage = await checkTemplateUsageInAutomations(
+          tenantConn,
+          templateName,
+        );
+        res.json({ success: true, data: usage });
+      } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+      }
+    },
+  );
+
+  // DELETE /:templateName - Delete a template
+  // Query param: force=true → also removes the template from all automation rules before deleting
+  router.delete(
+    "/:templateName",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const sReq = req as SaasRequest;
+        const clientCode = sReq.clientCode!;
+        const templateName = req.params.templateName as string;
+        const force = req.query.force === "true";
+
+        const secrets = await ClientSecrets.findOne({ clientCode });
+        const token = secrets?.getDecrypted("whatsappToken") || null;
+        const wabaId = secrets?.getDecrypted("whatsappBusinessId") || null;
+
+        const tenantConn = await getTenantConnection(clientCode);
+
+        if (force) {
+          const cleanup = await removeTemplateFromAutomations(
+            tenantConn,
+            templateName,
+          );
+          console.log(
+            `[Delete] Removed template "${templateName}" from ${cleanup.modifiedCount} automation rule(s).`,
+          );
+        }
+
+        const result = await deleteTemplate(
+          tenantConn,
+          token,
+          wabaId,
+          templateName,
+          clientCode,
+        );
+        res.json({ success: true, data: result });
+      } catch (error: any) {
+        console.error("Delete template error:", error);
+        res.status(500).json({
+          success: false,
+          message: error.message || "Failed to delete template",
+        });
+      }
+    },
+  );
 
   return router;
 };

@@ -36,6 +36,8 @@ export interface IClientSecrets extends Document {
   smtpPass?: string;
   smtpFrom?: string;
   smtpSecure?: boolean;
+  smtpFromName?: string;
+  smtpFromEmail?: string;
 
   // General purpose secrets map
   customSecrets?: Map<string, string>;
@@ -84,7 +86,8 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     smtpPort: { type: String, default: null },
     smtpUser: { type: String, default: null },
     smtpPass: { type: String, default: null },
-    smtpFrom: { type: String, default: null },
+    smtpFromName: { type: String, default: null },
+    smtpFromEmail: { type: String, default: null },
     smtpSecure: { type: Boolean, default: true },
 
     // General purpose secrets map
@@ -120,6 +123,8 @@ ClientSecretsSchema.pre("save", function () {
     "smtpUser",
     "smtpPass",
     "smtpFrom",
+    "smtpFromName",
+    "smtpFromEmail",
   ] as Array<keyof IClientSecrets>;
 
   secretFields.forEach((field) => {

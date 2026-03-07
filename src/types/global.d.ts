@@ -81,7 +81,8 @@ declare global {
     | "computed"
     | "system"
     | "manual"
-    | "dynamic";
+    | "dynamic"
+    | "trigger";
   export type OnEmptyVariable = "skip_send" | "use_fallback" | "send_anyway";
   export type MappingStatus = "unmapped" | "partial" | "complete" | "outdated";
   export type TemplateStatus =
@@ -104,8 +105,9 @@ declare global {
     required?: boolean;
 
     // Component awareness
-    componentType?: "HEADER" | "BODY" | "FOOTER" | "BUTTON";
+    componentType?: "HEADER" | "BODY" | "FOOTER" | "BUTTON" | "SUBJECT";
     componentIndex?: number; // Only for buttons
+
     originalIndex?: number; // The {{n}} inside that component
   }
 
@@ -130,10 +132,17 @@ declare global {
     variablePositions: number[];
     variableMapping: IVariableMapping[];
     onEmptyVariable: OnEmptyVariable;
+    contentType?: "text" | "html";
     mappingStatus: MappingStatus;
     lastSyncedAt?: Date;
     lastMappingUpdatedAt?: Date;
     isActive: boolean;
+
+    socialLinks?: {
+      platform: "facebook" | "twitter" | "instagram" | "linkedin";
+      url: string;
+      active: boolean;
+    }[];
 
     createdAt: Date;
     updatedAt: Date;
@@ -171,6 +180,8 @@ declare global {
     bookingId?: string;
     orderId?: string;
     meetingId?: string;
+    startDate?: string;
+    endDate?: string;
   }
 
   interface LeadListOptions {
@@ -234,6 +245,7 @@ declare global {
     lastContactedAt?: Date;
     convertedAt?: Date;
     isArchived: boolean;
+    dynamicFields?: Record<string, any>;
     createdAt: Date;
     updatedAt: Date;
     fullName?: string;
@@ -446,7 +458,7 @@ declare global {
       sentAt?: Date;
     }[];
     metadata: {
-      refs: Record<string, mongoose.Types.ObjectId | string | null>;
+      refs: Record<string, any>; // supports single IDs or arrays of IDs
       extra: Record<string, any>;
     };
     createdAt: Date;

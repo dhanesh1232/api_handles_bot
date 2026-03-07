@@ -9,6 +9,7 @@
 
 import { Router, type Request, type Response } from "express";
 import * as leadService from "../../../services/saas/crm/lead.service.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 
 const router = Router();
 
@@ -111,6 +112,7 @@ router.post("/leads/upsert", async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: "phone is required" });
       return;
     }
+    const { LeadNote } = await getCrmModels(req.clientCode!);
 
     // Try finding by phone
     let lead = await leadService.getLeadByPhone(
@@ -137,6 +139,15 @@ router.post("/leads/upsert", async (req: Request, res: Response) => {
           refs,
         );
       }
+      // If message is passed, create a separate LeadNote
+      if (lead && leadData.message) {
+        await LeadNote.create({
+          clientCode: req.clientCode!,
+          leadId: lead._id,
+          content: leadData.message,
+          createdBy: "system_contact_form",
+        });
+      }
     } else {
       // Create new lead
       const names = (leadData.name || "").trim().split(" ");
@@ -159,6 +170,16 @@ router.post("/leads/upsert", async (req: Request, res: Response) => {
           },
         },
       });
+
+      // If message is passed for new lead, create a separate LeadNote
+      if (lead && leadData.message) {
+        await LeadNote.create({
+          clientCode: req.clientCode!,
+          leadId: lead._id,
+          content: leadData.message,
+          createdBy: "system_contact_form",
+        });
+      }
     }
 
     res.status(200).json({ success: true, data: lead });
@@ -204,6 +225,8 @@ router.get("/leads", async (req: Request, res: Response) => {
       bookingId,
       orderId,
       meetingId,
+      startDate,
+      endDate,
       page,
       limit,
       sortBy,
@@ -223,6 +246,8 @@ router.get("/leads", async (req: Request, res: Response) => {
     if (orderId) filters.orderId = orderId;
     if (meetingId) filters.meetingId = meetingId;
     if (tags) filters.tags = tags.split(",").map((t) => t.trim());
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
 
     const result = await leadService.listLeads(req.clientCode!, filters, {
       page: page ? Number(page) : 1,
@@ -407,6 +432,7 @@ router.patch("/leads/:leadId/metadata", async (req: Request, res: Response) => {
   try {
     const { refs = {}, extra } = req.body;
 
+    const { LeadActivity, LeadNote } = await getCrmModels(req.clientCode!);
     const lead = await leadService.updateMetadataRefs(
       req.clientCode!,
       req.params.leadId as string,

@@ -72,6 +72,7 @@ export interface CreateLeadInput {
     };
     extra?: Record<string, string | number | boolean | null>;
   };
+  dynamicFields?: Record<string, any>;
 }
 
 export interface UpdateLeadInput {
@@ -158,6 +159,7 @@ export const createLead = async (
     assignedTo: input.assignedTo || undefined,
     tags: input.tags ?? [],
     metadata: { refs: metadataRefs, extra: input.metadata?.extra ?? {} },
+    dynamicFields: input.dynamicFields ?? {},
   });
 
   await LeadActivity.create({
@@ -238,7 +240,12 @@ export const listLeads = async (
   const { Lead } = await getCrmModels(clientCode);
   const { page = 1, limit = 25, sortBy = "score", sortDir = "desc" } = options;
 
-  const query: Record<string, any> = { clientCode, isArchived: false };
+  const query: Record<string, any> = { clientCode };
+  if (filters.status === "archived") {
+    query.isArchived = true;
+  } else {
+    query.isArchived = false;
+  }
   if (filters.status) query.status = filters.status;
   if (filters.pipelineId)
     query.pipelineId = new mongoose.Types.ObjectId(filters.pipelineId);
@@ -265,6 +272,11 @@ export const listLeads = async (
     query["metadata.refs.meetingId"] = new mongoose.Types.ObjectId(
       filters.meetingId,
     );
+  if (filters.startDate || filters.endDate) {
+    query.createdAt = {};
+    if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
+    if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
+  }
 
   if (filters.search?.trim()) {
     const regex = new RegExp(filters.search.trim(), "i");
@@ -623,6 +635,7 @@ export const bulkUpsertLeads = async (
               dealValue: input.dealValue ?? 0,
               dealTitle: input.dealTitle ?? "",
               assignedTo: input.assignedTo ?? null,
+              dynamicFields: input.dynamicFields ?? {},
               "metadata.extra": input.metadata?.extra ?? {},
             },
             $setOnInsert: {
@@ -727,14 +740,25 @@ export const getLeadFields = async (
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildMetadataRefs(
-  refs: Record<string, string | undefined> | undefined,
-): Record<string, mongoose.Types.ObjectId> {
+  refs: Record<string, any> | undefined,
+): Record<string, any> {
   if (!refs) return {};
-  const result: Record<string, mongoose.Types.ObjectId> = {};
+  const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(refs)) {
     if (!value) continue;
-    if (mongoose.Types.ObjectId.isValid(value))
+
+    if (Array.isArray(value)) {
+      result[key] = value
+        .filter((v) => v && mongoose.Types.ObjectId.isValid(v))
+        .map((v) => new mongoose.Types.ObjectId(v));
+    } else if (
+      typeof value === "string" &&
+      mongoose.Types.ObjectId.isValid(value)
+    ) {
       result[key] = new mongoose.Types.ObjectId(value);
+    } else {
+      result[key] = value;
+    }
   }
   return result;
 }

@@ -30,21 +30,7 @@ const scoreSchema = new mongoose.Schema<ILeadScore>(
   { _id: false },
 );
 
-// Metadata refs — all ObjectId, all optional
-const metadataRefsSchema = new mongoose.Schema(
-  {
-    appointmentId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    bookingId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    orderId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    productId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    serviceId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    meetingId: { type: mongoose.Schema.Types.ObjectId, default: null },
-  },
-  {
-    _id: false,
-    strict: false, // allows extra ObjectId fields the client adds dynamically
-  },
-);
+// No more fixed metadataRefsSchema, we use Mixed for full flexibility
 
 const leadSchema: Schema<ILead> = new mongoose.Schema(
   {
@@ -113,7 +99,7 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
     // Client-side ObjectId references
     metadata: {
       refs: {
-        type: metadataRefsSchema,
+        type: mongoose.Schema.Types.Mixed, // allows { appointmentId: "...", ids: ["...", "..."] }
         default: () => ({}),
       },
       extra: {
@@ -142,6 +128,9 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
     // Soft delete
     isArchived: { type: Boolean, default: false, index: true },
+
+    // Multi-business support
+    dynamicFields: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   },
   { timestamps: true },
 );

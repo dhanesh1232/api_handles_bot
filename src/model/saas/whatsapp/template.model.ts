@@ -6,7 +6,7 @@ const VariableMappingSchema = new mongoose.Schema(
     label: { type: String, required: true },
     source: {
       type: String,
-      enum: ["crm", "static", "computed", "system", "manual"],
+      enum: ["crm", "static", "computed", "system", "manual", "trigger"],
       required: true,
     },
     collection: { type: String },
@@ -19,8 +19,9 @@ const VariableMappingSchema = new mongoose.Schema(
     // Component tracking
     componentType: {
       type: String,
-      enum: ["HEADER", "BODY", "FOOTER", "BUTTON"],
+      enum: ["HEADER", "BODY", "FOOTER", "BUTTON", "SUBJECT"],
     },
+
     componentIndex: { type: Number },
     originalIndex: { type: Number },
   },
@@ -101,6 +102,11 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
       enum: ["skip_send", "use_fallback", "send_anyway"],
       default: "use_fallback",
     },
+    contentType: {
+      type: String,
+      enum: ["text", "html"],
+      default: "text",
+    },
     mappingStatus: {
       type: String,
       enum: ["unmapped", "partial", "complete", "outdated"],
@@ -109,6 +115,16 @@ export const TemplateSchema = new mongoose.Schema<ITemplate>(
     lastSyncedAt: { type: Date },
     lastMappingUpdatedAt: { type: Date },
     isActive: { type: Boolean, default: true },
+    socialLinks: [
+      {
+        platform: {
+          type: String,
+          enum: ["facebook", "twitter", "instagram", "linkedin"],
+        },
+        url: String,
+        active: { type: Boolean, default: false },
+      },
+    ],
   },
   { timestamps: true, collection: "templates" },
 );

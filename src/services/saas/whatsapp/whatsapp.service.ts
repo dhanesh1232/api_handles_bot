@@ -351,6 +351,12 @@ export const createWhatsappService = (io: Server | null) => {
             $inc: { unreadCount: 1 },
           },
         );
+        if (lead) {
+          await Lead.updateOne(
+            { _id: lead._id },
+            { $set: { lastContactedAt: new Date() } },
+          );
+        }
 
         // 5. Emit Socket
         if (io) {
@@ -887,6 +893,15 @@ export const createWhatsappService = (io: Server | null) => {
           message._id as mongoose.Types.ObjectId;
         freshConversation.lastMessageSender = "admin";
         await freshConversation.save();
+
+        // 🎉 Also update Lead's lastContactedAt
+        const { getCrmModels } =
+          await import("../../../lib/tenant/get.crm.model.ts");
+        const { Lead } = await getCrmModels(clientCode);
+        await Lead.updateOne(
+          { phone: freshConversation.phone, clientCode, isArchived: false },
+          { $set: { lastContactedAt: new Date() } },
+        );
 
         if (io) {
           if (replyToId) {

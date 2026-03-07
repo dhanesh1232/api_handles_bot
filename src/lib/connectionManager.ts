@@ -93,6 +93,7 @@ export async function getTenantConnection(
  * @param collectionName - Name of the collection to bind to
  * @param schema - Optional schema, defaults to an empty strict:false schema
  * @returns Mongoose Model
+ * @throws Error if the connection is not ready
  */
 export function getTenantModel<T>(
   conn: Connection,
