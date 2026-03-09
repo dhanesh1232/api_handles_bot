@@ -7,6 +7,7 @@ import {
 } from "../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../model/clients/secrets.ts";
 import {
+  deleteObjectFromR2,
   listObjectsFromR2,
   optimizeAndUploadMedia,
 } from "../../services/saas/media/media.service.ts";
@@ -92,11 +93,48 @@ export const createImagesRouter = (_io: any) => {
             name: result.fileName,
             fileName: result.fileName,
             key: result.r2Key,
+            type: result.r2Key.split(".").pop(),
           },
         });
       } catch (error: any) {
         console.error("Upload error:", error.message);
         res.status(500).json({ error: "Upload failed: " + error.message });
+      }
+    },
+  );
+
+  // DELETE /api/images - Delete image for the client
+  router.delete(
+    "/",
+    validateClientKey,
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const { clientCode } = req;
+        const key = req.query.key as string;
+
+        if (!clientCode) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        if (!key) {
+          return res.status(400).json({ error: "Media key is required" });
+        }
+
+        await dbConnect("services");
+        const secrets = await ClientSecrets.findOne({ clientCode });
+
+        if (!secrets) {
+          return res.status(404).json({ error: "Client secrets not found" });
+        }
+
+        await deleteObjectFromR2(key, secrets);
+
+        res.status(200).json({
+          message: "Media deleted successfully",
+          data: { key },
+        });
+      } catch (error: any) {
+        console.error("Delete media error:", error.message);
+        res.status(500).json({ error: "Failed to delete media" });
       }
     },
   );

@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -159,11 +160,12 @@ export const optimizeAndUploadMedia = async (
   if (originalFileName) {
     const safeName = originalFileName.replace(/[^a-zA-Z0-9.-]/g, "_");
     const nameWithoutExt = path.parse(safeName).name;
-    fileName = `${nameWithoutExt}.${ext}`;
+    fileName = `${nameWithoutExt}_${Date.now()}.${ext}`;
   } else {
     fileName = `${mediaId}.${ext}`;
   }
 
+  
   const r2Key = `${folder}/${fileName}`;
 
   const s3Client = getR2Client(secrets);
@@ -191,10 +193,14 @@ export const optimizeAndUploadMedia = async (
     ? `${r2PublicDomain}/${r2Key}`
     : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${r2Key}`;
 
+  const cleanName = originalFileName 
+    ? path.parse(originalFileName.replace(/[^a-zA-Z0-9.-]/g, "_")).name 
+    : mediaId;
+
   return {
     url: publicUrl,
     mimeType,
-    fileName,
+    fileName: cleanName,
     r2Key,
   };
 };
@@ -274,14 +280,37 @@ export const listObjectsFromR2 = async (
         ? `${r2PublicDomain}/${item.Key}`
         : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${item.Key}`;
 
+      const basename = path.basename(item.Key as string);
+      const parsed = path.parse(basename);
+      const cleanName = parsed.name.replace(/_\d{13}$/, "");
+
       return {
         url: publicUrl,
-        name: path.basename(item.Key as string),
-        fileName: path.basename(item.Key as string),
+        name: cleanName,
+        fileName: cleanName,
         key: item.Key,
         lastModified: item.LastModified,
         size: item.Size,
+        type: parsed.ext.substring(1),
       };
     })
     .sort((a: any, b: any) => b.lastModified - a.lastModified);
+};
+
+export const deleteObjectFromR2 = async (
+  key: string,
+  secrets: IClientSecrets,
+): Promise<void> => {
+  const s3Client = getR2Client(secrets);
+  if (!s3Client) throw new Error("R2 Storage not configured");
+
+  const r2BucketName = secrets.getDecrypted("r2BucketName");
+  if (!r2BucketName) throw new Error("R2 Bucket Name missing in secrets.");
+
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: r2BucketName,
+      Key: key,
+    }),
+  );
 };
