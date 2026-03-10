@@ -695,6 +695,7 @@ export const createWhatsappService = (io: Server | null) => {
         const tmpl = await Template.findOne({
           name: templateName,
           language: templateLanguage,
+          channel: "whatsapp"
         });
 
         payload.template = {
@@ -805,18 +806,15 @@ export const createWhatsappService = (io: Server | null) => {
                     );
                     let strVal = String(val ?? "").trim();
 
-                    // Meta rejects BUTTON components with empty string parameters (HTTP 400),
-                    // but also rejects omitting the parameter for a URL button.
-                    // If it's a URL parameter that resolves to empty, send a safe fallback like '#'
-                    if (!strVal || strVal === "[N/A]" || strVal === "") {
-                      console.warn(
-                        `[${clientCode}] BUTTON[${btnIdx}] variable {{${index}}} resolved to empty. ` +
-                          `Using fallback to prevent Meta 400 error.`,
+                    // Meta rejects BUTTON components with empty string parameters (HTTP 400).
+                    // If a button parameter is missing, abort sending and throw a descriptive error
+                    // so the caller (e.g., crmWorker) can notify the user that a link wasn't generated.
+                    if (!strVal || strVal === "[N/A]") {
+                      throw new Error(
+                        `Required button parameter {{${index}}} resolved to an empty value. ` +
+                          `This usually happens if a meeting link wasn't generated (e.g., Google Meet integration is disconnected or failed). ` +
+                          `Please check the lead's data and ensure your integrations are working before sending the template.`
                       );
-                      // If it's a URL, an empty string makes the URL `https://meet.google.com/`, 
-                      // which is technically a valid URL, but we have to pass a parameter. 
-                      // We can pass a harmless safe string or the template's example if available.
-                      strVal = "invalid-link";
                     }
 
                     btnParams.push({ type: "text", text: strVal });

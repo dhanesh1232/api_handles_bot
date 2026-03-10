@@ -193,6 +193,7 @@ router.get(
 
         emailApiKey: secrets.getDecrypted("emailApiKey"),
         emailProvider: secrets.emailProvider,
+        emailFromName: secrets.getDecrypted("emailFromName"),
         automationWebhookSecret: secrets.getDecrypted(
           "automationWebhookSecret",
         ),

@@ -99,6 +99,64 @@ export const extractEnrichedFields = (components: any[]) => {
   };
 };
 
+export const extractEmailEnrichedFields = (components: any[]) => {
+  const variables: any[] = [];
+  let nextPos = 1;
+
+  const extractFromText = (
+    text: string,
+    componentType: string,
+    compIndex?: number,
+  ) => {
+    if (typeof text !== "string") return;
+    const matches = text.match(/{{(\d+)}}/g) || [];
+    const uniqueIndices = [
+      ...new Set(matches.map((m) => parseInt(m.replace(/{{|}}/g, ""), 10))),
+    ].sort((a, b) => a - b);
+
+    uniqueIndices.forEach((idx) => {
+      // Avoid pushing duplicates if a variable is used multiple times in the same block
+      const exists = variables.find(v => v.originalIndex === idx && v.componentIndex === compIndex);
+      if (!exists) {
+        variables.push({
+          position: nextPos++,
+          label: `${componentType.charAt(0).toUpperCase() + componentType.slice(1).toLowerCase()} Variable ${idx}${compIndex !== undefined ? ` (Block ${compIndex + 1})` : ""}`,
+          componentType,
+          componentIndex: compIndex,
+          originalIndex: idx,
+        });
+      }
+    });
+  };
+
+  if (Array.isArray(components)) {
+    components.forEach((block: any, blockIdx: number) => {
+      // For recursive blocks like columns
+      const extractProps = (props: any) => {
+        if (!props) return;
+        Object.entries(props).forEach(([key, val]) => {
+          if (typeof val === "string") {
+            extractFromText(val, block.type || "BLOCK", blockIdx);
+          } else if (val && typeof val === "object" && !Array.isArray(val) && "type" in val && "props" in val) {
+            // Nested block (e.g., inside columns-2)
+            extractProps((val as any).props);
+          }
+        });
+      };
+      
+      if (block.props) {
+        extractProps(block.props);
+      }
+    });
+  }
+
+  return {
+    variableMappingSkeleton: variables,
+    variablePositions: variables.map((v) => v.position),
+    variableCount: variables.length,
+  };
+};
+
 export const syncTemplatesFromMeta = async (
   tenantDb: Connection,
   whatsappToken: string,
@@ -909,6 +967,8 @@ export const createTemplate = async (
     let enriched = {};
     if (templateData.channel === "whatsapp" && templateData.components) {
       enriched = extractEnrichedFields(templateData.components);
+    } else if (templateData.channel === "email" && templateData.components) {
+      enriched = extractEmailEnrichedFields(templateData.components);
     }
 
     const template = await Template.findOneAndUpdate(
@@ -978,6 +1038,8 @@ export const updateTemplate = async (
     let enriched = {};
     if (templateData.channel === "whatsapp" && templateData.components) {
       enriched = extractEnrichedFields(templateData.components);
+    } else if (templateData.channel === "email" && templateData.components) {
+      enriched = extractEmailEnrichedFields(templateData.components);
     }
 
     // Preserve important immutable fields if accidentally sent

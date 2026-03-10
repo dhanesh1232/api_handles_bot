@@ -26,6 +26,7 @@ export interface IClientSecrets extends Document {
 
   emailApiKey?: string;
   emailProvider?: string;
+  emailFromName?: string;
 
   automationWebhookSecret?: string;
 
@@ -78,6 +79,7 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
 
     emailApiKey: { type: String, default: null },
     emailProvider: { type: String, default: "nodemailer" },
+    emailFromName: { type: String, default: null },
 
     automationWebhookSecret: { type: String, default: null },
 
@@ -86,6 +88,7 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     smtpPort: { type: String, default: null },
     smtpUser: { type: String, default: null },
     smtpPass: { type: String, default: null },
+    smtpFrom: { type: String, default: null },
     smtpFromName: { type: String, default: null },
     smtpFromEmail: { type: String, default: null },
     smtpSecure: { type: Boolean, default: true },
@@ -118,6 +121,7 @@ ClientSecretsSchema.pre("save", function () {
     "r2SecretKey",
     "r2Endpoint",
     "emailApiKey",
+    "emailFromName",
     "automationWebhookSecret",
     "smtpHost",
     "smtpUser",

@@ -116,21 +116,35 @@ const processCrmJob = async (job: IJob): Promise<void> => {
           );
         }
 
-        // Log success activity
-        const { logActivity } =
-          await import("../../services/saas/crm/activity.service.ts");
-        await logActivity(clientCode, {
-          leadId: lead._id.toString(),
-          type: "whatsapp_sent",
-          title: `Reminder Sent: ${actionConfig.templateName}`,
-          body: `Sent via automation for meeting ${payload.meetingId || "N/A"}`,
-          metadata: {
-            meetingId: payload.meetingId,
-            templateName: actionConfig.templateName,
-            kind: "reminder",
-          },
-          performedBy: "system",
-        });
+        // Conditionally log success activity for communication actions
+        // (Other actions like move_pipeline or assign_to log their own activities)
+        if (actionType === "send_whatsapp") {
+          const { logActivity } = await import("../../services/saas/crm/activity.service.ts");
+          await logActivity(clientCode, {
+            leadId: lead._id.toString(),
+            type: "whatsapp_sent",
+            title: `Reminder Sent: ${actionConfig.templateName}`,
+            body: payload.meetingId ? `Sent for a scheduled meeting/appointment` : `Sent via automation rule`,
+            metadata: {
+              meetingId: payload.meetingId,
+              templateName: actionConfig.templateName,
+              kind: "reminder",
+            },
+            performedBy: "system",
+          });
+        } else if (actionType === "send_email") {
+          const { logActivity } = await import("../../services/saas/crm/activity.service.ts");
+          await logActivity(clientCode, {
+            leadId: lead._id.toString(),
+            type: "email_sent", 
+            title: `Email Sent: ${actionConfig.subject || "Automation"}`,
+            body: payload.meetingId ? `Sent for a scheduled meeting/appointment` : `Sent via automation rule`,
+            metadata: {
+              meetingId: payload.meetingId,
+            },
+            performedBy: "system",
+          });
+        }
 
         // Resolve any existing unread notifications for this lead/meeting/action
         const { Notification } = await getCrmModels(clientCode);
@@ -190,15 +204,19 @@ const processCrmJob = async (job: IJob): Promise<void> => {
         try {
           const { createNotification } =
             await import("../../services/saas/crm/notification.service.ts");
+            
+          const isMeetError = err.message.includes("Google Meet integration") || err.message.includes("meet_");
+
           notif = await createNotification(clientCode, {
-            title: "Automation Reminder Failed",
+            title: isMeetError ? "Missing Meeting Link (Google Meet Error)" : "Automation Reminder Failed",
             message: `Failed to send WhatsApp reminder (${actionConfig.templateName}) to ${lead.phone}: ${err.message}`,
-            type: "alert",
+            type: isMeetError ? "action_required" : "alert",
             status: "unread",
             actionData: {
               leadId: lead._id,
               meetingId: payload.meetingId,
               error: err.message,
+              errorType: isMeetError ? "meet_auth_failed" : undefined,
               actionConfig,
               contextSnapshot: ctxVariables,
             },
