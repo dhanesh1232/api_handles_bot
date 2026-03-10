@@ -342,6 +342,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
         const refKey = getRefId(collName);
         let targetId: any = eventVariables?.[refKey];
 
+        if (!targetId && collName === "meetings") {
+          targetId = eventVariables?.meetingId || eventVariables?.eventId;
+        }
+
         if (!targetId && lead?.metadata?.refs)
           targetId = lead.metadata.refs[refKey];
 
@@ -392,6 +396,24 @@ export const resolveUnifiedWhatsAppTemplate = async (
         const coll = mapping.collection || "leads";
         const data = context[coll] || (coll === "leads" ? lead : null);
         value = data ? getDeep(data, mapping.field!) : null;
+
+        // If the CRM field resolved to nothing, try eventVariables as a fallback.
+        // Handles cases where e.g. meetings.meetCode is empty but meet_code was
+        // passed directly in the automation trigger's event variables.
+        if ((value === null || value === undefined || value === "") && eventVariables && mapping.field) {
+          const field = mapping.field;
+          // Try exact key, then snake_case conversion of camelCase
+          const snakeKey = field.replace(/([A-Z])/g, "_$1").toLowerCase();
+          value =
+            eventVariables[field] ??
+            eventVariables[snakeKey] ??
+            null;
+          if (value !== null && value !== undefined) {
+            console.log(
+              `[TemplateResolver] CRM field "${field}" was empty; resolved from eventVariables key "${snakeKey || field}".`,
+            );
+          }
+        }
         break;
       }
       case "static":

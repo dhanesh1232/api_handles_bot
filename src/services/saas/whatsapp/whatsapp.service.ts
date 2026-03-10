@@ -790,6 +790,8 @@ export const createWhatsappService = (io: Server | null) => {
                   (isUrl ? btn.url : btn.text)?.match(/{{[0-9]+}}/g) || [];
                 if (btnVars.length > 0) {
                   const btnParams: any[] = [];
+                  let skipButton = false;
+
                   for (const placeholder of btnVars) {
                     const index = parseInt(
                       placeholder.replace(/{{|}}/g, ""),
@@ -801,12 +803,26 @@ export const createWhatsappService = (io: Server | null) => {
                       btnIdx,
                       btn.example?.[0],
                     );
-                    btnParams.push({
-                      type: "text",
-                      text: String(val),
-                    });
+                    let strVal = String(val ?? "").trim();
+
+                    // Meta rejects BUTTON components with empty string parameters (HTTP 400),
+                    // but also rejects omitting the parameter for a URL button.
+                    // If it's a URL parameter that resolves to empty, send a safe fallback like '#'
+                    if (!strVal || strVal === "[N/A]" || strVal === "") {
+                      console.warn(
+                        `[${clientCode}] BUTTON[${btnIdx}] variable {{${index}}} resolved to empty. ` +
+                          `Using fallback to prevent Meta 400 error.`,
+                      );
+                      // If it's a URL, an empty string makes the URL `https://meet.google.com/`, 
+                      // which is technically a valid URL, but we have to pass a parameter. 
+                      // We can pass a harmless safe string or the template's example if available.
+                      strVal = "invalid-link";
+                    }
+
+                    btnParams.push({ type: "text", text: strVal });
                   }
-                  if (btnParams.length > 0) {
+
+                  if (!skipButton && btnParams.length > 0) {
                     payload.template.components.push({
                       type: "BUTTON",
                       sub_type: isUrl ? "url" : "quick_reply",
