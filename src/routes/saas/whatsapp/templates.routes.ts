@@ -12,6 +12,7 @@ import {
   createTemplate,
   deleteTemplate,
   getCollectionFields,
+  getCuratedMappingConfig,
   getTenantCollections,
   removeTemplateFromAutomations,
   resolveUnifiedWhatsAppTemplate,
@@ -61,6 +62,20 @@ export const createTemplateRouter = (io: Server) => {
           req.params.name as string,
         );
         res.json({ success: true, data: fields });
+      } catch (err: any) {
+        res.status(500).json({ success: false, message: err.message });
+      }
+    },
+  );
+
+  // GET /mapping/config - get curated config for mapping UI
+  router.get(
+    "/mapping/config",
+    validateClientKey,
+    async (req: Request, res: Response) => {
+      try {
+        const config = getCuratedMappingConfig();
+        res.json({ success: true, data: config });
       } catch (err: any) {
         res.status(500).json({ success: false, message: err.message });
       }

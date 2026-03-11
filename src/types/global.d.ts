@@ -93,6 +93,7 @@ declare global {
     | "DISABLED";
   export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
 
+  type TransformType = "none" | "uppercase" | "lowercase" | "titlecase" | "date" | "currency" | "number";
   interface IVariableMapping {
     position: number;
     label: string;
@@ -109,6 +110,7 @@ declare global {
     componentIndex?: number; // Only for buttons
 
     originalIndex?: number; // The {{n}} inside that component
+    transform?: TransformType;
   }
 
   interface ITemplate extends mongoose.Document {

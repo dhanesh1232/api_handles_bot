@@ -165,7 +165,6 @@ export const optimizeAndUploadMedia = async (
     fileName = `${mediaId}.${ext}`;
   }
 
-  
   const r2Key = `${folder}/${fileName}`;
 
   const s3Client = getR2Client(secrets);
@@ -193,8 +192,8 @@ export const optimizeAndUploadMedia = async (
     ? `${r2PublicDomain}/${r2Key}`
     : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${r2Key}`;
 
-  const cleanName = originalFileName 
-    ? path.parse(originalFileName.replace(/[^a-zA-Z0-9.-]/g, "_")).name 
+  const cleanName = originalFileName
+    ? path.parse(originalFileName.replace(/[^a-zA-Z0-9.-]/g, "_")).name
     : mediaId;
 
   return {

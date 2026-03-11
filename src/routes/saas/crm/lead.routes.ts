@@ -107,7 +107,7 @@ router.post("/leads", async (req: Request, res: Response) => {
  */
 router.post("/leads/upsert", async (req: Request, res: Response) => {
   try {
-    const { leadData, moduleInfo } = req.body;
+    const { leadData, moduleInfo, trigger } = req.body;
     if (!leadData?.phone) {
       res.status(400).json({ success: false, message: "phone is required" });
       return;
@@ -180,6 +180,21 @@ router.post("/leads/upsert", async (req: Request, res: Response) => {
           createdBy: "system_contact_form",
         });
       }
+    }
+
+    // Fire automation if trigger passed
+    if (lead && trigger) {
+      const { runAutomations } =
+        await import("../../../services/saas/crm/automation.service.ts");
+      void runAutomations(req.clientCode!, {
+        trigger: trigger as any,
+        lead: lead as any,
+        variables: {
+          ...(moduleInfo || {}),
+          phone: lead.phone,
+          name: lead.firstName,
+        },
+      });
     }
 
     res.status(200).json({ success: true, data: lead });

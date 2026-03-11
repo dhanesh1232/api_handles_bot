@@ -695,7 +695,7 @@ export const createWhatsappService = (io: Server | null) => {
         const tmpl = await Template.findOne({
           name: templateName,
           language: templateLanguage,
-          channel: "whatsapp"
+          channel: "whatsapp",
         });
 
         payload.template = {
@@ -813,7 +813,7 @@ export const createWhatsappService = (io: Server | null) => {
                       throw new Error(
                         `Required button parameter {{${index}}} resolved to an empty value. ` +
                           `This usually happens if a meeting link wasn't generated (e.g., Google Meet integration is disconnected or failed). ` +
-                          `Please check the lead's data and ensure your integrations are working before sending the template.`
+                          `Please check the lead's data and ensure your integrations are working before sending the template.`,
                       );
                     }
 

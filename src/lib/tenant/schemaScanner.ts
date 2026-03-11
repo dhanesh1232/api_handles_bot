@@ -36,6 +36,39 @@ export class SchemaScanner {
     const normTarget = this.normalizeName(collectionName);
     const fields: FieldDefinition[] = [];
 
+    const MONGOOSE_RESERVED = [
+      "type",
+      "required",
+      "default",
+      "enum",
+      "ref",
+      "trim",
+      "lowercase",
+      "unique",
+      "sparse",
+      "min",
+      "max",
+      "index",
+      "validate",
+      "get",
+      "set",
+      "alias",
+      "toObject",
+      "toJSON",
+      "virtuals",
+      "transform",
+      "of",
+      "timestamps",
+      "versionKey",
+      "autoIndex",
+      "clientCode",
+      "__v",
+      "_id",
+      "createdAt",
+      "updatedAt",
+      "isArchived",
+    ];
+
     for (const modelsDir of searchDirs) {
       if (!fs.existsSync(modelsDir)) continue;
 
@@ -60,27 +93,15 @@ export class SchemaScanner {
           "utf-8",
         );
 
-        // Match: new Schema<...>( { ... },
-        const schemaMatch = content.match(
-          /new Schema(?:<[^>]+>)?\s*\(\s*{([\s\S]+?)}\s*[,)]/,
-        );
-        if (schemaMatch) {
-          const schemaBody = schemaMatch[1];
-          const lineRegex = /^\s*(?:"|')?([a-zA-Z0-9_.-]+)(?:"|')?\s*:/gm;
-          let match;
-          while ((match = lineRegex.exec(schemaBody)) !== null) {
-            const key = match[1];
-            if (
-              [
-                "clientCode",
-                "__v",
-                "_id",
-                "createdAt",
-                "updatedAt",
-                "isArchived",
-              ].includes(key)
-            )
-              continue;
+        // 1. Scan for keys at the start of lines (with minimal indentation)
+        // This covers both Schema objects and Interfaces.
+        const lineRegex = /^\s{2,6}([a-zA-Z0-9_]+)\s*:/gm;
+        let match;
+        while ((match = lineRegex.exec(content)) !== null) {
+          const key = match[1];
+          if (MONGOOSE_RESERVED.includes(key)) continue;
+
+          if (!fields.some((f) => f.key === key)) {
             fields.push({
               key,
               label: key
@@ -91,38 +112,21 @@ export class SchemaScanner {
           }
         }
 
-        // Fallback to Interface if Schema scanning yields nothing
-        if (fields.length === 0) {
-          const interfaceMatch = content.match(
-            /interface [a-zA-Z0-9_]+\s+(?:extends\s+[a-zA-Z0-9_,\s<>]+)?\s*{([\s\S]+?)}/,
-          );
-          if (interfaceMatch) {
-            const body = interfaceMatch[1];
-            const lines = body.split("\n");
-            lines.forEach((line) => {
-              const m = line.match(
-                /^\s*([a-zA-Z0-9_]+)\s*(\?)?:\s*[a-zA-Z|\[\]]+/,
-              );
-              if (m) {
-                const key = m[1];
-                if (
-                  [
-                    "updatedAt",
-                    "createdAt",
-                    "clientCode",
-                    "_id",
-                    "__v",
-                  ].includes(key)
-                )
-                  return;
-                fields.push({
-                  key,
-                  label: key
-                    .replace(/([A-Z])/g, " $1")
-                    .replace(/^./, (str) => str.toUpperCase()),
-                  type: "core",
-                });
-              }
+        // 2. Scan for virtuals: .virtual("name")
+        const virtualMatches = content.matchAll(
+          /\.virtual\s*\(\s*(?:"|')?([a-zA-Z0-9_.-]+)(?:"|')?\s*\)/g,
+        );
+        for (const vMatch of virtualMatches) {
+          const key = vMatch[1];
+          if (MONGOOSE_RESERVED.includes(key)) continue;
+
+          if (!fields.some((f) => f.key === key)) {
+            fields.push({
+              key,
+              label: key
+                .replace(/([A-Z])/g, " $1")
+                .replace(/^./, (str) => str.toUpperCase()),
+              type: "core",
             });
           }
         }

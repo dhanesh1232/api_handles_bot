@@ -126,6 +126,7 @@ export const createMeeting = async (
         participant_name: meeting.participantName,
         meeting_mode: meeting.meetingMode,
         amount: meeting.amount?.toString() || "0",
+        meeting_id: (meeting as any)._id?.toString(),
         ...(meeting.metadata as any)?.extra,
       };
 
@@ -133,6 +134,7 @@ export const createMeeting = async (
         trigger: "meeting_created" as any,
         lead: lead as any,
         variables,
+        meetingId: (meeting as any)._id?.toString(),
       });
 
       // 4. Schedule future reminders (e.g. 1 hour before slot)

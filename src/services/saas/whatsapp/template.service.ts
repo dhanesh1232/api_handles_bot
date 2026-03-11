@@ -1,4 +1,5 @@
 import axios from "axios";
+import _ from "lodash";
 import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { getTenantModel } from "../../../lib/connectionManager.ts";
@@ -7,6 +8,10 @@ import {
   TemplateSyncFailedError,
 } from "../../../lib/errors.ts";
 import { SchemaScanner } from "../../../lib/tenant/schemaScanner.ts";
+import {
+  CURATED_FIELDS,
+  CURATED_TRIGGER_FIELDS,
+} from "../../../lib/tenant/schema.constants.ts";
 import { ClientServiceConfig } from "../../../model/clients/config.ts";
 import { schemas } from "../../../model/saas/tenant.schemas.ts";
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
@@ -15,7 +20,86 @@ const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
  * Helper to get deep property from object using dot notation
  */
 const getDeep = (obj: any, path: string) => {
-  return path.split(".").reduce((acc, part) => acc && acc[part], obj);
+  if (!obj || !path) return null;
+  const value = _.get(obj, path);
+
+  // Enhancement: If we are trying to get a property from an array of objects
+  // e.g. path = "orderItems.name" and value is undefined because "name" is inside the array
+  if (value === undefined && path.includes(".")) {
+    const parts = path.split(".");
+    const leaf = parts.pop();
+    const parentPath = parts.join(".");
+    const parentValue = _.get(obj, parentPath);
+
+    if (Array.isArray(parentValue)) {
+      // Return an array of the leaf properties
+      return parentValue.map((item) => _.get(item, leaf!)).filter((v) => v !== undefined);
+    }
+  }
+
+  return value;
+};
+
+/**
+ * Polymorphic stringifier for arbitrary data structures.
+ * Handles primitives, Dates, Objects, and Arrays dynamically.
+ */
+const smartStringify = (value: any): string => {
+  if (value === null || value === undefined) return "";
+
+  // 1. Handle Primitives
+  if (typeof value !== "object") return String(value);
+
+  // 2. Handle Dates
+  if (value instanceof Date) {
+    // Basic date formatting (consistent with existing logic)
+    return value.toLocaleDateString("en-IN", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  // 3. Handle Arrays
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => smartStringify(item))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  // 4. Handle Objects (Line Item Detection & Identity)
+  // Smartly detect if this represents a "purchasable item" or "line item"
+  const name = value.name || value.label || value.title || value.text || value.displayName;
+  const qty = value.qty || value.quantity;
+  const price = value.price || value.amount || value.cost;
+
+  if (name && (qty !== undefined || price !== undefined)) {
+    let line = String(name);
+    if (qty !== undefined && qty > 1) line += ` x${qty}`;
+    if (price !== undefined) {
+      const formattedPrice = typeof price === 'number' ? `₹${price.toLocaleString('en-IN')}` : price;
+      line += ` (${formattedPrice})`;
+    }
+    return line;
+  }
+
+  // Identity Detection Fallback
+  const identityFields = ["name", "label", "title", "text", "displayName", "Id"];
+  for (const field of identityFields) {
+    if (value[field]) return String(value[field]);
+  }
+
+  // Fallback: Find first string property
+  const firstString = Object.values(value).find((v) => typeof v === "string");
+  if (firstString) return String(firstString);
+
+  // Last resort
+  try {
+    return JSON.stringify(value);
+  } catch (e) {
+    return "[Complex Data]";
+  }
 };
 
 export const extractVariablePositions = (text: string): number[] => {
@@ -116,7 +200,9 @@ export const extractEmailEnrichedFields = (components: any[]) => {
 
     uniqueIndices.forEach((idx) => {
       // Avoid pushing duplicates if a variable is used multiple times in the same block
-      const exists = variables.find(v => v.originalIndex === idx && v.componentIndex === compIndex);
+      const exists = variables.find(
+        (v) => v.originalIndex === idx && v.componentIndex === compIndex,
+      );
       if (!exists) {
         variables.push({
           position: nextPos++,
@@ -137,13 +223,19 @@ export const extractEmailEnrichedFields = (components: any[]) => {
         Object.entries(props).forEach(([key, val]) => {
           if (typeof val === "string") {
             extractFromText(val, block.type || "BLOCK", blockIdx);
-          } else if (val && typeof val === "object" && !Array.isArray(val) && "type" in val && "props" in val) {
+          } else if (
+            val &&
+            typeof val === "object" &&
+            !Array.isArray(val) &&
+            "type" in val &&
+            "props" in val
+          ) {
             // Nested block (e.g., inside columns-2)
             extractProps((val as any).props);
           }
         });
       };
-      
+
       if (block.props) {
         extractProps(block.props);
       }
@@ -458,14 +550,15 @@ export const resolveUnifiedWhatsAppTemplate = async (
         // If the CRM field resolved to nothing, try eventVariables as a fallback.
         // Handles cases where e.g. meetings.meetCode is empty but meet_code was
         // passed directly in the automation trigger's event variables.
-        if ((value === null || value === undefined || value === "") && eventVariables && mapping.field) {
+        if (
+          (value === null || value === undefined || value === "") &&
+          eventVariables &&
+          mapping.field
+        ) {
           const field = mapping.field;
           // Try exact key, then snake_case conversion of camelCase
           const snakeKey = field.replace(/([A-Z])/g, "_$1").toLowerCase();
-          value =
-            eventVariables[field] ??
-            eventVariables[snakeKey] ??
-            null;
+          value = eventVariables[field] ?? eventVariables[snakeKey] ?? null;
           if (value !== null && value !== undefined) {
             console.log(
               `[TemplateResolver] CRM field "${field}" was empty; resolved from eventVariables key "${snakeKey || field}".`,
@@ -493,7 +586,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
         break;
     }
 
-    if (value instanceof Date) {
+    // Apply Transform or Smart Date Formatting
+    if (mapping.transform && mapping.transform !== "none") {
+      value = applyTransform(value, mapping.transform);
+    } else if (value instanceof Date) {
       const fieldName = mapping.field?.toLowerCase() || "";
       const isTimeOnly =
         fieldName.includes("time") && !fieldName.includes("date");
@@ -538,13 +634,32 @@ export const resolveUnifiedWhatsAppTemplate = async (
       }
     }
 
-    value =
+    const finalValue =
       value === null || value === undefined || value === ""
         ? mapping.fallback || ""
         : value;
 
-    // Strictness check
-    const strVal = String(value);
+    if (
+      mapping.required &&
+      (finalValue === null || finalValue === undefined || finalValue === "")
+    ) {
+      return {
+        resolvedVariables: [],
+        languageCode: template.language || "en_US",
+        isReady: false,
+        contextSnapshot: {
+          error: `Required variable {{${mapping.position}}} (${
+            mapping.label || "Untitled"
+          }) is missing and has no fallback.`,
+          missingField: mapping.label || `{{${mapping.position}}}`,
+        },
+        template,
+      };
+    }
+
+    // Strictness check (Smart Stringify)
+    let strVal = smartStringify(finalValue);
+
     if (strVal.includes("{{") || strVal.includes("vars.")) {
       // If it's still a raw placeholder and required, we might want to fail, but let's be lenient if fallback exists
     }
@@ -877,6 +992,51 @@ export const resolveUnifiedEmailTemplate = async (
   };
 };
 
+/**
+ * Applies a transformation to a value
+ */
+const applyTransform = (value: any, transform?: string): any => {
+  if (value === null || value === undefined || value === "") return value;
+
+  switch (transform) {
+    case "uppercase":
+      return String(value).toUpperCase();
+    case "lowercase":
+      return String(value).toLowerCase();
+    case "titlecase":
+      return String(value)
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    case "date": {
+      const d = value instanceof Date ? value : new Date(value);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      }
+      return value;
+    }
+    case "currency": {
+      const num = Number(value);
+      if (!isNaN(num)) {
+        return new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(num);
+      }
+      return value;
+    }
+    case "number": {
+      const n = Number(value);
+      return isNaN(n) ? value : n;
+    }
+    default:
+      return value;
+  }
+};
+
 const evaluateFormula = (formula: string, context: any): string => {
   try {
     // Basic regex-based formula parser for: func(field) or func(field, arg)
@@ -1118,7 +1278,7 @@ export const getCollectionFields = async (
 
   const fieldsSet = new Map<
     string,
-    { key: string; label: string; type: string }
+    { key: string; label: string; type: string; dataType?: string }
   >();
 
   // 1. Core Fields from Source Code (Source of Truth)
@@ -1137,45 +1297,100 @@ export const getCollectionFields = async (
       .limit(10)
       .toArray();
 
-    docs.forEach((doc) => {
-      Object.keys(doc).forEach((key) => {
-        if (["clientCode", "__v", "_id"].includes(key)) return;
+    const flatten = (obj: any, prefix = "") => {
+      if (
+        !obj ||
+        typeof obj !== "object" ||
+        Array.isArray(obj) ||
+        obj instanceof Date ||
+        Buffer.isBuffer(obj) ||
+        obj.constructor?.name === "ObjectId" ||
+        obj._bsontype === "Binary" ||
+        obj._bsontype === "ObjectID"
+      )
+        return;
 
-        if (key === "metadata" && doc.metadata?.extra) {
-          Object.keys(doc.metadata.extra).forEach((ex) => {
-            const fullKey = `metadata.extra.${ex}`;
-            if (!fieldsSet.has(fullKey)) {
-              fieldsSet.set(fullKey, {
-                key: fullKey,
-                label: ex
-                  .replace(/([A-Z])/g, " $1")
-                  .replace(/^./, (str) => str.toUpperCase()),
-                type: "dynamic",
-              });
-            }
-          });
-        } else if (
-          typeof doc[key] !== "object" ||
-          Array.isArray(doc[key]) ||
-          doc[key] instanceof Date
-        ) {
-          if (!fieldsSet.has(key)) {
-            fieldsSet.set(key, {
-              key,
-              label: key
-                .replace(/([A-Z])/g, " $1")
-                .replace(/^./, (str) => str.toUpperCase()),
-              type: "dynamic",
-            });
-          }
+      Object.keys(obj).forEach((key) => {
+        if (
+          ["clientCode", "__v", "_id", "id", "password", "salt"].includes(key) ||
+          key.startsWith("_")
+        )
+          return;
+
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        const val = obj[key];
+
+        const isArray = Array.isArray(val);
+        const isObject =
+          val && typeof val === "object" && !isArray && !(val instanceof Date);
+        const dataType = isArray ? "array" : isObject ? "object" : typeof val;
+
+        // Check if this is a curated field
+        const collectionCurated = CURATED_FIELDS[collName] || {};
+        const curatedLabel = collectionCurated[fullKey];
+
+        if (!fieldsSet.has(fullKey)) {
+          fieldsSet.set(fullKey, {
+            key: fullKey,
+            label:
+              curatedLabel ||
+              fullKey
+                .split(".")
+                .map((k) =>
+                  k
+                    .replace(/([A-Z])/g, " $1")
+                    .replace(/^./, (str) => str.toUpperCase()),
+                )
+                .join(" → "),
+            type: curatedLabel ? "curated" : "dynamic",
+            dataType,
+          } as any);
+        }
+
+        if (isObject) {
+          flatten(val, fullKey);
+        } else if (isArray && val.length > 0 && typeof val[0] === "object") {
+          // For arrays of objects, skip the intermediate .* and just flatten the children directly under the array path
+          // This allows users to drill down from 'orderItems' directly into 'name', 'price', etc.
+          flatten(val[0], fullKey);
         }
       });
+    };
+
+    docs.forEach((doc) => {
+      flatten(doc);
+      // Explicitly handle metadata.extra for legacy compatibility and depth
+      if (doc.metadata?.extra) {
+        flatten(doc.metadata.extra, "metadata.extra");
+      }
     });
   } catch (err) {
     console.error(`Error sampling documents for ${collName}:`, err);
   }
 
+  // Ensure all curated fields are included even if not found in sample docs
+  const collectionCurated = CURATED_FIELDS[collName] || {};
+  Object.entries(collectionCurated).forEach(([key, label]) => {
+    if (!fieldsSet.has(key)) {
+      fieldsSet.set(key, {
+        key,
+        label,
+        type: "curated",
+      } as any);
+    }
+  });
+
   return Array.from(fieldsSet.values());
+};
+
+/**
+ * Get all curated fields for all major collections and trigger fields
+ */
+export const getCuratedMappingConfig = () => {
+  return {
+    collections: CURATED_FIELDS,
+    triggers: CURATED_TRIGGER_FIELDS,
+  };
 };
 
 /**

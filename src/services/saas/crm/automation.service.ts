@@ -26,6 +26,7 @@ export interface AutomationContext {
   score?: number;
   /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
   variables?: Record<string, string>;
+  meetingId?: string;
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -233,6 +234,7 @@ const executeRule = async (
       ctx.lead,
       (rule as any)._id.toString(),
       ctx.variables,
+      ctx.meetingId,
     );
   }
 
@@ -356,6 +358,7 @@ export const executeAction = async (
           type: "action_required",
           status: "unread",
           actionData: {
+            actionType: action.type,
             actionConfig: action,
             leadId: lead._id,
             error: err.message,
@@ -640,6 +643,7 @@ const enqueueDelayedAction = async (
   lead: ILead,
   ruleId: string,
   variables?: Record<string, string>,
+  meetingId?: string,
 ): Promise<void> => {
   const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
 
@@ -719,17 +723,63 @@ const enqueueDelayedAction = async (
     }
   }
 
+  const targetMeetingId =
+    meetingId ||
+    variables?.meeting_id ||
+    (action.config as any)?.meetingId ||
+    (action.config as any)?._resolvedContext?.meeting_id;
+
+  const payload = {
+    actionType: action.type,
+    actionConfig: validationResult.resolvedConfig,
+    leadId: lead._id.toString(),
+    ruleId,
+    ctxVariables: variables, // Keep as fallback/context
+    meetingId: targetMeetingId,
+  };
+
+  // Track in meeting model if it's a reminder
+  if (
+    targetMeetingId &&
+    (action.type === "send_whatsapp" || action.type === "send_email")
+  ) {
+    try {
+      const { Meeting } = await getCrmModels(clientCode);
+      const fireTime = new Date(Date.now() + Math.max(0, delayMs));
+      const actionId =
+        (action as any)._id?.toString() ||
+        new mongoose.Types.ObjectId().toString();
+
+      await Meeting.updateOne(
+        { _id: targetMeetingId, clientCode },
+        {
+          $push: {
+            reminders: {
+              actionId,
+              type: action.type,
+              fireTime,
+              status: "pending",
+            },
+          },
+        },
+      );
+
+      // Add actionId and meetingId to payload for worker status updates
+      (payload as any).actionId = actionId;
+      (payload as any).meetingId = targetMeetingId;
+    } catch (err) {
+      console.error(
+        `[automationService] Failed to track reminder for meeting ${targetMeetingId}:`,
+        err,
+      );
+    }
+  }
+
   await crmQueue.add(
     {
       clientCode,
       type: "crm.automation_action",
-      payload: {
-        actionType: action.type,
-        actionConfig: validationResult.resolvedConfig,
-        leadId: lead._id.toString(),
-        ruleId,
-        ctxVariables: variables, // Keep as fallback/context
-      },
+      payload,
     },
     { delayMs: Math.max(0, delayMs) },
   );
@@ -746,7 +796,7 @@ async function validateActionBeforeEnqueue(
 ): Promise<{ isValid: boolean; resolvedConfig?: any }> {
   const { Notification } = await getCrmModels(clientCode);
 
-  const notifyUser = async (title: string, msg: string) => {
+  const notifyUser = async (title: string, msg: string, errorType?: string) => {
     const notif = await Notification.create({
       clientCode,
       title,
@@ -754,9 +804,11 @@ async function validateActionBeforeEnqueue(
       type: "action_required",
       status: "unread",
       actionData: {
+        actionType: action.type,
         actionConfig: action,
         leadId: lead._id,
         contextSnapshot: variables || {},
+        errorType,
       },
     });
     if ((global as any).io) {
@@ -789,6 +841,7 @@ async function validateActionBeforeEnqueue(
             await notifyUser(
               "WhatsApp Template Mapping Incomplete",
               `The template "${cfg.templateName}" has missing variable mappings.`,
+              "whatsapp_template_incomplete",
             );
             return { isValid: false };
           }
@@ -812,6 +865,7 @@ async function validateActionBeforeEnqueue(
             await notifyUser(
               "Email Template Mapping Incomplete",
               `The email template "${cfg.templateName}" has missing mappings.`,
+              "email_template_incomplete",
             );
             return { isValid: false };
           }
@@ -826,6 +880,7 @@ async function validateActionBeforeEnqueue(
         await notifyUser(
           `${action.type === "send_whatsapp" ? "WhatsApp" : "Email"} Template Resolution Failed`,
           `Rule tried to resolve template "${cfg.templateName}" but failed: ${err.message}`,
+          "template_resolution_failed",
         );
         return { isValid: false };
       }
@@ -845,6 +900,7 @@ async function validateActionBeforeEnqueue(
       await notifyUser(
         "Unresolved Variables in Action",
         `The action (${action.type}) contains unresolved variables (${unmappedMatches[0]}) which will result in broken messages.`,
+        "unresolved_variables",
       );
       return { isValid: false };
     }
