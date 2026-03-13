@@ -181,29 +181,29 @@ The single endpoint any client website calls to fire an automation.
 
 **All supported trigger names:**
 
-| Trigger                  | Fired by | Real Scenario Description                      |
-| ------------------------ | -------- | ---------------------------------------------- |
-| `appointment_confirmed`  | Client   | Patient books a doctor consultation.           |
-| `appointment_cancelled`  | Client   | User cancels their booking.                    |
-| `appointment_reminder`   | Client   | Sent N hours before the visit.                 |
-| `form_submitted`         | Client   | Generic contact / inquiry form.                |
-| `payment_captured`       | Client   | Successful course or product purchase.         |
-| `payment_initiated`      | Client   | User lands on the checkout page.               |
-| `product_purchased`      | Client   | eCommerce order completed.                     |
-| `service_enrolled`       | Client   | Student registers for a workshop.              |
-| `user_registration`      | Client   | New account created on the portal.             |
-| `volunteer_application`  | Client   | New volunteer submits their resume.            |
-| `consultation_requested` | Client   | Patient requests a callback from a doctor.     |
-| `deal_won`               | Client   | Lead manually marked as successfully closed.   |
-| `deal_lost`              | Client   | Lead marked as dropped or invalid.             |
-| `stage_enter`            | System   | Lead moves into high-intent stage (e.g. "KYC").|
-| `stage_exit`             | System   | Lead leaves a cooling-off stage.               |
-| `lead_created`           | System   | Automatic entry for every new phone number.    |
-| `score_above`            | System   | Lead score crosses 80 (Hot Lead Notification). |
-| `score_below`            | System   | Lead score drops below 20 (Auto-archive).      |
-| `tag_added`              | System   | Specific tag e.g. "VIP" applied.               |
-| `tag_removed`            | System   | "Trial" tag removed after upgrade.             |
-| `no_contact`             | System   | Lead inactive for 7 days (Re-engagement).      |
+| Trigger                  | Fired by | Real Scenario Description                       |
+| ------------------------ | -------- | ----------------------------------------------- |
+| `appointment_confirmed`  | Client   | Patient books a doctor consultation.            |
+| `appointment_cancelled`  | Client   | User cancels their booking.                     |
+| `appointment_reminder`   | Client   | Sent N hours before the visit.                  |
+| `form_submitted`         | Client   | Generic contact / inquiry form.                 |
+| `payment_captured`       | Client   | Successful course or product purchase.          |
+| `payment_initiated`      | Client   | User lands on the checkout page.                |
+| `product_purchased`      | Client   | eCommerce order completed.                      |
+| `service_enrolled`       | Client   | Student registers for a workshop.               |
+| `user_registration`      | Client   | New account created on the portal.              |
+| `volunteer_application`  | Client   | New volunteer submits their resume.             |
+| `consultation_requested` | Client   | Patient requests a callback from a doctor.      |
+| `deal_won`               | Client   | Lead manually marked as successfully closed.    |
+| `deal_lost`              | Client   | Lead marked as dropped or invalid.              |
+| `stage_enter`            | System   | Lead moves into high-intent stage (e.g. "KYC"). |
+| `stage_exit`             | System   | Lead leaves a cooling-off stage.                |
+| `lead_created`           | System   | Automatic entry for every new phone number.     |
+| `score_above`            | System   | Lead score crosses 80 (Hot Lead Notification).  |
+| `score_below`            | System   | Lead score drops below 20 (Auto-archive).       |
+| `tag_added`              | System   | Specific tag e.g. "VIP" applied.                |
+| `tag_removed`            | System   | "Trial" tag removed after upgrade.              |
+| `no_contact`             | System   | Lead inactive for 7 days (Re-engagement).       |
 
 ---
 

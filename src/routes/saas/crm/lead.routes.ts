@@ -60,8 +60,7 @@ router.post("/leads/upsert", async (req: any, res: any) => {
     let finalStageId = inputStageId;
 
     if (!finalPipelineId && trigger) {
-      const { getCrmModels } =
-        await import("@/lib/tenant/get.crm.model");
+      const { getCrmModels } = await import("@/lib/tenant/get.crm.model");
       const { CustomEventDef } = await getCrmModels(req.clientCode!);
       const eventDef = await CustomEventDef.findOne({
         clientCode: req.clientCode,
