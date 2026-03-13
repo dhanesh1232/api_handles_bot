@@ -6,26 +6,80 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
-// ─── Helper: date range ───────────────────────────────────────────────────────
-
-const getDateRange = (range: "7d" | "30d" | "90d" | "365d"): Date => {
-  const ms = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
+const getDateRange = (range: AnalyticsRange): Date => {
+  const ms = { "24h": 1, "7d": 7, "30d": 30, "60d": 60, "90d": 90, "365d": 365 };
   const days = ms[range] ?? 30;
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+};
+
+// ─── 0. WhatsApp Specialized Analytics ───────────────────────────────────────
+
+export const getWhatsAppAnalytics = async (
+  clientCode: string,
+  range: "24h" | "7d" | "30d" | "60d" = "30d",
+) => {
+  const { Message, Conversation } = await getCrmModels(clientCode);
+  const since = getDateRange(range);
+
+  const [messageStats, conversationStats] = await Promise.all([
+    Message.aggregate([
+      { 
+        $match: { 
+          direction: "outbound", 
+          createdAt: { $gte: since },
+          messageType: { $ne: "reaction" }
+        } 
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    Conversation.countDocuments({
+      channel: "whatsapp",
+      lastMessageAt: { $gte: since },
+    }),
+  ]);
+
+  const statsMap = new Map(messageStats.map((r: any) => [r._id, r.count]));
+  
+  const sent = statsMap.get("sent") ?? 0;
+  const delivered = statsMap.get("delivered") ?? 0;
+  const read = statsMap.get("read") ?? 0;
+  const failed = statsMap.get("failed") ?? 0;
+  const totalOutbound = sent + delivered + read + failed;
+
+  return {
+    range,
+    activeConversations: conversationStats,
+    messages: {
+      totalOutbound,
+      sent,
+      delivered,
+      read,
+      failed,
+      deliveryRate: totalOutbound > 0 ? Math.round(((delivered + read) / totalOutbound) * 100) : 0,
+      failureRate: totalOutbound > 0 ? Math.round((failed / totalOutbound) * 100) : 0,
+    },
+  };
 };
 
 // ─── 1. Overview KPIs ─────────────────────────────────────────────────────────
 
 export const getOverview = async (
   clientCode: string,
-  range: "7d" | "30d" | "90d" | "365d" = "30d",
+  range: AnalyticsRange = "30d",
 ) => {
   const { Lead, LeadActivity } = await getCrmModels(clientCode);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const since = getDateRange(range);
 
-  const [totals, periodLeads, wonDeals, activities] = await Promise.all([
+  const [totals, periodLeads, wonDeals, activities, leadsToday] = await Promise.all([
     Lead.aggregate([
       { $match: { clientCode, isArchived: false } },
       {
@@ -63,6 +117,11 @@ export const getOverview = async (
       },
     ]),
     LeadActivity.countDocuments({ clientCode, createdAt: { $gte: since } }),
+    Lead.countDocuments({
+      clientCode,
+      isArchived: false,
+      createdAt: { $gte: today },
+    }),
   ]);
 
   const t = totals[0] ?? {};
@@ -72,6 +131,7 @@ export const getOverview = async (
     totalLeads: (t as any).totalLeads ?? 0,
     openLeads: (t as any).openLeads ?? 0,
     newLeadsInPeriod: periodLeads,
+    leadsToday,
     totalPipelineValue: (t as any).totalPipeline ?? 0,
     wonDealsInPeriod: (won as any).count,
     revenueInPeriod: (won as any).revenue,
@@ -92,7 +152,9 @@ export const getFunnelData = async (clientCode: string, pipelineId: string) => {
   const stages = await PipelineStage.find({
     clientCode,
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
-  }).sort({ order: 1 });
+  })
+    .sort({ order: 1 })
+    .lean();
 
   const agg = await Lead.aggregate([
     {
@@ -154,7 +216,7 @@ export const getRevenueForecast = async (
   }
 
   const [stages, agg] = await Promise.all([
-    PipelineStage.find(stageQuery).sort({ order: 1 }),
+    PipelineStage.find(stageQuery).sort({ order: 1 }).lean(),
     Lead.aggregate([
       { $match: leadMatch },
       {
@@ -193,7 +255,7 @@ export const getRevenueForecast = async (
 
 export const getSourceBreakdown = async (
   clientCode: string,
-  range: "7d" | "30d" | "90d" | "365d" = "30d",
+  range: AnalyticsRange = "30d",
 ) => {
   const { Lead } = await getCrmModels(clientCode);
   const since = getDateRange(range);
@@ -227,7 +289,7 @@ export const getSourceBreakdown = async (
 
 export const getTeamLeaderboard = async (
   clientCode: string,
-  range: "7d" | "30d" | "90d" | "365d" = "30d",
+  range: AnalyticsRange = "30d",
 ) => {
   const { Lead, LeadActivity } = await getCrmModels(clientCode);
   const since = getDateRange(range);
@@ -294,7 +356,7 @@ export const getTeamLeaderboard = async (
 
 export const getActivityHeatmap = async (
   clientCode: string,
-  range: "30d" | "90d" = "30d",
+  range: AnalyticsRange = "30d",
 ) => {
   const { LeadActivity } = await getCrmModels(clientCode);
   const since = getDateRange(range);
@@ -348,7 +410,9 @@ export const getAvgTimeInStage = async (
   const stages = await PipelineStage.find({
     clientCode,
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
-  }).sort({ order: 1 });
+  })
+    .sort({ order: 1 })
+    .lean();
 
   const statsMap = new Map(changes.map((r: any) => [r._id, r]));
 
@@ -389,7 +453,9 @@ export const getPipelineVelocity = async (
   const stages = await PipelineStage.find({
     clientCode,
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
-  }).sort({ order: 1 });
+  })
+    .sort({ order: 1 })
+    .lean();
 
   const statsMap = new Map(agg.map((r: any) => [r._id.toString(), r]));
 
@@ -447,12 +513,12 @@ export const getPredictiveConversionScore = async (
   leadId: string,
 ): Promise<number> => {
   const { Lead, PipelineStage } = await getCrmModels(clientCode);
-  const lead = await Lead.findById(leadId);
+  const lead = await Lead.findById(leadId).lean();
   if (!lead) return 0;
 
   let stageProb = 0;
   if (lead.stageId) {
-    const stage = await PipelineStage.findById(lead.stageId);
+    const stage = await PipelineStage.findById(lead.stageId).lean();
     stageProb = stage?.probability || 0;
   }
 
@@ -461,4 +527,80 @@ export const getPredictiveConversionScore = async (
   // Simple weighted logic for v1
   const weighted = leadScore * 0.4 + stageProb * 0.6;
   return Math.round(Math.min(100, Math.max(0, weighted)));
+};
+
+// ─── 10. Tiered Analytics Report (Weaponized ROI) ───────────────────────────
+
+/**
+ * Returns a comprehensive analytics report categorized into tiers.
+ * Basic: Core visibility (Pulse)
+ * Medium: Operational efficiency (Growth)
+ * Advanced: Strategic foresight & AI (Weapon)
+ */
+export const getTieredReport = async (
+  clientCode: string,
+  range: AnalyticsRange = "30d",
+  pipelineId?: string,
+) => {
+  // 1. Basic Metrics (The Pulse)
+  const overview = await getOverview(clientCode, range);
+  
+  // 2. Medium Metrics (Growth)
+  const sources = await getSourceBreakdown(clientCode, range);
+  const funnel = pipelineId ? await getFunnelData(clientCode, pipelineId) : null;
+  const distribution = await getScoreDistribution(clientCode);
+
+  // 3. Advanced Metrics (The Weapon)
+  const forecast = await getRevenueForecast(clientCode, pipelineId);
+  const velocity = pipelineId ? await getPipelineVelocity(clientCode, pipelineId) : null;
+  const heatmap = await getActivityHeatmap(clientCode, range === "365d" ? "90d" : range as any);
+
+  const insights = [
+    overview.conversionRate > 20 ? "High conversion detected. Consider scaling sources." : "Conversion rate below target. Review funnel stages.",
+    forecast.grandTotal > 50000 ? "Strong pipeline detected. Strategic follow-ups recommended." : "Pipeline health needs attention.",
+  ];
+
+  const charts = {
+basic: {
+      totalLeads: overview.totalLeads,
+      newLeads: overview.newLeadsInPeriod,
+      activeLeads: overview.openLeads,
+      activities: overview.activitiesInPeriod,
+    },
+    medium: {
+      conversionRate: overview.conversionRate,
+      pipelineValue: overview.totalPipelineValue,
+      sources,
+      funnel,
+      scoreDistribution: distribution,
+    },
+    advanced: {
+      projectedRevenue: forecast.grandTotal,
+      forecastRows: forecast.rows,
+      bottlenecks: velocity,
+      activityHeatmap: heatmap,
+      insights,
+    }
+  } as const
+
+  console.log(charts, insights)
+  return charts
+};
+
+/**
+ * Consolidates regular CRM overview and WhatsApp analytics into a single response.
+ */
+export const getDashboardSummary = async (
+  clientCode: string,
+  range: AnalyticsRange = "30d",
+) => {
+  const [overview, whatsapp] = await Promise.all([
+    getOverview(clientCode, range),
+    getWhatsAppAnalytics(clientCode, range as any),
+  ]);
+
+  return {
+    overview,
+    whatsapp,
+  };
 };

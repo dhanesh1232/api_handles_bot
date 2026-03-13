@@ -1,7 +1,7 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { normalizePhone } from "@utils/phone";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
@@ -14,14 +14,15 @@ export class ReminderJobHandler extends JobHandler {
     const { Conversation, conn: tenantConn } = await getCrmModels(clientCode);
 
     const phone = normalizePhone(payload.phone);
-    let conv = await Conversation.findOne({ phone });
+    let conv = await Conversation.findOne({ phone }).lean();
     if (!conv) {
-      conv = await Conversation.create({
+      const newConv = await Conversation.create({
         phone,
         userName: phone,
         status: "open",
         channel: "whatsapp",
       });
+      conv = newConv.toObject();
     }
 
     let finalVariables = payload.variables || [];
@@ -32,7 +33,9 @@ export class ReminderJobHandler extends JobHandler {
         await import("@services/saas/whatsapp/template.service");
       const { Lead } = await getCrmModels(clientCode);
 
-      const lead = payload.leadId ? await Lead.findById(payload.leadId) : {};
+      const lead = payload.leadId
+        ? await Lead.findById(payload.leadId).lean()
+        : {};
 
       const resolution = await resolveUnifiedWhatsAppTemplate(
         tenantConn,

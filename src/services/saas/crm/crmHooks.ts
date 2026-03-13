@@ -5,9 +5,9 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { sendCallbackWithRetry } from "@/lib/callbackSender";
+import { getCrmModels } from "@/lib/tenant/crm.models";
+import { ClientSecrets } from "@/model/clients/secrets";
 import { logActivity } from "./activity.service.ts";
 import { recalculateScore } from "./lead.service.ts";
 import { EventBus } from "../event/eventBus.service.ts";
@@ -26,7 +26,7 @@ export const onWhatsAppSent = async (
 ): Promise<void> => {
   try {
     const { Lead } = await getCrmModels(clientCode);
-    const lead = await Lead.findOne({ clientCode, phone: input.phone });
+    const lead = await Lead.findOne({ clientCode, phone: input.phone }).lean();
     if (!lead) return;
     await logActivity(clientCode, {
       leadId: lead._id.toString(),
@@ -60,7 +60,7 @@ export const onWhatsAppReceived = async (
 ): Promise<void> => {
   try {
     const { Lead } = await getCrmModels(clientCode);
-    let lead = await Lead.findOne({ clientCode, phone: input.phone });
+    let lead = await Lead.findOne({ clientCode, phone: input.phone }).lean();
 
     if (!lead) {
       const { createLead } = await import("./lead.service.ts");
@@ -107,7 +107,7 @@ export const onWhatsAppStatus = async (
 ): Promise<void> => {
   try {
     const { Lead } = await getCrmModels(clientCode);
-    const lead = await Lead.findOne({ clientCode, phone: input.phone });
+    const lead = await Lead.findOne({ clientCode, phone: input.phone }).lean();
     if (!lead) return;
 
     if (input.status === "read") {
@@ -154,7 +154,7 @@ export const onMeetingCreated = async (
 ): Promise<void> => {
   try {
     const { Lead } = await getCrmModels(clientCode);
-    const lead = await Lead.findOne({ clientCode, phone: input.phone });
+    const lead = await Lead.findOne({ clientCode, phone: input.phone }).lean();
     if (!lead) return;
 
     await logActivity(clientCode, {
@@ -182,7 +182,7 @@ export const onMeetingCreated = async (
 
     // ─── Trigger optional client callback for meeting sync ──────────
     if (input.appointmentId) {
-      const secrets = await ClientSecrets.findOne({ clientCode });
+      const secrets = await ClientSecrets.findOne({ clientCode }).lean();
       const callbackUrl = secrets?.getDecrypted(
         "customSecrets.MEETING_CALLBACK_URL",
       );
@@ -231,7 +231,7 @@ export const onEmailSent = async (
 ): Promise<void> => {
   try {
     const { Lead } = await getCrmModels(clientCode);
-    const lead = await Lead.findOne({ clientCode, email: input.email });
+    const lead = await Lead.findOne({ clientCode, email: input.email }).lean();
     if (!lead) return;
     await logActivity(clientCode, {
       leadId: lead._id.toString(),
@@ -270,12 +270,12 @@ export const onPaymentCaptured = async (
       lead = await Lead.findOne({
         clientCode,
         "metadata.refs.appointmentId": input.appointmentId,
-      });
+      }).lean();
     }
     if (!lead && input.phone)
-      lead = await Lead.findOne({ clientCode, phone: input.phone });
+      lead = await Lead.findOne({ clientCode, phone: input.phone }).lean();
     if (!lead && input.email)
-      lead = await Lead.findOne({ clientCode, email: input.email });
+      lead = await Lead.findOne({ clientCode, email: input.email }).lean();
     if (!lead) return;
 
     const refs: Record<string, string | null> = {};

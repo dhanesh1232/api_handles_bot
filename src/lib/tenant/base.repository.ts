@@ -20,8 +20,11 @@ export class BaseRepository<T> {
     options: QueryOptions = {},
   ): Promise<T | null> {
     return this.model
-      .findOne({ _id: id, clientCode: this.clientCode } as any, null, options)
-      .exec();
+      .findOne({ _id: id, clientCode: this.clientCode } as any, null, {
+        lean: true,
+        ...options,
+      })
+      .exec() as any;
   }
 
   /**
@@ -29,8 +32,11 @@ export class BaseRepository<T> {
    */
   async findOne(filter: any, options: QueryOptions = {}): Promise<T | null> {
     return this.model
-      .findOne({ ...filter, clientCode: this.clientCode } as any, null, options)
-      .exec();
+      .findOne({ ...filter, clientCode: this.clientCode } as any, null, {
+        lean: true,
+        ...options,
+      })
+      .exec() as any;
   }
 
   /**
@@ -42,9 +48,12 @@ export class BaseRepository<T> {
     sort: any = { createdAt: -1 },
   ): Promise<T[]> {
     return this.model
-      .find({ ...filter, clientCode: this.clientCode } as any, null, options)
+      .find({ ...filter, clientCode: this.clientCode } as any, null, {
+        lean: true,
+        ...options,
+      })
       .sort(sort)
-      .exec();
+      .exec() as any;
   }
 
   /**
@@ -62,10 +71,11 @@ export class BaseRepository<T> {
    * Create a new document.
    */
   async create(data: Partial<T>): Promise<T> {
-    return this.model.create({
+    const doc = await this.model.create({
       ...data,
       clientCode: this.clientCode,
     } as any);
+    return doc.toObject();
   }
 
   /**
@@ -80,9 +90,12 @@ export class BaseRepository<T> {
       .findOneAndUpdate(
         { _id: id, clientCode: this.clientCode } as any,
         updates,
-        options,
+        {
+          lean: true,
+          ...options,
+        },
       )
-      .exec();
+      .exec() as any;
   }
 
   /**
@@ -101,9 +114,12 @@ export class BaseRepository<T> {
       .findOneAndUpdate(
         { ...filter, clientCode: this.clientCode } as any,
         updates,
-        options,
+        {
+          lean: true,
+          ...options,
+        },
       )
-      .exec();
+      .exec() as any;
   }
 
   /**
@@ -143,7 +159,9 @@ export class BaseRepository<T> {
 
     const [docs, total] = await Promise.all([
       this.model
-        .find({ ...filter, clientCode: this.clientCode } as any)
+        .find({ ...filter, clientCode: this.clientCode } as any, null, {
+          lean: true,
+        })
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -179,7 +197,10 @@ export class BaseRepository<T> {
       ...doc,
       clientCode: this.clientCode,
     }));
-    return this.model.insertMany(enriched as any) as unknown as T[];
+    const results = await this.model.insertMany(enriched as any);
+    return results.map((r: any) =>
+      typeof r.toObject === "function" ? r.toObject() : r,
+    );
   }
 
   /**

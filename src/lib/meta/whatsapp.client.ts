@@ -23,61 +23,7 @@ import { logger } from "@lib/logger";
 
 const BASE_URL = "https://graph.facebook.com/v21.0";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
-export interface MetaTextPayload {
-  messaging_product: "whatsapp";
-  to: string;
-  type: "text";
-  text: { body: string };
-}
-
-export interface MetaTemplatePayload {
-  messaging_product: "whatsapp";
-  to: string;
-  type: "template";
-  template: {
-    name: string;
-    language: { code: string };
-    components?: MetaTemplateComponent[];
-  };
-}
-
-export interface MetaTemplateComponent {
-  type: "body" | "header" | "button";
-  parameters: Array<{ type: "text"; text: string }>;
-}
-
-export interface MetaMediaPayload {
-  messaging_product: "whatsapp";
-  to: string;
-  type: "image" | "video" | "document" | "audio";
-  [key: string]: unknown;
-}
-
-export interface MetaReactionPayload {
-  messaging_product: "whatsapp";
-  to: string;
-  type: "reaction";
-  reaction: { message_id: string; emoji: string };
-}
-
-export interface MetaSendResult {
-  messages: Array<{ id: string }>;
-  contacts: Array<{ input: string; wa_id: string }>;
-}
-
-export interface MetaTemplate {
-  id: string;
-  name: string;
-  status: string;
-  category: string;
-  language: string;
-  components: unknown[];
-}
-
 // ─── Client Class ──────────────────────────────────────────────────────────────
-
 export class MetaWhatsAppClient {
   private readonly http: AxiosInstance;
   private readonly log = logger.child({ module: "MetaWhatsAppClient" });

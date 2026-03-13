@@ -7,7 +7,7 @@
 
 import { dbConnect } from "@lib/config";
 import { ClientSecrets } from "@models/clients/secrets";
-import { MailClient, type SendMailInput } from "@lib/mail/mail.client";
+import { MailClient } from "@lib/mail/mail.client";
 
 export class MailSDK {
   constructor(private readonly clientCode: string) {}

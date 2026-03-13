@@ -1,6 +1,6 @@
 import { dbConnect } from "@lib/config";
 import { jobLogger } from "@lib/logger";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { ClientSecrets } from "@models/clients/secrets";
 import { syncTemplatesFromMeta } from "@services/saas/whatsapp/template.service";
 

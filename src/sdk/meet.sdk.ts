@@ -4,11 +4,8 @@
 
 import { dbConnect } from "@lib/config";
 import { ClientSecrets } from "@models/clients/secrets";
-import { getClientConfig } from "@lib/tenant/get.crm.model";
-import {
-  GoogleMeetClient,
-  type MeetingInput,
-} from "@lib/meet/google.meet.client";
+import { getClientConfig } from "@lib/tenant/crm.models";
+import { GoogleMeetClient } from "@lib/meet/google.meet.client";
 
 export class MeetSDK {
   private readonly baseUrl = process.env.BASE_URL || "http://localhost:4000";
@@ -34,7 +31,7 @@ export class MeetSDK {
 
     return client.createMeeting({
       summary: input.summary || "Meeting",
-      description: input.description || `Scheduled via ${config.name}`,
+      description: input.description || `Scheduled via ${config?.name}`,
       start: input.start || new Date().toISOString(),
       end: input.end || new Date(Date.now() + 30 * 60000).toISOString(),
       attendees: input.attendees,

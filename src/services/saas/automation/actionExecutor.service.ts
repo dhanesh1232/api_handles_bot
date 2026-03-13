@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
 export class ActionExecutor {
   /**
@@ -101,14 +101,15 @@ export class ActionExecutor {
       templateData,
     );
 
-    let conv = await Conversation.findOne({ phone: lead.phone });
+    let conv = await Conversation.findOne({ phone: lead.phone }).lean();
     if (!conv) {
-      conv = await Conversation.create({
+      const newConv = await Conversation.create({
         phone: lead.phone,
         userName: lead.firstName || lead.phone,
         status: "open",
         channel: "whatsapp",
       });
+      conv = newConv.toObject();
     }
 
     const svc = createWhatsappService(io || null);
@@ -179,8 +180,8 @@ export class ActionExecutor {
     return await Lead.findByIdAndUpdate(
       context.lead._id,
       { $set: fields },
-      { new: true },
-    );
+      { returnDocument: "after" },
+    ).lean();
   }
 
   private static async updateTags(

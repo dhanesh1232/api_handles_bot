@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
 const router = Router();
 
@@ -70,7 +70,8 @@ router.get("/automation/logs", async (req: Request, res: Response) => {
     const logs = await EventLog.find(query)
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
 
     const total = await EventLog.countDocuments(query);
 
@@ -101,7 +102,7 @@ router.post(
       const log = await EventLog.findOne({
         _id: req.params.id,
         clientCode: req.clientCode,
-      });
+      }).lean();
       if (!log) {
         return res
           .status(404)

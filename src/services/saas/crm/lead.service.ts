@@ -13,9 +13,9 @@
  */
 
 import mongoose from "mongoose";
-import { BaseRepository } from "../../../lib/tenant/base.repository";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { normalizePhone } from "../../../utils/phone.ts";
+import { BaseRepository } from "@/lib/tenant/base.repository";
+import { getCrmModels } from "@/lib/tenant/crm.models";
+import { normalizePhone } from "@/utils/phone";
 import {
   createPipeline,
   getDefaultPipeline,
@@ -143,7 +143,7 @@ export const createLead = async (
       const p = await Pipeline.findOne({
         clientCode,
         _id: defaultStage.pipelineId,
-      });
+      }).lean();
       if (p) pipelineId = p._id.toString();
     }
     stageId = defaultStage!._id.toString();
@@ -427,7 +427,7 @@ export const moveLead = async (
   const stage = await PipelineStage.findOne({ _id: newStageId, clientCode });
   if (!stage) throw new Error("Stage not found");
 
-  const existing = await Lead.findOne({ _id: leadId, clientCode });
+  const existing = await Lead.findOne({ _id: leadId, clientCode }).lean();
   if (!existing) throw new Error("Lead not found");
 
   const previousStageId = existing.stageId.toString();
@@ -615,7 +615,7 @@ export const archiveLead = async (
   await Lead.updateOne(
     { _id: leadId, clientCode },
     { $set: { isArchived: true, status: "archived" } },
-  );
+  ).lean();
 };
 
 // ─── 14. Bulk upsert ─────────────────────────────────────────────────────────
@@ -805,6 +805,6 @@ export const updateAiSummary = async (
         },
       },
     },
-    { new: true },
-  );
+    { returnDocument: "after" },
+  ).lean();
 };

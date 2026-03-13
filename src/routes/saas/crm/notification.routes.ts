@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { ActionExecutor } from "@/services/saas/automation/actionExecutor.service";
 
 const router = Router();

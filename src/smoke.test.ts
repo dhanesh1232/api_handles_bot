@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { after, describe, test } from "node:test";
 import { dbConnect } from "./lib/config.ts";
 import { ClientDataSource } from "./model/clients/dataSource.ts";
-import { schemas } from "./model/saas/tenant.schemas.ts"; // Note: .js for node execution
+import { tenantModelConfig } from "./lib/tenant/crm.models.ts"; // Note: .js for node execution
 
 describe("Backend System Validation (Smoke Tests)", () => {
   after(async () => {
@@ -32,27 +32,39 @@ describe("Backend System Validation (Smoke Tests)", () => {
   });
 
   test("2. Schema Integrity Check", () => {
-    assert.ok(schemas.conversations, "Conversation schema should be defined");
-    assert.ok(schemas.messages, "Message schema should be defined");
-    assert.ok(schemas.leads, "Leads schema should be defined");
-    assert.ok(schemas.pipelines, "Pipelines schema should be defined");
     assert.ok(
-      schemas.pipelineStages,
-      "Pipeline Stages schema should be defined",
+      tenantModelConfig.Conversation.schema,
+      "Conversation schema should be defined",
     );
     assert.ok(
-      schemas.automationRules,
-      "Automation Rules schema should be defined",
+      tenantModelConfig.Message.schema,
+      "Message schema should be defined",
+    );
+    assert.ok(tenantModelConfig.Lead.schema, "Lead schema should be defined");
+    assert.ok(
+      tenantModelConfig.Pipeline.schema,
+      "Pipeline schema should be defined",
     );
     assert.ok(
-      schemas.leadActivities,
-      "Lead Activities schema should be defined",
+      tenantModelConfig.PipelineStage.schema,
+      "Pipeline Stage schema should be defined",
     );
-    assert.ok(schemas.leadNotes, "Lead Notes schema should be defined");
+    assert.ok(
+      tenantModelConfig.AutomationRule.schema,
+      "Automation Rule schema should be defined",
+    );
+    assert.ok(
+      tenantModelConfig.LeadActivity.schema,
+      "Lead Activity schema should be defined",
+    );
+    assert.ok(
+      tenantModelConfig.LeadNote.schema,
+      "Lead Note schema should be defined",
+    );
 
     // Ensure they are actually mongoose schemas
     assert.strictEqual(
-      schemas.leads.constructor.name,
+      tenantModelConfig.Lead.schema.constructor.name,
       "Schema",
       "Leads should be a valid Mongoose Schema instance",
     );

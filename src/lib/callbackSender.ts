@@ -103,7 +103,7 @@ class CallbackClient {
 
   private async log(clientCode: string, data: any): Promise<void> {
     try {
-      const { getCrmModels } = await import("./tenant/get.crm.model.ts");
+      const { getCrmModels } = await import("./tenant/crm.models");
       const { CallbackLog } = await getCrmModels(clientCode);
       await CallbackLog.create({
         ...data,

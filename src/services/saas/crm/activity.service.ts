@@ -8,7 +8,7 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,8 @@ export const logActivity = async (
     performedBy: input.performedBy ?? "system",
   });
 
+  const resActivity = activity.toObject() as unknown as ILeadActivity;
+
   // Update lastContactedAt on the lead for score recalculation
   const contactTypes: ActivityType[] = [
     "whatsapp_sent",
@@ -44,7 +46,7 @@ export const logActivity = async (
     await Lead.updateOne(
       { _id: input.leadId, clientCode },
       { $set: { lastContactedAt: new Date() } },
-    );
+    ).lean();
     // Trigger score recalculation asynchronously (fire-and-forget)
     import("./lead.service.ts")
       .then(({ recalculateScore }) =>
@@ -53,7 +55,7 @@ export const logActivity = async (
       .catch(() => {}); // non-critical
   }
 
-  return activity;
+  return resActivity;
 };
 
 // ─── Activity: list for a lead ────────────────────────────────────────────────
@@ -124,16 +126,18 @@ export const createNote = async (
     createdBy,
   });
 
+  const resNote = note.toObject() as unknown as ILeadNote;
+
   await logActivity(clientCode, {
     leadId,
     type: "note_added",
     title: "Note added",
     body: content.slice(0, 120) + (content.length > 120 ? "…" : ""),
-    metadata: { noteId: note._id.toString() },
+    metadata: { noteId: resNote._id.toString() },
     performedBy: createdBy,
   });
 
-  return note;
+  return resNote;
 };
 
 // ─── Note: get all for a lead ─────────────────────────────────────────────────
@@ -170,7 +174,7 @@ export const togglePin = async (
   noteId: string,
 ): Promise<ILeadNote | null> => {
   const { LeadNote } = await getCrmModels(clientCode);
-  const note = await LeadNote.findOne({ _id: noteId, clientCode });
+  const note = await LeadNote.findOne({ _id: noteId, clientCode }).lean();
   if (!note) return null;
   return LeadNote.findByIdAndUpdate(
     noteId,

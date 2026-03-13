@@ -1,4 +1,4 @@
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { tenantLogger } from "@/lib/logger";
 import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
 
@@ -18,10 +18,10 @@ export const createNotification = async (
   // Emit real-time creation event
   const io = (global as any).io;
   if (io) {
-    io.to(clientCode).emit("notification:new", notif);
+    io.to(clientCode).emit("notification:new", notif.toObject());
   }
 
-  return notif;
+  return notif.toObject();
 };
 
 /**
@@ -35,7 +35,8 @@ export const getUnreadNotifications = async (clientCode: string) => {
   })
     .sort({ createdAt: -1 })
     .limit(50)
-    .populate("actionData.leadId", "firstName lastName phone email _id");
+    .populate("actionData.leadId", "firstName lastName phone email _id")
+    .lean();
 };
 
 /**
@@ -46,8 +47,8 @@ export const dismissNotification = async (clientCode: string, id: string) => {
   const notif = await Notification.findOneAndUpdate(
     { _id: id, clientCode },
     { $set: { status: "dismissed" } },
-    { new: true },
-  );
+    { returnDocument: "after" },
+  ).lean();
 
   if (!notif) throw new Error("Notification not found");
 
@@ -73,7 +74,7 @@ export const retryNotificationAction = async (
     _id: id,
     clientCode,
     status: "unread",
-  });
+  }).lean();
 
   if (!notif) throw new Error("Notification not found or already resolved");
 
@@ -85,7 +86,7 @@ export const retryNotificationAction = async (
     );
   }
 
-  const lead = await Lead.findOne({ _id: leadId, clientCode });
+  const lead = await Lead.findOne({ _id: leadId, clientCode }).lean();
   if (!lead) throw new Error("Lead no longer exists");
 
   const safeVariables = (contextSnapshot as any) || {};
@@ -100,8 +101,10 @@ export const retryNotificationAction = async (
     );
 
     // If it succeeds, mark as resolved
-    notif.status = "resolved";
-    await notif.save();
+    await Notification.updateOne(
+      { _id: id, clientCode },
+      { $set: { status: "resolved" } },
+    ).lean();
 
     // Emit real-time resolution event
     const io = (global as any).io;

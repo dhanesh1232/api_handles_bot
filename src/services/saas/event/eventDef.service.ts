@@ -1,4 +1,4 @@
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { getCrmModels } from "@/lib/tenant/crm.models";
 
 /**
  * Built-in system events that are always available for all tenants.

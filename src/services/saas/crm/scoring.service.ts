@@ -1,5 +1,5 @@
 import { crmQueue } from "@/jobs/saas/crmWorker";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { EventBus } from "../event/eventBus.service.ts";
 
 export function calculateScore(lead: any, scoringConfig: any): number {
@@ -97,10 +97,10 @@ export function getScoreBreakdown(lead: any, scoringConfig: any) {
 export async function recalculateLeadScore(clientCode: string, leadId: string) {
   const { ScoringConfig, Lead } = await getCrmModels(clientCode);
 
-  const lead = await Lead.findById(leadId);
+  const lead = await Lead.findById(leadId).lean();
   if (!lead) return null;
 
-  const config = await ScoringConfig.findOne({ clientCode });
+  const config = await ScoringConfig.findOne({ clientCode }).lean();
   let newScore = 0;
   let breakdown: any[] = [];
 
@@ -144,7 +144,7 @@ export async function recalculateLeadScore(clientCode: string, leadId: string) {
 
 export async function recalculateAllScores(clientCode: string) {
   const { Lead } = await getCrmModels(clientCode);
-  const leads = await Lead.find({ isArchived: { $ne: true } });
+  const leads = await Lead.find({ isArchived: { $ne: true } }).lean();
   let processed = 0;
 
   for (const lead of leads) {
@@ -157,7 +157,7 @@ export async function recalculateAllScores(clientCode: string) {
 export async function getScoringConfig(clientCode: string) {
   const { ScoringConfig } = await getCrmModels(clientCode);
 
-  return ScoringConfig.findOne({ clientCode });
+  return ScoringConfig.findOne({ clientCode }).lean();
 }
 
 export async function updateScoringConfig(
@@ -172,15 +172,15 @@ export async function updateScoringConfig(
   const config = await ScoringConfig.findOneAndUpdate(
     { clientCode },
     { $set: { rules, hotThreshold, coldThreshold, recalculateOnTriggers } },
-    { upsert: true, new: true },
-  );
+    { upsert: true, returnDocument: "after" },
+  ).lean();
 
   // Enqueue bulk recalculation job
 
   const leads = await Lead.find(
     { clientCode, isArchived: { $ne: true } },
     "_id",
-  );
+  ).lean();
 
   for (const lead of leads) {
     await crmQueue.add(

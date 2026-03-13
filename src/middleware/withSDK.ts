@@ -23,6 +23,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { Server } from "socket.io";
 import type { Logger } from "pino";
 import { createSDK } from "@/sdk/index";
+import { AuditService } from "@/services/global/audit.service";
 
 // ─── Augment Express.Request ──────────────────────────────────────────────────
 // Allows `req.sdk`, `req.log`, and `req.clientCode` to be typed throughout.
@@ -46,7 +47,26 @@ declare global {
  */
 export function withSDK(io: Server | null = null) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    req.sdk = createSDK(req.clientCode!, io);
+    const clientCode = req.clientCode!;
+    req.sdk = createSDK(clientCode, io);
+
+    // Proactive Audit Logging: Capture all mutation attempts globally
+    if (["POST", "PATCH", "DELETE", "PUT"].includes(req.method)) {
+      AuditService.log({
+        clientCode,
+        action: `${req.method}:${req.baseUrl}${req.path}`,
+        resourceType: "API_MUTATION",
+        performedBy: (req.headers["x-core-api-key"] ? "core_admin" : "client_api"),
+        severity: "info",
+        metadata: {
+          path: req.path,
+          method: req.method,
+          body: req.method === "DELETE" ? null : req.body, // Be careful with sensitive data in production
+          ip: req.ip,
+        }
+      }).catch(err => console.error("Audit log failed:", err));
+    }
+
     next();
   };
 }

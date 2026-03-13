@@ -6,109 +6,114 @@
  */
 
 import { Router, type Request, type Response } from "express";
+import { Server } from "socket.io";
+import { withSDK } from "@/middleware/withSDK";
 import * as meetingService from "../../../services/saas/meet/meeting.service.ts";
 
-const router = Router();
+export function createMeetRouter(io: Server) {
+  const router = Router();
 
-/**
- * POST /api/saas/meet
- * Create a new meeting (free or paid) and generate Google Meet link.
- */
-router.post("/", async (req: Request, res: Response) => {
-  try {
-    const {
-      leadId,
-      participantName,
-      participantPhone,
-      startTime,
-      endTime,
-      duration,
-      type,
-    } = req.body;
+  // Inject SDK with Socket.io
+  router.use(withSDK(io));
 
-    if (
-      !leadId ||
-      !participantName ||
-      !participantPhone ||
-      !startTime ||
-      !endTime
-    ) {
-      res.status(400).json({
-        success: false,
-        message:
-          "Missing required fields (leadId, participantName, participantPhone, startTime, endTime)",
+  /**
+   * POST /api/saas/meet
+   * Create a new meeting (free or paid) and generate Google Meet link.
+   */
+  router.post("/", async (req: Request, res: Response) => {
+    try {
+      const {
+        leadId,
+        participantName,
+        participantPhone,
+        startTime,
+        endTime,
+      } = req.body;
+
+      if (
+        !leadId ||
+        !participantName ||
+        !participantPhone ||
+        !startTime ||
+        !endTime
+      ) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Missing required fields (leadId, participantName, participantPhone, startTime, endTime)",
+        });
+        return;
+      }
+
+      const meeting = await meetingService.createMeeting(
+        req.clientCode!,
+        req.body,
+      );
+      res.status(201).json({ success: true, data: meeting });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
+    }
+  });
+
+  /**
+   * GET /api/saas/meet
+   * List meetings with optional filters.
+   */
+  router.get("/", async (req: Request, res: Response) => {
+    try {
+      const { leadId, status } = req.query as Record<string, string>;
+      const meetings = await meetingService.listMeetings(req.clientCode!, {
+        leadId: leadId as string,
+        status: status as string,
       });
-      return;
+      res.json({ success: true, data: meetings });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
     }
+  });
 
-    const meeting = await meetingService.createMeeting(
-      req.clientCode!,
-      req.body,
-    );
-    res.status(201).json({ success: true, data: meeting });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
-
-/**
- * GET /api/saas/meet
- * List meetings with optional filters.
- */
-router.get("/", async (req: Request, res: Response) => {
-  try {
-    const { leadId, status } = req.query as Record<string, string>;
-    const meetings = await meetingService.listMeetings(req.clientCode!, {
-      leadId: leadId as string,
-      status: status as string,
-    });
-    res.json({ success: true, data: meetings });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
-
-/**
- * GET /api/saas/meet/:id
- * Get details of a specific meeting.
- */
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
-    const meeting = await meetingService.getMeetingById(
-      req.clientCode!,
-      req.params.id as string,
-    );
-    if (!meeting) {
-      res.status(404).json({ success: false, message: "Meeting not found" });
-      return;
+  /**
+   * GET /api/saas/meet/:id
+   * Get details of a specific meeting.
+   */
+  router.get("/:id", async (req: Request, res: Response) => {
+    try {
+      const meeting = await meetingService.getMeetingById(
+        req.clientCode!,
+        req.params.id as string,
+      );
+      if (!meeting) {
+        res.status(404).json({ success: false, message: "Meeting not found" });
+        return;
+      }
+      res.json({ success: true, data: meeting });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
     }
-    res.json({ success: true, data: meeting });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+  });
 
-/**
- * PATCH /api/saas/meet/:id
- * Update meeting status or payment info.
- */
-router.patch("/:id", async (req: Request, res: Response) => {
-  try {
-    const { status, paymentStatus } = req.body;
-    const meeting = await meetingService.updateMeetingStatus(
-      req.clientCode!,
-      req.params.id as string,
-      status,
-      paymentStatus,
-    );
-    if (!meeting) {
-      res.status(404).json({ success: false, message: "Meeting not found" });
-      return;
+  /**
+   * PATCH /api/saas/meet/:id
+   * Update meeting status or payment info.
+   */
+  router.patch("/:id", async (req: Request, res: Response) => {
+    try {
+      const { status, paymentStatus } = req.body;
+      const meeting = await meetingService.updateMeetingStatus(
+        req.clientCode!,
+        req.params.id as string,
+        status,
+        paymentStatus,
+      );
+      if (!meeting) {
+        res.status(404).json({ success: false, message: "Meeting not found" });
+        return;
+      }
+      res.json({ success: true, data: meeting });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: (err as Error).message });
     }
-    res.json({ success: true, data: meeting });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: (err as Error).message });
-  }
-});
+  });
 
-export default router;
+  return router;
+}

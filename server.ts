@@ -14,17 +14,18 @@ import { renderView } from "@lib/renderView";
 import { getDynamicOrigins } from "@models/cors-origins";
 import googleAuthRouter from "@routes/auth/google";
 import corsRouter from "@routes/saas/cors/cors.routes";
-import crmRouter from "@routes/saas/crm/crm.router";
+import { createCrmRouter } from "@routes/saas/crm/crm.router";
 import eventLogRouter from "@routes/saas/eventLog.routes";
 import eventRouter from "@routes/saas/events.routes";
 import healthRouter from "@routes/saas/health.routes";
 import { createImagesRouter } from "@/routes/saas/media.routes";
-import marketingRouter from "@routes/saas/marketing";
-import meetRouter from "@routes/saas/meet/meet.routes";
+import { createMarketingRouter } from "@routes/saas/marketing.routes";
+import { createMeetRouter } from "@routes/saas/meet/meet.routes";
 import { createChatRouter } from "@routes/saas/whatsapp/chat.routes";
 import { createTemplateRouter } from "@routes/saas/whatsapp/templates.routes";
 import { createWebhookRouter } from "@routes/saas/whatsapp/webhook.routes";
 import triggerRouter from "@routes/saas/workflows/trigger.routes";
+import agencyRoutes from "./src/routes/agency/agency.router.ts";
 import blogsRouter from "@routes/services/blogs";
 import clientsRouter from "@routes/services/clients";
 import leadsRouter from "@routes/services/leads";
@@ -33,14 +34,14 @@ import leadsRouter from "@routes/services/leads";
  * @Start MongoDB Workflow Processor (Free Alternative)
  * @borrows Workflow Processor for saas
  *
- * @param {startWorkflowProcessor} - Start workflow processor
  * @param {registerGlobalIo} - Register global io
  * @param {cronJobs} - Cron jobs for leads
  */
 
 import { cronJobs } from "@jobs/cron";
 import { registerCrmIo, startCrmWorker } from "@jobs/saas/crmWorker";
-import { registerGlobalIo } from "@jobs/saas/workflowWorker";
+// registerGlobalIo was moved or deleted.
+
 import { errorHandler } from "@middleware/errorHandler";
 import { requestLogger } from "@middleware/logger";
 import { limiter, triggerLimiter } from "@middleware/rate-limit";
@@ -249,17 +250,12 @@ io.on("connection", (socket: Socket) => {
  * @borrows Global Io for saas
  * @param {registerGlobalIo} - Register global io
  *
- * @Start Workflow Processor
- * @borrows Workflow Processor for saas
- * @param {startWorkflowProcessor} - Start workflow processor
- *
  * @Start Cron Jobs
  * @borrows Cron jobs for leads
  * @param {cronJobs} - Cron jobs for leads
  *
  */
 
-registerGlobalIo(io);
 cronJobs();
 
 // ─── CRM Worker — handles all async CRM jobs (WhatsApp, email, meeting, reminders)
@@ -355,11 +351,12 @@ const initializeRoutes = async () => {
     validateClientKey,
     createTemplateRouter(io),
   );
-  app.use("/api/saas/meet", validateClientKey, meetRouter);
-  app.use("/api/saas/marketing", validateClientKey, marketingRouter);
+  app.use("/api/saas/meet", validateClientKey, createMeetRouter(io));
+  app.use("/api/saas/marketing", validateClientKey, createMarketingRouter(io));
   app.use("/api/saas/cors", validateClientKey, corsRouter);
   app.use("/api/auth/google", googleAuthRouter);
-  app.use("/api/crm", validateClientKey, crmRouter);
+  app.use("/api/agency", agencyRoutes);
+  app.use("/api/crm", validateClientKey, createCrmRouter(io));
   app.use("/api/saas", healthRouter);
   app.use("/api/saas/events", validateClientKey, eventRouter);
   app.use("/api/saas", validateClientKey, eventLogRouter);

@@ -7,44 +7,8 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { getPipelineRepo, getPipelineStageRepo } from "./pipeline.repository";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface CreatePipelineInput {
-  name: string;
-  description?: string;
-  isDefault?: boolean;
-  stages: Array<{
-    name: string;
-    color?: string;
-    probability?: number;
-    isDefault?: boolean;
-    isWon?: boolean;
-    isLost?: boolean;
-  }>;
-}
-
-export interface UpdateStageOrderInput {
-  stageId: string;
-  newOrder: number;
-}
-
-export interface BoardColumn {
-  stage: IPipelineStage;
-  leadCount: number;
-  totalValue: number;
-}
-
-export interface ForecastRow {
-  stageId: string;
-  stageName: string;
-  probability: number;
-  totalValue: number;
-  expectedRevenue: number;
-  leadCount: number;
-}
 
 // ─── Default stage templates ───────────────────────────────────────────────────
 
@@ -469,7 +433,10 @@ export const addStage = async (
   },
 ): Promise<IPipelineStage> => {
   const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
-  const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
+  const pipeline = await Pipeline.findOne({
+    _id: pipelineId,
+    clientCode,
+  }).lean();
   if (!pipeline) throw new Error("Pipeline not found");
 
   const sRepo = await getPipelineStageRepo(clientCode);
@@ -699,8 +666,10 @@ export const getDefaultStage = async (
       clientCode,
       pipelineId,
       isDefault: true,
-    })) ??
-    (await PipelineStage.findOne({ clientCode, pipelineId }).sort({ order: 1 }))
+    }).lean()) ??
+    (await PipelineStage.findOne({ clientCode, pipelineId })
+      .sort({ order: 1 })
+      .lean())
   );
 };
 
@@ -715,10 +684,16 @@ export const getDefaultPipeline = async (
 ): Promise<IPipeline | null> => {
   const { Pipeline } = await getCrmModels(clientCode);
   return (
-    (await Pipeline.findOne({ clientCode, isDefault: true, isActive: true })) ??
-    (await Pipeline.findOne({ clientCode, isActive: true }).sort({
-      createdAt: 1,
-    }))
+    (await Pipeline.findOne({
+      clientCode,
+      isDefault: true,
+      isActive: true,
+    }).lean()) ??
+    (await Pipeline.findOne({ clientCode, isActive: true })
+      .sort({
+        createdAt: 1,
+      })
+      .lean())
   );
 };
 

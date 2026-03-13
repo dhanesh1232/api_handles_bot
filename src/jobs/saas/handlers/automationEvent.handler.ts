@@ -1,6 +1,6 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { EventBus } from "@services/saas/event/eventBus.service";
 
 export class AutomationEventJobHandler extends JobHandler {

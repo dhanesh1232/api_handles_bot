@@ -44,8 +44,9 @@ export const logger: Logger = pino({
           target: "pino-pretty",
           options: {
             colorize: true,
-            ignore: "pid,hostname",
+            ignore: "pid,hostname,env,version",
             translateTime: "HH:MM:ss Z",
+            singleLine: true,
           },
         },
       }

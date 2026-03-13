@@ -1,5 +1,5 @@
 import { crmQueue } from "@/jobs/saas/crmWorker";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
 import { ConditionEvaluator } from "./conditionEvaluator.service.ts";
 import { ActionExecutor } from "./actionExecutor.service.ts";

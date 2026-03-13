@@ -1,4 +1,5 @@
 import { env } from "@lib/env";
+import { logger } from "@lib/logger";
 import mongoose from "mongoose";
 
 // Global mongoose configuration (runs once)
@@ -40,15 +41,15 @@ function attachConnectionListeners(): void {
   if (!cached || cached.listenersAttached) return;
 
   mongoose.connection.on("connected", () => {
-    console.log("✅ MongoDB connected");
+    logger.info("✅ MongoDB connected");
   });
 
   mongoose.connection.on("error", (err) => {
-    console.error("❌ MongoDB connection error:", err);
+    logger.error({ err }, "❌ MongoDB connection error");
   });
 
   mongoose.connection.on("disconnected", () => {
-    console.warn("⚠️ MongoDB disconnected");
+    logger.warn("⚠️ MongoDB disconnected");
   });
 
   cached.listenersAttached = true;
@@ -83,7 +84,7 @@ async function dbConnect(db: string): Promise<typeof mongoose> {
       serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       bufferCommands: false,
-      maxPoolSize: 50,
+      maxPoolSize: 100,
       minPoolSize: 10,
       retryWrites: true,
     };

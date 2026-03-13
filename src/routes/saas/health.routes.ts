@@ -111,10 +111,9 @@ router.get(
       const clientCode = (req as any).clientCode as string;
       await dbConnect("services");
 
-      const { ClientSecrets } = await import("../../model/clients/secrets.ts");
-      const { default: Job } = await import("../../model/queue/job.model.ts");
-      const { getCrmModels } =
-        await import("../../lib/tenant/get.crm.model.ts");
+      const { ClientSecrets } = await import("@/model/clients/secrets");
+      const { default: Job } = await import("@/model/queue/job.model");
+      const { getCrmModels } = await import("@/lib/tenant/crm.models");
 
       const [secrets, queueDepth] = await Promise.all([
         ClientSecrets.findOne({ clientCode }),

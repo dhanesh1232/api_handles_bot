@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { EventBus } from "@/services/saas/event/eventBus.service";
 
 const router = Router();
@@ -19,7 +19,9 @@ router.get("/custom-events", async (req: Request, res: Response) => {
     const { CustomEventDef } = await getCrmModels(req.clientCode!);
     const events = await CustomEventDef.find({
       clientCode: req.clientCode,
-    }).sort({ name: 1 });
+    })
+      .sort({ name: 1 })
+      .lean();
     res.json({ success: true, data: events });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -51,8 +53,8 @@ router.post("/custom-events", async (req: Request, res: Response) => {
           updatedAt: new Date(),
         },
       },
-      { upsert: true, new: true },
-    );
+      { upsert: true, returnDocument: "after" },
+    ).lean();
 
     res.json({ success: true, data: eventDef });
   } catch (err: any) {

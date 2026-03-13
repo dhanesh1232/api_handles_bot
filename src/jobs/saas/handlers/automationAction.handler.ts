@@ -1,7 +1,7 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
 
@@ -10,7 +10,7 @@ export class AutomationActionJobHandler extends JobHandler {
     const { actionType, actionConfig, leadId, ctxVariables } = payload;
     const { Lead, Meeting, Notification } = await getCrmModels(clientCode);
 
-    const lead = await Lead.findById(leadId);
+    const lead = await Lead.findById(leadId).lean();
     if (!lead) throw new Error(`Lead ${leadId} not found`);
 
     try {

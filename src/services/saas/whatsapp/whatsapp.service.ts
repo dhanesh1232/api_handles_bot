@@ -7,9 +7,9 @@ import { dbConnect } from "@lib/config";
 import { MetaWhatsAppClient } from "@lib/meta/whatsapp.client";
 import { tenantLogger } from "@lib/logger";
 import { ClientSecrets } from "@models/clients/secrets";
-
 import { normalizePhone } from "@utils/phone";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
+import { createNotification } from "@services/saas/crm/notification.service";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -106,7 +106,7 @@ export const createWhatsappService = (io: Server | null) => {
       const profilePicture = contacts?.profile?.profile_picture;
 
       // --- Lead Syncing Logic ---
-      const { getCrmModels } = await import("@lib/tenant/get.crm.model");
+      const { getCrmModels } = await import("@lib/tenant/crm.models");
       const { Lead } = await getCrmModels(clientCode);
 
       let lead: any = await Lead.findOne({
@@ -401,6 +401,91 @@ export const createWhatsappService = (io: Server | null) => {
     }
   };
 
+  const notifyFailure = async (
+    clientCode: string,
+    conversation: any,
+    message: any,
+    errors: any,
+  ) => {
+    tenantLogger(clientCode).debug(
+      { messageId: message?._id, errors },
+      "[WhatsAppService] notifyFailure triggered",
+    );
+
+    try {
+      const errorData = errors
+        ? Array.isArray(errors)
+          ? errors[0]
+          : errors
+        : {};
+      
+      let errorCode = errorData.code;
+      const errorMessage = errorData.message || (typeof errors === "string" ? errors : "");
+      
+      // Attempt to detect 24h window from message if code is missing
+      let isWindowClosed = errorCode === 131047 || 
+        errorMessage.includes("24 hours") || 
+        errorMessage.includes("131047");
+
+      tenantLogger(clientCode).debug(
+        { errorCode, isWindowClosed, errorMessage },
+        "[WhatsAppService] Error analysis",
+      );
+
+      const lead = await (async () => {
+        try {
+          const { Lead } = await getCrmModels(clientCode);
+          return await Lead.findOne({
+            phone: conversation?.phone,
+            clientCode,
+            isArchived: false,
+          });
+        } catch (e) {
+          tenantLogger(clientCode).warn({ err: e }, "Failed to find lead for notification");
+          return null;
+        }
+      })();
+
+      const notifData = {
+        title: isWindowClosed
+          ? "WhatsApp Window Closed"
+          : "WhatsApp delivery failed",
+        message: isWindowClosed
+          ? `Cannot send regular message to ${conversation?.userName || conversation?.phone}. 24h window closed. Please use a template.`
+          : `Message to ${conversation?.userName || conversation?.phone} failed: ${errorMessage || "Unknown error"}`,
+        type: isWindowClosed ? "alert" : "action_required",
+        actionData: {
+          errorType: isWindowClosed
+            ? "whatsapp_window_closed"
+            : "whatsapp_delivery_failed",
+          leadId: lead?._id,
+          conversationId: conversation?._id,
+          messageId: message?._id,
+          errorCode,
+          actionConfig: {
+            type: "send_whatsapp",
+            text: message?.text,
+            templateName: message?.templateData?.name,
+            templateLanguage: message?.templateData?.language,
+            variables: message?.templateData?.variables,
+          },
+        },
+      };
+
+      const notif = await createNotification(clientCode, notifData);
+
+      tenantLogger(clientCode).info(
+        { notificationId: notif._id, isWindowClosed },
+        "[WhatsAppService] Failure notification successfully created",
+      );
+    } catch (notifErr) {
+      tenantLogger(clientCode).error(
+        { err: (notifErr as any).message || notifErr },
+        "[WhatsAppService] Failed to create failure notification",
+      );
+    }
+  };
+
   const handleStatusUpdate = async (clientCode: string, statusPayload: any) => {
     try {
       const { Message, Conversation } = await getContext(clientCode);
@@ -412,8 +497,11 @@ export const createWhatsappService = (io: Server | null) => {
       const currentPriority = STATUS_PRIORITY[message.status] || 0;
       const newPriority = STATUS_PRIORITY[status] || 0;
 
-      // GUARD: Only update if the new status has higher priority (e.g., don't let 'failed' override 'delivered')
-      if (newPriority > currentPriority) {
+      // GUARD: Only update if the new status has higher OR EQUAL priority (to allow error updates)
+      if (newPriority >= currentPriority) {
+        // Special case: if already failed, we might still want to update error info but avoid redundant notifications
+        const alreadyFailed = message.status === "failed";
+        
         message.status = status;
 
         // Clear errors if the message is now successful
@@ -429,7 +517,7 @@ export const createWhatsappService = (io: Server | null) => {
         // 🎉 Also update Meeting reminders if linked
         if (message.metadata?.meetingId && message.metadata?.actionId) {
           const { getCrmModels } =
-            await import("../../../lib/tenant/get.crm.model.ts");
+            await import("../../../lib/tenant/crm.models");
           const { Meeting } = await getCrmModels(clientCode);
           // Only update if current status in meeting is lower priority
           const meeting = await Meeting.findById(message.metadata.meetingId);
@@ -454,6 +542,50 @@ export const createWhatsappService = (io: Server | null) => {
             }
           }
         }
+
+        const conversation = await Conversation.findById(
+          message.conversationId,
+        );
+        if (
+          conversation &&
+          conversation.lastMessageId?.toString() === message._id.toString()
+        ) {
+          const lastStatus = (conversation.lastMessageStatus ||
+            "queued") as string;
+          const convPriority = STATUS_PRIORITY[lastStatus] || 0;
+          if (newPriority > convPriority) {
+            conversation.lastMessageStatus = status as any;
+            await conversation.save();
+          }
+        }
+
+        // Emit Status Update
+        if (io) {
+          io.to(clientCode).emit("message_status_update", {
+            messageId: message._id,
+            conversationId: message.conversationId,
+            status,
+            statusHistory: message.statusHistory,
+            whatsappMessageId: id,
+            meetingId: message.metadata?.meetingId, // Include for frontend sync if needed
+          });
+
+          // Also emit conversation update if it changed
+          if (
+            conversation &&
+            conversation.lastMessageId?.toString() === message._id.toString()
+          ) {
+            io.to(clientCode).emit(
+              "conversation_updated",
+              conversation.toObject(),
+            );
+          }
+        }
+
+        // 🔔 Trigger Notifications for Failures (only if not already failed to prevent loops)
+        if (status === "failed" && !alreadyFailed) {
+          await notifyFailure(clientCode, conversation, message, errors);
+        }
       } else {
         if (status !== message.status) {
           tenantLogger(clientCode).debug(
@@ -466,43 +598,6 @@ export const createWhatsappService = (io: Server | null) => {
           );
         }
         return;
-      }
-
-      const conversation = await Conversation.findById(message.conversationId);
-      if (
-        conversation &&
-        conversation.lastMessageId?.toString() === message._id.toString()
-      ) {
-        const lastStatus = (conversation.lastMessageStatus ||
-          "queued") as string;
-        const convPriority = STATUS_PRIORITY[lastStatus] || 0;
-        if (newPriority > convPriority) {
-          conversation.lastMessageStatus = status as any;
-          await conversation.save();
-        }
-      }
-
-      // Emit Status Update
-      if (io) {
-        io.to(clientCode).emit("message_status_update", {
-          messageId: message._id,
-          conversationId: message.conversationId,
-          status,
-          statusHistory: message.statusHistory,
-          whatsappMessageId: id,
-          meetingId: message.metadata?.meetingId, // Include for frontend sync if needed
-        });
-
-        // Also emit conversation update if it changed
-        if (
-          conversation &&
-          conversation.lastMessageId?.toString() === message._id.toString()
-        ) {
-          io.to(clientCode).emit(
-            "conversation_updated",
-            conversation.toObject(),
-          );
-        }
       }
     } catch (err) {
       tenantLogger(clientCode).error(
@@ -556,7 +651,7 @@ export const createWhatsappService = (io: Server | null) => {
         try {
           const { resolveUnifiedWhatsAppTemplate } =
             await import("./template.service");
-          const { getCrmModels } = await import("@lib/tenant/get.crm.model");
+          const { getCrmModels } = await import("@lib/tenant/crm.models");
           const { Lead } = await getCrmModels(clientCode);
 
           // We try to find a lead if metadata has an ID but not the object
@@ -879,6 +974,15 @@ export const createWhatsappService = (io: Server | null) => {
         "[WhatsApp] Sending Meta API payload",
       );
 
+      // 2.5 Credit Guard: Weaponizing with Wealth Engine
+      const { UsageService } = await import("@services/global/usage.service");
+      const hasCredits = await UsageService.consume(clientCode, "whatsapp_msg", 1);
+      if (!hasCredits) {
+        throw new Error(
+          "Insufficient credits: Your agency/account has exhausted its WhatsApp message quota for this month.",
+        );
+      }
+
       const response = await axios.post(
         `${WHATSAPP_API_URL}/${phoneId}/messages`,
         payload,
@@ -932,8 +1036,7 @@ export const createWhatsappService = (io: Server | null) => {
         await freshConversation.save();
 
         // 🎉 Also update Lead's lastContactedAt
-        const { getCrmModels } =
-          await import("../../../lib/tenant/get.crm.model.ts");
+        const { getCrmModels } = await import("../../../lib/tenant/crm.models");
         const { Lead } = await getCrmModels(clientCode);
         await Lead.updateOne(
           { phone: freshConversation.phone, clientCode, isArchived: false },
@@ -954,16 +1057,39 @@ export const createWhatsappService = (io: Server | null) => {
 
       return message;
     } catch (e: any) {
+      const errorPayload = e.response?.data || e.message;
       tenantLogger(clientCode).error(
-        { err: e.response?.data ?? e.message },
-        "WhatsApp send error",
+        { err: errorPayload },
+        "[WhatsAppService] Outbound message sending failed",
       );
+
       message.status = "failed";
-      message.error = JSON.stringify(e.response?.data || e.message);
+      message.error = JSON.stringify(errorPayload);
       await message.save();
 
       if (io) {
         io.to(clientCode).emit("message_failed", message.toObject());
+      }
+
+      // 🔔 Trigger Notifications for Failures
+      try {
+        const conversation = await Conversation.findById(conversationId);
+        const errors = e.response?.data?.error;
+        tenantLogger(clientCode).debug(
+          { messageId: message._id, errorCode: errors?.code },
+          "[WhatsAppService] Passing error to notifyFailure",
+        );
+        await notifyFailure(
+          clientCode,
+          conversation,
+          message,
+          errors || e.message,
+        );
+      } catch (notifTriggerErr) {
+        tenantLogger(clientCode).error(
+          { err: notifTriggerErr },
+          "[WhatsAppService] Fatal error while triggering failure notification",
+        );
       }
       throw e;
     }

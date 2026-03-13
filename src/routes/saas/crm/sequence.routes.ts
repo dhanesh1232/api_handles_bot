@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { enrollInSequence } from "@/services/saas/automation/sequenceEngine.service";
 import { getLeadById } from "@/services/saas/crm/lead.service";
 

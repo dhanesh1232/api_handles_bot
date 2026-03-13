@@ -2,18 +2,15 @@ import axios from "axios";
 import _ from "lodash";
 import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
-import { getTenantModel } from "../../../lib/connectionManager.ts";
-import {
-  TemplateNotFoundError,
-  TemplateSyncFailedError,
-} from "../../../lib/errors.ts";
-import { SchemaScanner } from "../../../lib/tenant/schemaScanner.ts";
+import { getTenantModel } from "@/lib/connectionManager";
+import { TemplateNotFoundError, TemplateSyncFailedError } from "@/lib/errors";
+import { SchemaScanner } from "@/lib/tenant/schemaScanner";
 import {
   CURATED_FIELDS,
   CURATED_TRIGGER_FIELDS,
-} from "../../../lib/tenant/schema.constants.ts";
-import { ClientServiceConfig } from "../../../model/clients/config.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
+} from "@/lib/tenant/schema.constants";
+import { ClientServiceConfig } from "@/model/clients/config";
+import { getTenantModels } from "@lib/tenant/crm.models";
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
 /**
@@ -266,11 +263,7 @@ export const syncTemplatesFromMeta = async (
   businessAccountId: string,
 ): Promise<SyncResult> => {
   try {
-    const Template = getTenantModel<ITemplate>(
-      tenantDb,
-      "Template",
-      schemas.templates,
-    );
+    const { Template } = getTenantModels(tenantDb);
 
     const response = await axios.get(
       `${WHATSAPP_API_URL}/${businessAccountId}/message_templates`,
@@ -370,11 +363,7 @@ export const saveVariableMapping = async (
   mappings: IVariableMapping[],
   onEmptyVariable: OnEmptyVariable = "use_fallback",
 ) => {
-  const Template = getTenantModel<ITemplate>(
-    tenantDb,
-    "Template",
-    schemas.templates,
-  );
+  const { Template } = getTenantModels(tenantDb);
   const template = await Template.findOne({ name: templateName });
 
   if (!template) throw new TemplateNotFoundError(templateName);
@@ -449,11 +438,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
   contextSnapshot: any;
   template: ITemplate;
 }> => {
-  const Template = getTenantModel<ITemplate>(
-    tenantDb,
-    "Template",
-    schemas.templates,
-  );
+  const { Template } = getTenantModels(tenantDb);
   const template = await Template.findOne({ name: templateName });
   if (!template) throw new TemplateNotFoundError(templateName);
 
@@ -1104,11 +1089,7 @@ export const createTemplate = async (
   templateData: any,
 ) => {
   try {
-    const Template = getTenantModel<ITemplate>(
-      tenantDb,
-      "Template",
-      schemas.templates,
-    );
+    const { Template } = getTenantModels(tenantDb);
     let status = templateData.status || "PENDING";
 
     if (templateData.channel === "whatsapp") {
@@ -1182,11 +1163,7 @@ export const updateTemplate = async (
   templateData: any,
 ) => {
   try {
-    const Template = getTenantModel<ITemplate>(
-      tenantDb,
-      "Template",
-      schemas.templates,
-    );
+    const { Template } = getTenantModels(tenantDb);
 
     // Try finding by ID first, then by name
     let query: any = { name: templateId };
@@ -1416,11 +1393,7 @@ export const deleteTemplate = async (
   templateName: string,
   clientCode: string,
 ) => {
-  const Template = getTenantModel<ITemplate>(
-    tenantDb,
-    "Template",
-    schemas.templates,
-  );
+  const { Template } = getTenantModels(tenantDb);
 
   const template = await Template.findOne({ name: templateName });
   if (!template) throw new TemplateNotFoundError(templateName);
@@ -1515,11 +1488,7 @@ export const checkTemplateUsageInAutomations = async (
   tenantDb: Connection,
   templateName: string,
 ): Promise<{ usedIn: { ruleId: string; ruleName: string }[] }> => {
-  const AutomationRule = getTenantModel<IAutomationRule>(
-    tenantDb,
-    "AutomationRule",
-    schemas.automationRules,
-  );
+  const { AutomationRule } = getTenantModels(tenantDb);
 
   // Match rules where any action OR any sequence step references this template
   const rules = await AutomationRule.find({
@@ -1545,11 +1514,7 @@ export const removeTemplateFromAutomations = async (
   tenantDb: Connection,
   templateName: string,
 ): Promise<{ modifiedCount: number }> => {
-  const AutomationRule = getTenantModel<IAutomationRule>(
-    tenantDb,
-    "AutomationRule",
-    schemas.automationRules,
-  );
+  const { AutomationRule } = getTenantModels(tenantDb);
 
   // Pull actions whose config.templateName matches
   const actionResult = await AutomationRule.updateMany(

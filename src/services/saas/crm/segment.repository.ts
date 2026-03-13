@@ -1,4 +1,4 @@
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { BaseRepository } from "@/lib/tenant/base.repository";
 
 export class SegmentRepository extends BaseRepository<ISegment> {

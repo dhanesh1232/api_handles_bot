@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import * as automationService from "@/services/saas/crm/automation.service";
 
 const router = Router();
@@ -251,7 +251,8 @@ router.get("/:ruleId/enrollments", async (req: Request, res: Response) => {
       SequenceEnrollment.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit)),
+        .limit(Number(limit))
+        .lean(),
       SequenceEnrollment.countDocuments(query),
     ]);
 
@@ -283,7 +284,7 @@ router.get(
       const enrollment = await SequenceEnrollment.findOne({
         _id: enrollmentId,
         clientCode,
-      });
+      }).lean();
       if (!enrollment) {
         res
           .status(404)
@@ -313,8 +314,8 @@ router.post(
       const enrollment = await SequenceEnrollment.findOneAndUpdate(
         { _id: enrollmentId, ruleId, clientCode },
         { $set: { status: "paused" } },
-        { new: true },
-      );
+        { returnDocument: "after" },
+      ).lean();
 
       if (!enrollment) {
         res
@@ -346,7 +347,7 @@ router.post(
         _id: enrollmentId,
         ruleId,
         clientCode,
-      });
+      }).lean();
       if (!enrollment) {
         res
           .status(404)

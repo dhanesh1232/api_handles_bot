@@ -1,4 +1,4 @@
-import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { getSegmentRepo } from "./segment.repository";
 import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
 
@@ -40,7 +40,7 @@ export class SegmentService {
     const allLeads = await Lead.find({
       clientCode: this.clientCode,
       isArchived: false,
-    });
+    }).lean();
     const matches = allLeads.filter((lead) => {
       const context = lead.toJSON();
       return ConditionEvaluator.evaluate(segment.logic, segment.rules, context);
@@ -71,7 +71,7 @@ export class SegmentService {
     const allLeads = await Lead.find({
       clientCode: this.clientCode,
       isArchived: false,
-    });
+    }).lean();
 
     const matches = allLeads.filter((lead) =>
       ConditionEvaluator.evaluate(segment.logic, segment.rules, lead.toJSON()),

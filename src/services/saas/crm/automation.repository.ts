@@ -1,5 +1,5 @@
-import { BaseRepository } from "../../../lib/tenant/base.repository";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model";
+import { BaseRepository } from "@lib/tenant/base.repository";
+import { getCrmModels } from "@lib/tenant/crm.models";
 
 /**
  * AutomationRuleRepository

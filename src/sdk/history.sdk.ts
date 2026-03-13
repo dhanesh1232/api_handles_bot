@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { BaseSDK } from "./base.sdk";
-import { getCrmModels } from "../lib/tenant/get.crm.model";
+import { getCrmModels } from "@/lib/tenant/crm.models";
 
 export interface TimelineEvent {
   id: string;

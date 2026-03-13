@@ -6,7 +6,7 @@ import { Router, type Request, type Response } from "express";
 import { withSDK } from "@/middleware/withSDK";
 
 const router = Router();
-router.use(withSDK()); // stamps req.sdk once for every route below
+// router.use(withSDK()); // stamps req.sdk once for every route below — MOVED TO PARENT crm.router.ts
 
 // ─── Field Discovery ──────────────────────────────────────────────────────────
 router.get("/fields", async (req: Request, res: Response) => {
@@ -60,13 +60,13 @@ router.post("/leads/upsert", async (req: any, res: any) => {
     let finalStageId = inputStageId;
 
     if (!finalPipelineId && trigger) {
-      const { getCrmModels } = await import("@/lib/tenant/get.crm.model");
+      const { getCrmModels } = await import("@lib/tenant/crm.models");
       const { CustomEventDef } = await getCrmModels(req.clientCode!);
       const eventDef = await CustomEventDef.findOne({
         clientCode: req.clientCode,
         name: trigger,
         isActive: true,
-      });
+      }).lean();
       if (eventDef?.pipelineId) {
         finalPipelineId = eventDef.pipelineId;
         finalStageId = eventDef.stageId;

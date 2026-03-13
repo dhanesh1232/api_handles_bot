@@ -8,30 +8,13 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { logger } from "@lib/logger";
 
-export interface MailOptions {
-  host: string;
-  port: number;
-  user: string;
-  pass: string;
-  fromName: string;
-  fromEmail: string;
-  secure?: boolean;
-}
-
-export interface SendMailInput {
-  to: string;
-  subject: string;
-  html?: string;
-  text?: string;
-}
-
 export class MailClient {
   private readonly transporter: Transporter;
   private readonly from: string;
   private readonly clientCode: string;
   private readonly log = logger.child({ module: "MailClient" });
 
-  constructor(clientCode: string, options: MailOptions) {
+  constructor(clientCode: string, options: MailConfig) {
     this.clientCode = clientCode;
     this.from = `"${options.fromName}" <${options.fromEmail}>`;
 
@@ -51,6 +34,9 @@ export class MailClient {
 
   /**
    * Factory to create a client from a secrets object.
+   * @param clientCode - The client code.
+   * @param secrets - The secrets object.
+   * @returns A MailClient instance.
    */
   static fromSecrets(
     clientCode: string,

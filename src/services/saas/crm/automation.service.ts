@@ -6,28 +6,19 @@
  */
 
 import mongoose from "mongoose";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { getAutomationRuleRepo } from "./automation.repository";
-import { normalizePhone } from "@utils/phone";
 import { createSDK } from "@/sdk/index";
 import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
 import { ActionExecutor } from "../automation/actionExecutor.service";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface AutomationContext {
-  trigger: IAutomationRule["trigger"];
-  lead: ILead;
-  stageId?: string;
-  tagName?: string;
-  score?: number;
-  /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
-  variables?: Record<string, string>;
-  meetingId?: string;
-}
-
 // ─── Main entry point ─────────────────────────────────────────────────────────
-
+/**
+ * Runs automations for a given client and context.
+ * @param clientCode - The client code.
+ * @param ctx - The automation context.
+ * @returns A promise that resolves when the automations have been run.
+ */
 export const runAutomations = async (
   clientCode: string,
   ctx: AutomationContext,
@@ -47,6 +38,16 @@ export const runAutomations = async (
 
   const rules = await repo.findActiveRules(ctx.trigger, ruleFilters);
   if (rules.length === 0) return;
+
+  // Credit Tracking: Deduct for an Automation "Burst" Run
+  const { UsageService } = await import("@services/global/usage.service");
+  const hasCredits = await UsageService.consume(clientCode, "automation_run", 1);
+  if (!hasCredits) {
+    console.warn(
+      `[automationService] Skipping run for ${clientCode} due to credit exhaustion.`,
+    );
+    return;
+  }
 
   await Promise.allSettled(
     rules.map(async (rule) => {
@@ -198,7 +199,7 @@ export const scheduleMeetingReminders = async (
     await Meeting.updateOne(
       { _id: meeting._id },
       { $set: { reminders: (meeting as any).reminders } },
-    );
+    ).lean();
   }
 };
 
@@ -383,7 +384,7 @@ const enqueueDelayedAction = async (
             },
           },
         },
-      );
+      ).lean();
 
       // Add actionId and meetingId to payload for worker status updates
       (payload as any).actionId = actionId;
@@ -537,7 +538,7 @@ export const getRules = async (
   clientCode: string,
 ): Promise<IAutomationRule[]> => {
   const { AutomationRule } = await getCrmModels(clientCode);
-  return AutomationRule.find({ clientCode }).sort({ createdAt: -1 });
+  return AutomationRule.find({ clientCode }).sort({ createdAt: -1 }).lean();
 };
 
 export const createRule = async (
@@ -553,7 +554,8 @@ export const createRule = async (
   >,
 ): Promise<IAutomationRule> => {
   const { AutomationRule } = await getCrmModels(clientCode);
-  return AutomationRule.create({ clientCode, ...input });
+  const doc = await AutomationRule.create({ clientCode, ...input });
+  return doc.toObject();
 };
 
 export const updateRule = async (
@@ -566,7 +568,7 @@ export const updateRule = async (
     { _id: ruleId, clientCode },
     { $set: updates },
     { returnDocument: "after" },
-  );
+  ).lean();
 };
 
 export const deleteRule = async (
@@ -582,13 +584,13 @@ export const toggleRule = async (
   ruleId: string,
 ): Promise<IAutomationRule | null> => {
   const { AutomationRule } = await getCrmModels(clientCode);
-  const rule = await AutomationRule.findOne({ _id: ruleId, clientCode });
+  const rule = await AutomationRule.findOne({ _id: ruleId, clientCode }).lean();
   if (!rule) return null;
   return AutomationRule.findByIdAndUpdate(
     ruleId,
     { $set: { isActive: !rule.isActive } },
     { returnDocument: "after" },
-  );
+  ).lean();
 };
 
 export const testRule = async (
@@ -602,8 +604,8 @@ export const testRule = async (
 }> => {
   const { AutomationRule, Lead } = await getCrmModels(clientCode);
   const [rule, lead] = await Promise.all([
-    AutomationRule.findOne({ _id: ruleId, clientCode }),
-    Lead.findOne({ _id: leadId, clientCode }),
+    AutomationRule.findOne({ _id: ruleId, clientCode }).lean(),
+    Lead.findOne({ _id: leadId, clientCode }).lean(),
   ]);
   if (!rule || !lead) throw new Error("Rule or lead not found");
   const conditionResult =
@@ -616,6 +618,8 @@ export const testRule = async (
   return {
     passed: conditionResult,
     conditionResult,
-    actionsWouldRun: conditionResult ? rule.actions.map((a) => a.type) : [],
+    actionsWouldRun: conditionResult
+      ? rule.actions.map((a: any) => a.type)
+      : [],
   };
 };

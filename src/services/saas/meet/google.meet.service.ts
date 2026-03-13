@@ -1,9 +1,6 @@
 import { ClientSecrets } from "@models/clients/secrets";
-import {
-  GoogleMeetClient,
-  type MeetingInput,
-} from "@lib/meet/google.meet.client";
-import { getClientConfig } from "@lib/tenant/get.crm.model";
+import { GoogleMeetClient } from "@lib/meet/google.meet.client";
+import { getClientConfig } from "@lib/tenant/crm.models";
 import { tenantLogger } from "@lib/logger";
 
 /**
@@ -17,6 +14,8 @@ const baseUrl = process.env.BASE_URL || "http://localhost:4000";
 export const createGoogleMeetService = () => {
   /**
    * Internal helper to get GoogleMeetClient for a client
+   * @param clientCode - The client code
+   * @returns GoogleMeetClient
    */
   const getClient = async (clientCode: string) => {
     const secrets = await ClientSecrets.findOne({ clientCode });
@@ -27,6 +26,9 @@ export const createGoogleMeetService = () => {
 
   /**
    * Create a Google Meet event
+   * @param clientCode - The client code
+   * @param meetingDetails - The meeting details
+   * @returns GoogleMeetResponse
    */
   const createMeeting = async (
     clientCode: string,
@@ -40,7 +42,7 @@ export const createGoogleMeetService = () => {
       const result = await client.createMeeting({
         summary: meetingDetails.summary || "Meeting",
         description:
-          meetingDetails.description || `Scheduled via ${clientConfig.name}`,
+          meetingDetails.description || `Scheduled via ${clientConfig?.name}`,
         start: meetingDetails.start || new Date().toISOString(),
         end:
           meetingDetails.end || new Date(Date.now() + 30 * 60000).toISOString(),

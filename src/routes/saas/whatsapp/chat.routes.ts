@@ -1,14 +1,14 @@
 import express, { type Request, type Response } from "express";
 import multer from "multer";
 import { Server } from "socket.io";
-import { dbConnect } from "../../../lib/config.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { dbConnect } from "@/lib/config";
+import { getCrmModels } from "@/lib/tenant/crm.models";
 
-import { validateClientKey } from "../../../middleware/saasAuth.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { validateClientKey } from "@/middleware/saasAuth";
+import { ClientSecrets } from "@/model/clients/secrets";
 
-import { optimizeAndUploadMedia } from "../../../services/saas/media/media.service.ts";
-import { createSDK } from "../../../sdk/index.ts";
+import { withSDK } from "@/middleware/withSDK";
+import { optimizeAndUploadMedia } from "@/services/saas/media/media.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -19,6 +19,8 @@ export interface SaasRequest extends Request {
 
 export const createChatRouter = (io: Server) => {
   const router = express.Router();
+
+  router.use(withSDK(io));
 
   // 1. List Conversations
   router.get(
@@ -337,9 +339,8 @@ export const createChatRouter = (io: Server) => {
           targetConvId = conv._id;
         }
 
-        const sdk = createSDK(clientCode, io);
         const message = templateName
-          ? await sdk.whatsapp.sendTemplate(
+          ? await req.sdk.whatsapp.sendTemplate(
               targetConvId,
               templateName,
               templateLanguage,
@@ -347,7 +348,7 @@ export const createChatRouter = (io: Server) => {
               userId,
               context ?? undefined,
             )
-          : await sdk.whatsapp.send(
+          : await req.sdk.whatsapp.send(
               targetConvId,
               text,
               mediaUrl,
@@ -418,8 +419,7 @@ export const createChatRouter = (io: Server) => {
         const { messageId } = req.params;
         const { reaction } = req.body;
 
-        const sdk = createSDK(clientCode, io);
-        const result = await sdk.whatsapp.sendReaction(
+        const result = await req.sdk.whatsapp.sendReaction(
           messageId as string,
           reaction,
         );

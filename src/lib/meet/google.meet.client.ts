@@ -7,21 +7,6 @@
 import { google, type Auth } from "googleapis";
 import { logger } from "@lib/logger";
 
-export interface GoogleMeetConfig {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-  redirectUri: string;
-}
-
-export interface MeetingInput {
-  summary: string;
-  description: string;
-  start: string;
-  end: string;
-  attendees?: string[];
-}
-
 export class GoogleMeetClient {
   private readonly auth: Auth.OAuth2Client;
   private readonly clientCode: string;

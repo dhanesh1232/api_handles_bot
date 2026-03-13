@@ -2,15 +2,11 @@
  * crm.router.ts
  * Central CRM router — mounts all sub-routers.
  * Place at: src/routes/saas/crm/crm.router.ts
- *
- * In server.ts add ONE line:
- *   import crmRouter from "./src/routes/saas/crm/crm.router.ts"
- *   app.use("/api/crm", validateClientKey, crmRouter)
- *
- * That's it. All CRM routes are live.
  */
 
 import { Router } from "express";
+import type { Server } from "socket.io";
+import { withSDK } from "@/middleware/withSDK";
 import activityRouter from "./activity.routes.ts";
 import analyticsRouter from "./analytics.routes.ts";
 import automationRouter from "./automation.routes.ts";
@@ -23,18 +19,24 @@ import sequenceRouter from "./sequence.routes.ts";
 import customEventRouter from "./customEvent.routes.ts";
 import automationDashboardRouter from "./automationDashboard.routes.ts";
 
-const router = Router();
+export function createCrmRouter(io: Server) {
+  const router = Router();
 
-router.use(leadRoutes);
-router.use(pipelineRoutes);
-router.use(paymentRouter);
-router.use(activityRouter);
-router.use(automationRouter);
-router.use(analyticsRouter);
-router.use(scoringRouter);
-router.use(notificationRoutes);
-router.use(customEventRouter);
-router.use(automationDashboardRouter);
-router.use("/sequences", sequenceRouter);
+  // Inject SDK with Socket.io for all CRM routes
+  // This satisfies the user's request for real-time tracking
+  router.use(withSDK(io));
 
-export default router;
+  router.use(leadRoutes);
+  router.use(pipelineRoutes);
+  router.use(paymentRouter);
+  router.use(activityRouter);
+  router.use(automationRouter);
+  router.use(analyticsRouter);
+  router.use(scoringRouter);
+  router.use(notificationRoutes);
+  router.use(customEventRouter);
+  router.use(automationDashboardRouter);
+  router.use("/sequences", sequenceRouter);
+
+  return router;
+}

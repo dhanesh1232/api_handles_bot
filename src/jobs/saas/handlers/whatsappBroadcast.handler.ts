@@ -1,7 +1,7 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
-import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import { normalizePhone } from "@utils/phone";
 import { createNotification } from "@services/saas/crm/notification.service";
 
@@ -21,15 +21,16 @@ export class WhatsAppBroadcastJobHandler extends JobHandler {
     const normalizedPhone = normalizePhone(phone);
 
     try {
-      let conv = await Conversation.findOne({ phone: normalizedPhone });
+      let conv = await Conversation.findOne({ phone: normalizedPhone }).lean();
       if (!conv) {
-        conv = await Conversation.create({
+        const newConv = await Conversation.create({
           phone: normalizedPhone,
           userName: "Customer",
           status: "open",
           channel: "whatsapp",
           unreadCount: 0,
         });
+        conv = newConv.toObject();
       }
 
       await svc.sendOutboundMessage(
@@ -65,17 +66,21 @@ export class WhatsAppBroadcastJobHandler extends JobHandler {
     const updatedBroadcast = await Broadcast.findByIdAndUpdate(
       broadcastId,
       update,
-      { new: true, returnDocument: "after" },
-    );
+      { returnDocument: "after" },
+    ).lean();
 
     if (updatedBroadcast) {
       const totalProcessed =
         updatedBroadcast.sentCount + updatedBroadcast.failedCount;
       if (totalProcessed >= updatedBroadcast.totalRecipients) {
-        updatedBroadcast.status =
+        const finalStatus =
           updatedBroadcast.failedCount > 0 ? "partially_failed" : "completed";
-        updatedBroadcast.completedAt = new Date();
-        await updatedBroadcast.save();
+        await Broadcast.updateOne(
+          { _id: broadcastId },
+          { $set: { status: finalStatus, completedAt: new Date() } },
+        ).lean();
+        // Update local object for socket emission
+        updatedBroadcast.status = finalStatus;
       }
 
       if (io) {

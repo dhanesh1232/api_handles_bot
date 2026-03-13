@@ -283,6 +283,40 @@ declare global {
     updatedAt: Date;
   }
 
+  interface CreatePipelineInput {
+    name: string;
+    description?: string;
+    isDefault?: boolean;
+    stages: Array<{
+      name: string;
+      color?: string;
+      probability?: number;
+      isDefault?: boolean;
+      isWon?: boolean;
+      isLost?: boolean;
+    }>;
+  }
+
+  interface UpdateStageOrderInput {
+    stageId: string;
+    newOrder: number;
+  }
+
+  interface ForecastRow {
+    stageId: string;
+    stageName: string;
+    probability: number;
+    totalValue: number;
+    expectedRevenue: number;
+    leadCount: number;
+  }
+
+  interface BoardColumn {
+    stage: IPipelineStage;
+    leadCount: number;
+    totalValue: number;
+  }
+
   type AutoActionType =
     | "send_whatsapp"
     | "send_email"
@@ -482,6 +516,17 @@ declare global {
     updatedAt: Date;
   }
 
+  interface AutomationContext {
+    trigger: IAutomationRule["trigger"];
+    lead: ILead;
+    stageId?: string;
+    tagName?: string;
+    score?: number;
+    /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
+    variables?: Record<string, string>;
+    meetingId?: string;
+  }
+
   interface ITemplateConfigFields {
     templateId?: string;
     category?: TemplateCategory;
@@ -536,6 +581,25 @@ declare global {
     };
     createdAt: Date;
     updatedAt: Date;
+  }
+
+  interface CreateMeetingInput {
+    leadId: string;
+    appointmentId?: string;
+    doctorId?: string;
+    participantName: string;
+    participantPhone: string;
+    participantEmails?: string[];
+    startTime: string | Date;
+    endTime: string | Date;
+    duration: number;
+    meetingMode: "online" | "offline";
+    type: "free" | "paid";
+    amount?: number;
+    metadata?: {
+      refs?: Record<string, string | undefined>;
+      extra?: Record<string, any>;
+    };
   }
 
   type NotificationType = "action_required" | "alert" | "info";
@@ -690,13 +754,21 @@ declare global {
     attendees?: string[];
   }
 
-  interface MailOptions {
+  interface SendMailInput {
     to: string;
     subject: string;
     html?: string;
     text?: string;
-    from?: string;
-    attachments?: any[];
+  }
+
+  interface MailConfig {
+    host: string;
+    port: number;
+    user: string;
+    pass: string;
+    fromName: string;
+    fromEmail: string;
+    secure?: boolean;
   }
 
   interface CallbackPayload {
@@ -733,6 +805,58 @@ declare global {
     success: boolean;
     messageId?: string;
     error?: any;
+  }
+
+  // --- Meta / WhatsApp Integration ---
+  interface MetaTextPayload {
+    messaging_product: "whatsapp";
+    to: string;
+    type: "text";
+    text: { body: string };
+  }
+
+  interface MetaTemplatePayload {
+    messaging_product: "whatsapp";
+    to: string;
+    type: "template";
+    template: {
+      name: string;
+      language: { code: string };
+      components?: MetaTemplateComponent[];
+    };
+  }
+
+  interface MetaTemplateComponent {
+    type: "body" | "header" | "button";
+    parameters: Array<{ type: "text"; text: string }>;
+  }
+
+  interface MetaMediaPayload {
+    messaging_product: "whatsapp";
+    to: string;
+    type: "image" | "video" | "document" | "audio";
+    [key: string]: unknown;
+  }
+
+  interface MetaReactionPayload {
+    messaging_product: "whatsapp";
+    to: string;
+    type: "reaction";
+    reaction: { message_id: string; emoji: string };
+  }
+
+  interface MetaSendResult {
+    messages: Array<{ id: string }>;
+    contacts: Array<{ input: string; wa_id: string }>;
+  }
+
+  interface MetaTemplate {
+    id: string;
+    name: string;
+    status: string;
+    category: string;
+    language: string;
+    components: unknown[];
   }
 
   interface CacheEntry<T = any> {
@@ -1014,15 +1138,6 @@ declare global {
     conn: mongoose.Connection;
   }
 
-  interface ForecastRow {
-    stageId: string;
-    stageName: string;
-    probability: number;
-    totalValue: number;
-    expectedRevenue: number;
-    leadCount: number;
-  }
-
   interface CreateLeadInput {
     firstName: string;
     lastName?: string;
@@ -1130,6 +1245,8 @@ declare global {
     Template: mongoose.Model<ITemplate>;
     tenantConn: mongoose.Connection;
   }
+
+  type AnalyticsRange = "24h" | "7d" | "30d" | "60d" | "90d" | "365d";
 }
 
 export {};

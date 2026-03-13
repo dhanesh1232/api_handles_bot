@@ -1,28 +1,6 @@
 import mongoose from "mongoose";
-import {
-  getClientConfig,
-  getCrmModels,
-} from "../../../lib/tenant/get.crm.model.ts";
+import { getClientConfig, getCrmModels } from "@lib/tenant/crm.models";
 import { createGoogleMeetService } from "./google.meet.service.ts";
-
-export interface CreateMeetingInput {
-  leadId: string;
-  appointmentId?: string;
-  doctorId?: string;
-  participantName: string;
-  participantPhone: string;
-  participantEmails?: string[];
-  startTime: string | Date;
-  endTime: string | Date;
-  duration: number;
-  meetingMode: "online" | "offline";
-  type: "free" | "paid";
-  amount?: number;
-  metadata?: {
-    refs?: Record<string, string | undefined>;
-    extra?: Record<string, any>;
-  };
-}
 
 /**
  * Backend service for managing meetings and consultations.
@@ -53,7 +31,7 @@ export const createMeeting = async (
       const googleMeetService = createGoogleMeetService();
       const response = await googleMeetService.createMeeting(clientCode, {
         summary: `Meeting: ${input.participantName}`,
-        description: `Scheduled via ${clientConfig.name}. Type: ${input.type}`,
+        description: `Scheduled via ${clientConfig?.name}. Type: ${input.type}`,
         start: startTime.toISOString(),
         end: endTime.toISOString(),
         attendees: emails,
@@ -146,7 +124,7 @@ export const createMeeting = async (
     );
   }
 
-  return meeting;
+  return meeting.toObject() as unknown as IMeeting;
 };
 
 export const getMeetingById = async (

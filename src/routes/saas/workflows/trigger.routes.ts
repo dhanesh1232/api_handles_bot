@@ -1,12 +1,9 @@
 import { Router } from "express";
-import { normalizePhone } from "../../../utils/phone.ts";
-import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import {
-  createLead,
-  getLeadByPhone,
-} from "../../../services/saas/crm/lead.service.ts";
-import { EventBus } from "../../../services/saas/event/eventBus.service.ts";
+import { normalizePhone } from "@/utils/phone";
+import { sendCallbackWithRetry } from "@/lib/callbackSender";
+import { getCrmModels } from "@/lib/tenant/crm.models";
+import { createLead, getLeadByPhone } from "@/services/saas/crm/lead.service";
+import { EventBus } from "@/services/saas/event/eventBus.service";
 
 const triggerRouter = Router();
 

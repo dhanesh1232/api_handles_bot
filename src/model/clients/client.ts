@@ -23,6 +23,9 @@ export interface IClient extends Document {
     endDate?: Date;
   };
   tags?: string[];
+  agencyId?: string; // Reference to a master Agency record
+  agencyCode?: string; // Short code of the parent agency
+  labels?: Map<string, string>; // Agency-internal labels for filtering clients
   whatsapp?: {
     enabled?: boolean;
     phoneNumber?: string;
@@ -67,6 +70,9 @@ const ClientSchema = new mongoose.Schema<IClient>(
       endDate: Date,
     },
     tags: [String],
+    agencyId: { type: String, index: true },
+    agencyCode: { type: String, uppercase: true, index: true },
+    labels: { type: Map, of: String, default: {} },
     whatsapp: {
       enabled: { type: Boolean, default: false },
       phoneNumber: String,

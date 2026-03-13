@@ -1,9 +1,9 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-
-import { validateClientKey } from "../../../middleware/saasAuth.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { getCrmModels } from "@lib/tenant/crm.models";
+import { validateClientKey } from "@/middleware/saasAuth";
+import { withSDK } from "@/middleware/withSDK";
+import { ClientSecrets } from "@/model/clients/secrets";
 
 import {
   checkTemplateUsageInAutomations,
@@ -26,6 +26,8 @@ export interface SaasRequest extends Request {
 
 export const createTemplateRouter = (io: Server) => {
   const router = express.Router();
+
+  router.use(withSDK(io));
 
   // GET /collections - list all collections
   router.get(

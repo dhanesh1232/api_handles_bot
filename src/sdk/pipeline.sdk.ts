@@ -28,10 +28,6 @@ import {
   setDefaultPipeline,
   updatePipeline,
   updateStage,
-  type BoardColumn,
-  type CreatePipelineInput,
-  type ForecastRow,
-  type UpdateStageOrderInput,
 } from "@services/saas/crm/pipeline.service";
 
 export class PipelineSDK {
