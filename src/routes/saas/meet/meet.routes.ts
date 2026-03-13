@@ -22,13 +22,8 @@ export function createMeetRouter(io: Server) {
    */
   router.post("/", async (req: Request, res: Response) => {
     try {
-      const {
-        leadId,
-        participantName,
-        participantPhone,
-        startTime,
-        endTime,
-      } = req.body;
+      const { leadId, participantName, participantPhone, startTime, endTime } =
+        req.body;
 
       if (
         !leadId ||

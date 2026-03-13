@@ -56,15 +56,17 @@ export function withSDK(io: Server | null = null) {
         clientCode,
         action: `${req.method}:${req.baseUrl}${req.path}`,
         resourceType: "API_MUTATION",
-        performedBy: (req.headers["x-core-api-key"] ? "core_admin" : "client_api"),
+        performedBy: req.headers["x-core-api-key"]
+          ? "core_admin"
+          : "client_api",
         severity: "info",
         metadata: {
           path: req.path,
           method: req.method,
           body: req.method === "DELETE" ? null : req.body, // Be careful with sensitive data in production
           ip: req.ip,
-        }
-      }).catch(err => console.error("Audit log failed:", err));
+        },
+      }).catch((err) => console.error("Audit log failed:", err));
     }
 
     next();

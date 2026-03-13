@@ -9,7 +9,14 @@ import mongoose from "mongoose";
 import { getCrmModels } from "@lib/tenant/crm.models";
 
 const getDateRange = (range: AnalyticsRange): Date => {
-  const ms = { "24h": 1, "7d": 7, "30d": 30, "60d": 60, "90d": 90, "365d": 365 };
+  const ms = {
+    "24h": 1,
+    "7d": 7,
+    "30d": 30,
+    "60d": 60,
+    "90d": 90,
+    "365d": 365,
+  };
   const days = ms[range] ?? 30;
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 };
@@ -25,12 +32,12 @@ export const getWhatsAppAnalytics = async (
 
   const [messageStats, conversationStats] = await Promise.all([
     Message.aggregate([
-      { 
-        $match: { 
-          direction: "outbound", 
+      {
+        $match: {
+          direction: "outbound",
           createdAt: { $gte: since },
-          messageType: { $ne: "reaction" }
-        } 
+          messageType: { $ne: "reaction" },
+        },
       },
       {
         $group: {
@@ -46,7 +53,7 @@ export const getWhatsAppAnalytics = async (
   ]);
 
   const statsMap = new Map(messageStats.map((r: any) => [r._id, r.count]));
-  
+
   const sent = statsMap.get("sent") ?? 0;
   const delivered = statsMap.get("delivered") ?? 0;
   const read = statsMap.get("read") ?? 0;
@@ -62,8 +69,12 @@ export const getWhatsAppAnalytics = async (
       delivered,
       read,
       failed,
-      deliveryRate: totalOutbound > 0 ? Math.round(((delivered + read) / totalOutbound) * 100) : 0,
-      failureRate: totalOutbound > 0 ? Math.round((failed / totalOutbound) * 100) : 0,
+      deliveryRate:
+        totalOutbound > 0
+          ? Math.round(((delivered + read) / totalOutbound) * 100)
+          : 0,
+      failureRate:
+        totalOutbound > 0 ? Math.round((failed / totalOutbound) * 100) : 0,
     },
   };
 };
@@ -79,50 +90,53 @@ export const getOverview = async (
   today.setHours(0, 0, 0, 0);
   const since = getDateRange(range);
 
-  const [totals, periodLeads, wonDeals, activities, leadsToday] = await Promise.all([
-    Lead.aggregate([
-      { $match: { clientCode, isArchived: false } },
-      {
-        $group: {
-          _id: null,
-          totalLeads: { $sum: 1 },
-          totalPipeline: { $sum: { $ifNull: ["$dealValue", 0] } },
-          totalWon: {
-            $sum: {
-              $cond: [
-                { $eq: ["$status", "won"] },
-                { $ifNull: ["$dealValue", 0] },
-                0,
-              ],
+  const [totals, periodLeads, wonDeals, activities, leadsToday] =
+    await Promise.all([
+      Lead.aggregate([
+        { $match: { clientCode, isArchived: false } },
+        {
+          $group: {
+            _id: null,
+            totalLeads: { $sum: 1 },
+            totalPipeline: { $sum: { $ifNull: ["$dealValue", 0] } },
+            totalWon: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "won"] },
+                  { $ifNull: ["$dealValue", 0] },
+                  0,
+                ],
+              },
+            },
+            avgScore: { $avg: "$score.total" },
+            openLeads: {
+              $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] },
             },
           },
-          avgScore: { $avg: "$score.total" },
-          openLeads: { $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] } },
         },
-      },
-    ]),
-    Lead.countDocuments({
-      clientCode,
-      isArchived: false,
-      createdAt: { $gte: since },
-    }),
-    Lead.aggregate([
-      { $match: { clientCode, status: "won", convertedAt: { $gte: since } } },
-      {
-        $group: {
-          _id: null,
-          count: { $sum: 1 },
-          revenue: { $sum: { $ifNull: ["$dealValue", 0] } },
+      ]),
+      Lead.countDocuments({
+        clientCode,
+        isArchived: false,
+        createdAt: { $gte: since },
+      }),
+      Lead.aggregate([
+        { $match: { clientCode, status: "won", convertedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            revenue: { $sum: { $ifNull: ["$dealValue", 0] } },
+          },
         },
-      },
-    ]),
-    LeadActivity.countDocuments({ clientCode, createdAt: { $gte: since } }),
-    Lead.countDocuments({
-      clientCode,
-      isArchived: false,
-      createdAt: { $gte: today },
-    }),
-  ]);
+      ]),
+      LeadActivity.countDocuments({ clientCode, createdAt: { $gte: since } }),
+      Lead.countDocuments({
+        clientCode,
+        isArchived: false,
+        createdAt: { $gte: today },
+      }),
+    ]);
 
   const t = totals[0] ?? {};
   const won = wonDeals[0] ?? { count: 0, revenue: 0 };
@@ -544,24 +558,35 @@ export const getTieredReport = async (
 ) => {
   // 1. Basic Metrics (The Pulse)
   const overview = await getOverview(clientCode, range);
-  
+
   // 2. Medium Metrics (Growth)
   const sources = await getSourceBreakdown(clientCode, range);
-  const funnel = pipelineId ? await getFunnelData(clientCode, pipelineId) : null;
+  const funnel = pipelineId
+    ? await getFunnelData(clientCode, pipelineId)
+    : null;
   const distribution = await getScoreDistribution(clientCode);
 
   // 3. Advanced Metrics (The Weapon)
   const forecast = await getRevenueForecast(clientCode, pipelineId);
-  const velocity = pipelineId ? await getPipelineVelocity(clientCode, pipelineId) : null;
-  const heatmap = await getActivityHeatmap(clientCode, range === "365d" ? "90d" : range as any);
+  const velocity = pipelineId
+    ? await getPipelineVelocity(clientCode, pipelineId)
+    : null;
+  const heatmap = await getActivityHeatmap(
+    clientCode,
+    range === "365d" ? "90d" : (range as any),
+  );
 
   const insights = [
-    overview.conversionRate > 20 ? "High conversion detected. Consider scaling sources." : "Conversion rate below target. Review funnel stages.",
-    forecast.grandTotal > 50000 ? "Strong pipeline detected. Strategic follow-ups recommended." : "Pipeline health needs attention.",
+    overview.conversionRate > 20
+      ? "High conversion detected. Consider scaling sources."
+      : "Conversion rate below target. Review funnel stages.",
+    forecast.grandTotal > 50000
+      ? "Strong pipeline detected. Strategic follow-ups recommended."
+      : "Pipeline health needs attention.",
   ];
 
   const charts = {
-basic: {
+    basic: {
       totalLeads: overview.totalLeads,
       newLeads: overview.newLeadsInPeriod,
       activeLeads: overview.openLeads,
@@ -580,11 +605,11 @@ basic: {
       bottlenecks: velocity,
       activityHeatmap: heatmap,
       insights,
-    }
-  } as const
+    },
+  } as const;
 
-  console.log(charts, insights)
-  return charts
+  console.log(charts, insights);
+  return charts;
 };
 
 /**

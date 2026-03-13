@@ -4,8 +4,8 @@ export interface IClientUsage extends Document {
   clientCode: string; // The tenant this usage belongs to
   type: "whatsapp_msg" | "email_msg" | "ai_token" | "automation_run";
   totalCredits: number; // Total credits allowed/allotted
-  usedCredits: number;  // Currently used
-  month: string;        // e.g. "2024-03" for monthly tracking
+  usedCredits: number; // Currently used
+  month: string; // e.g. "2024-03" for monthly tracking
   lastResetAt?: Date;
   status: "active" | "warning" | "exhausted";
   createdAt?: Date;
@@ -30,11 +30,12 @@ const ClientUsageSchema = new mongoose.Schema<IClientUsage>(
       default: "active",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Compound index for fast lookup of specific usage type for a client in a month
 ClientUsageSchema.index({ clientCode: 1, type: 1, month: 1 }, { unique: true });
 
 export const ClientUsage: Model<IClientUsage> =
-  mongoose.models.ClientUsage || mongoose.model<IClientUsage>("ClientUsage", ClientUsageSchema);
+  mongoose.models.ClientUsage ||
+  mongoose.model<IClientUsage>("ClientUsage", ClientUsageSchema);

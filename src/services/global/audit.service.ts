@@ -52,5 +52,5 @@ export const AuditService = {
     return AuditLog.find({ resourceType, resourceId })
       .sort({ createdAt: -1 })
       .lean();
-  }
+  },
 };

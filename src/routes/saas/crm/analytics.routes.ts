@@ -19,7 +19,10 @@ type Range = AnalyticsRange;
 router.get("/analytics/whatsapp", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as any) ?? "30d";
-    const data = await analyticsService.getWhatsAppAnalytics(req.clientCode!, range);
+    const data = await analyticsService.getWhatsAppAnalytics(
+      req.clientCode!,
+      range,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });

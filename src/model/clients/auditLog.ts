@@ -2,7 +2,7 @@ import mongoose, { type Document, type Model } from "mongoose";
 
 export interface IAuditLog extends Document {
   clientCode?: string; // Optional if it's a global action (e.g. creating a client)
-  action: string;      // e.g. "crm.lead.create", "client.secrets.update"
+  action: string; // e.g. "crm.lead.create", "client.secrets.update"
   resourceType: string; // e.g. "Lead", "ClientSecrets", "AutomationRule"
   resourceId?: string;
   performedBy: string; // "api_key", "system", or user ID if available
@@ -29,11 +29,15 @@ const AuditLogSchema = new mongoose.Schema<IAuditLog>(
     ip: String,
     userAgent: String,
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false } },
 );
 
 // TTL index to keep logs lean (e.g. 90 days for standard logs)
-AuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
+AuditLogSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 60 * 60 * 24 * 90 },
+);
 
 export const AuditLog: Model<IAuditLog> =
-  mongoose.models.AuditLog || mongoose.model<IAuditLog>("AuditLog", AuditLogSchema);
+  mongoose.models.AuditLog ||
+  mongoose.model<IAuditLog>("AuditLog", AuditLogSchema);

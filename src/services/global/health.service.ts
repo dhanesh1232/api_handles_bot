@@ -26,7 +26,10 @@ export const HealthService = {
       };
 
       // 1. Check WhatsApp Connectivity
-      if (client.whatsapp?.enabled && client.whatsapp.status === "disconnected") {
+      if (
+        client.whatsapp?.enabled &&
+        client.whatsapp.status === "disconnected"
+      ) {
         clientHealth.issues.push({
           type: "whatsapp_disconnect",
           severity: "error",
@@ -38,7 +41,7 @@ export const HealthService = {
       // (This could be expanded to look up ClientUsage models)
 
       // 3. Check for stuck queues or old pending items (if possible)
-      
+
       if (clientHealth.issues.length > 0) {
         report.push(clientHealth);
       }
@@ -51,8 +54,9 @@ export const HealthService = {
    * Check a single client's "operational readiness"
    */
   checkClientReadiness: async (clientCode: string) => {
-    const { Pipeline, PipelineStage, AutomationRule } = await getCrmModels(clientCode);
-    
+    const { Pipeline, PipelineStage, AutomationRule } =
+      await getCrmModels(clientCode);
+
     const [pipelines, stages, rules] = await Promise.all([
       Pipeline.countDocuments({ clientCode }),
       PipelineStage.countDocuments({ clientCode }),
@@ -63,7 +67,8 @@ export const HealthService = {
       clientCode,
       counts: { pipelines, stages, rules },
       isReady: pipelines > 0 && stages > 0,
-      suggestion: pipelines === 0 ? "Deploy a CRM Blueprint to get started." : null
+      suggestion:
+        pipelines === 0 ? "Deploy a CRM Blueprint to get started." : null,
     };
-  }
+  },
 };

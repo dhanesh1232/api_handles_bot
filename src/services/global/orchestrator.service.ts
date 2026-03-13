@@ -12,11 +12,16 @@ export const OrchestratorService = {
    * Clones a blueprint's content into a specific client's tenant database.
    * This is a "power move" for agencies to rapidly onboard new clients.
    */
-  deployBlueprint: async (clientCode: string, blueprintId: string, performedBy: string) => {
+  deployBlueprint: async (
+    clientCode: string,
+    blueprintId: string,
+    performedBy: string,
+  ) => {
     const blueprint = await Blueprint.findById(blueprintId).lean();
     if (!blueprint) throw new Error("Blueprint not found");
 
-    const { Pipeline, PipelineStage, AutomationRule, Lead } = await getCrmModels(clientCode);
+    const { Pipeline, PipelineStage, AutomationRule, Lead } =
+      await getCrmModels(clientCode);
     const { UsageService } = await import("./usage.service");
 
     const auditMeta: Record<string, any> = {
@@ -89,5 +94,5 @@ export const OrchestratorService = {
       message: `Blueprint "${blueprint.name}" deployed to ${clientCode}`,
       components: auditMeta.deployedComponents,
     };
-  }
+  },
 };

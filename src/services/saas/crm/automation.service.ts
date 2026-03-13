@@ -41,7 +41,11 @@ export const runAutomations = async (
 
   // Credit Tracking: Deduct for an Automation "Burst" Run
   const { UsageService } = await import("@services/global/usage.service");
-  const hasCredits = await UsageService.consume(clientCode, "automation_run", 1);
+  const hasCredits = await UsageService.consume(
+    clientCode,
+    "automation_run",
+    1,
+  );
   if (!hasCredits) {
     console.warn(
       `[automationService] Skipping run for ${clientCode} due to credit exhaustion.`,

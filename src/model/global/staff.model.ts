@@ -14,7 +14,13 @@ export interface IStaff extends Document {
 
 const StaffSchema = new mongoose.Schema<IStaff>(
   {
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     name: { type: String, required: true, trim: true },
     agencyCode: { type: String, required: true, uppercase: true, index: true },
     role: {
@@ -26,7 +32,7 @@ const StaffSchema = new mongoose.Schema<IStaff>(
     isActive: { type: Boolean, default: true },
     lastLoginAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Index for fast lookup of clients managed by a specific staff

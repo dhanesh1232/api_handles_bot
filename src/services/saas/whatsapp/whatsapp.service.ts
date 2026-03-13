@@ -418,13 +418,15 @@ export const createWhatsappService = (io: Server | null) => {
           ? errors[0]
           : errors
         : {};
-      
+
       let errorCode = errorData.code;
-      const errorMessage = errorData.message || (typeof errors === "string" ? errors : "");
-      
+      const errorMessage =
+        errorData.message || (typeof errors === "string" ? errors : "");
+
       // Attempt to detect 24h window from message if code is missing
-      let isWindowClosed = errorCode === 131047 || 
-        errorMessage.includes("24 hours") || 
+      let isWindowClosed =
+        errorCode === 131047 ||
+        errorMessage.includes("24 hours") ||
         errorMessage.includes("131047");
 
       tenantLogger(clientCode).debug(
@@ -441,7 +443,10 @@ export const createWhatsappService = (io: Server | null) => {
             isArchived: false,
           });
         } catch (e) {
-          tenantLogger(clientCode).warn({ err: e }, "Failed to find lead for notification");
+          tenantLogger(clientCode).warn(
+            { err: e },
+            "Failed to find lead for notification",
+          );
           return null;
         }
       })();
@@ -501,7 +506,7 @@ export const createWhatsappService = (io: Server | null) => {
       if (newPriority >= currentPriority) {
         // Special case: if already failed, we might still want to update error info but avoid redundant notifications
         const alreadyFailed = message.status === "failed";
-        
+
         message.status = status;
 
         // Clear errors if the message is now successful
@@ -976,7 +981,11 @@ export const createWhatsappService = (io: Server | null) => {
 
       // 2.5 Credit Guard: Weaponizing with Wealth Engine
       const { UsageService } = await import("@services/global/usage.service");
-      const hasCredits = await UsageService.consume(clientCode, "whatsapp_msg", 1);
+      const hasCredits = await UsageService.consume(
+        clientCode,
+        "whatsapp_msg",
+        1,
+      );
       if (!hasCredits) {
         throw new Error(
           "Insufficient credits: Your agency/account has exhausted its WhatsApp message quota for this month.",
