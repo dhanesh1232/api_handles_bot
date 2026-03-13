@@ -14,573 +14,66 @@
  *   crm.score_refresh      — background lead score recalculation
  *   crm.webhook_notify     — fire an HTTP callback to client's server
  */
-
-import { MongoQueue } from "../../lib/mongoQueue/index.ts";
-import { MongoWorker } from "../../lib/mongoQueue/worker.ts";
-import type { IJob } from "../../model/queue/job.model.ts";
-import type { IBroadcast } from "../../model/saas/whatsapp/broadcast.model.ts";
-
-import { normalizePhone } from "../../utils/phone.ts";
+import { logger } from "@lib/logger";
+import { ErixJobs } from "@lib/erixJobs/index";
+import { ErixWorkers } from "@lib/erixJobs/worker";
+import type { IJob } from "@models/queue/job.model";
+import { JobRegistry } from "./jobRegistry";
 
 // ─── Exported queue singleton ─────────────────────────────────────────────────
-// Use this everywhere you need to enqueue a CRM job:
-//   import { crmQueue } from "../saas/crmWorker.ts";
-//   await crmQueue.add({ clientCode, type: "crm.email", payload: { ... } });
+export const crmQueue = ErixJobs.getQueue("crm");
 
-export const crmQueue = MongoQueue.getQueue("crm");
-
-// ─── Socket.io ref (for WhatsApp real-time UI updates) ───────────────────────
-
+// ─── Socket.io ref ───────────────────────────────────────────────────────────
 let globalIo: any = null;
 export const registerCrmIo = (io: any): void => {
   globalIo = io;
+  (global as any).io = io; // Ensure global availability for handlers
 };
 
-// ─── Job type union ───────────────────────────────────────────────────────────
-
-type CrmJobType =
-  | "crm.automation_action"
-  | "crm.automation_event"
-  | "crm.email"
-  | "crm.meeting"
-  | "crm.reminder"
-  | "crm.score_refresh"
-  | "crm.webhook_notify"
-  | "crm.whatsapp_broadcast"
-  | "crm.sequence_step";
-
-interface CrmJobData {
-  clientCode: string;
-  type: CrmJobType;
-  payload: Record<string, any>;
-}
-
 // ─── Processor ────────────────────────────────────────────────────────────────
-
 const processCrmJob = async (job: IJob): Promise<void> => {
-  const { clientCode, type, payload } = job.data as unknown as CrmJobData;
+  const { clientCode, type, payload } = job.data as any;
 
   if (!clientCode || !type) {
-    throw new Error(`[crmWorker] Job ${job._id} missing clientCode or type`);
+    logger.error(
+      { jobId: job._id },
+      "[ErixWorker] Job missing clientCode or type",
+    );
+    throw new Error(`[ErixWorker] Job ${job._id} missing clientCode or type`);
   }
 
-  switch (type) {
-    // ── 1. Delayed automation action ─────────────────────────────────────────
-    case "crm.automation_action": {
-      const { actionType, actionConfig, leadId, ctxVariables } = payload;
-      const { getCrmModels } =
-        await import("../../lib/tenant/get.crm.model.ts");
-      const { Lead } = await getCrmModels(clientCode);
-      const lead = await Lead.findById(leadId);
-      if (!lead) {
-        throw new Error(`[crmWorker] Lead ${leadId} not found`);
-      }
+  const handler = JobRegistry.getHandler(type);
+  if (!handler) {
+    logger.warn(
+      { type },
+      "[ErixWorker] Unknown job type, no handler registered",
+    );
+    throw new Error(`[ErixWorker] Unknown job type: ${type}`);
+  }
 
-      const { executeAction } =
-        await import("../../services/saas/crm/automation.service.ts");
-
-      // Construct action object for executeAction
-      const action = {
-        type: actionType,
-        config: actionConfig,
-        delayMinutes: 0, // It was already delayed by the queue
-      };
-
-      // Pass variables from config (stored in enqueueDelayedAction)
-      try {
-        await executeAction(
-          clientCode,
-          action as any,
-          lead as any,
-          {
-            variables: ctxVariables,
-            replyToId: null,
-            metadata: {
-              meetingId: payload.meetingId,
-              actionId: payload.actionId,
-            },
-          } as any,
-        );
-
-        // Update status in meeting record
-        if (payload.meetingId && payload.actionId) {
-          const { Meeting } = await getCrmModels(clientCode);
-          await Meeting.updateOne(
-            { _id: payload.meetingId, "reminders.actionId": payload.actionId },
-            {
-              $set: {
-                "reminders.$.status": "sent",
-                "reminders.$.sentAt": new Date(),
-              },
-            },
-          );
-        }
-
-        // Conditionally log success activity for communication actions
-        // (Other actions like move_pipeline or assign_to log their own activities)
-        if (actionType === "send_whatsapp") {
-          const { logActivity } =
-            await import("../../services/saas/crm/activity.service.ts");
-          await logActivity(clientCode, {
-            leadId: lead._id.toString(),
-            type: "whatsapp_sent",
-            title: `Reminder Sent: ${actionConfig.templateName}`,
-            body: payload.meetingId
-              ? `Sent for a scheduled meeting/appointment`
-              : `Sent via automation rule`,
-            metadata: {
-              meetingId: payload.meetingId,
-              templateName: actionConfig.templateName,
-              kind: "reminder",
-            },
-            performedBy: "system",
-          });
-        } else if (actionType === "send_email") {
-          const { logActivity } =
-            await import("../../services/saas/crm/activity.service.ts");
-          await logActivity(clientCode, {
-            leadId: lead._id.toString(),
-            type: "email_sent",
-            title: `Email Sent: ${actionConfig.subject || "Automation"}`,
-            body: payload.meetingId
-              ? `Sent for a scheduled meeting/appointment`
-              : `Sent via automation rule`,
-            metadata: {
-              meetingId: payload.meetingId,
-            },
-            performedBy: "system",
-          });
-        }
-
-        // Resolve any existing unread notifications for this lead/meeting/action
-        const { Notification } = await getCrmModels(clientCode);
-        const resolveFilter: any = {
-          clientCode,
-          status: "unread",
-          "actionData.leadId": lead._id,
-        };
-        if (payload.meetingId) {
-          resolveFilter["actionData.meetingId"] = payload.meetingId;
-        } else if (actionConfig?.templateName) {
-          // Provide a loose tie for regular automations
-          resolveFilter["actionData.actionConfig.templateName"] =
-            actionConfig.templateName;
-        }
-        await Notification.updateMany(resolveFilter, {
-          $set: { status: "resolved" },
-        });
-      } catch (err: any) {
-        console.error(
-          `[crmWorker] executeAction failed for ${actionType}:`,
-          err,
-        );
-        // Mark as failed in meeting record
-        if (payload.meetingId && payload.actionId) {
-          const { Meeting } = await getCrmModels(clientCode);
-          await Meeting.updateOne(
-            { _id: payload.meetingId, "reminders.actionId": payload.actionId },
-            {
-              $set: {
-                "reminders.$.status": "failed",
-                "reminders.$.error": err.message,
-              },
-            },
-          );
-        }
-
-        // Log failure activity
-        const { logActivity } =
-          await import("../../services/saas/crm/activity.service.ts");
-        await logActivity(clientCode, {
-          leadId: lead._id.toString(),
-          type: "system",
-          title: `Reminder Failed: ${actionConfig.templateName}`,
-          body: `Error: ${err.message}`,
-          metadata: {
-            meetingId: payload.meetingId,
-            templateName: actionConfig.templateName,
-            kind: "reminder",
-            error: err.message,
-          },
-          performedBy: "system",
-        });
-
-        // Add notification
-        let notif: any;
-        try {
-          const { createNotification } =
-            await import("../../services/saas/crm/notification.service.ts");
-
-          const isMeetError =
-            err.message.includes("Google Meet integration") ||
-            err.message.includes("meet_");
-
-          notif = await createNotification(clientCode, {
-            title: isMeetError
-              ? "Missing Meeting Link (Google Meet Error)"
-              : "Automation Reminder Failed",
-            message: `Failed to send WhatsApp reminder (${actionConfig.templateName}) to ${lead.phone}: ${err.message}`,
-            type: isMeetError ? "action_required" : "alert",
-            status: "unread",
-            actionData: {
-              leadId: lead._id,
-              meetingId: payload.meetingId,
-              error: err.message,
-              errorType: isMeetError ? "meet_auth_failed" : "automation_failed",
-              actionConfig,
-              actionType,
-              contextSnapshot: ctxVariables,
-            },
-          });
-        } catch (notifErr) {
-          console.error("Failed to create notification:", notifErr);
-        }
-
-        if (notif && (global as any).io) {
-          (global as any).io.to(clientCode).emit("notification:new", notif);
-        }
-        throw err;
-      }
-      break;
-    }
-
-    // ── 2. Delayed external event (from POST /api/crm/automations/events with delaySeconds > 0) ──
-    case "crm.automation_event": {
-      const { trigger, leadId, variables, stageId, tagName, score } = payload;
-      const { getCrmModels } =
-        await import("../../lib/tenant/get.crm.model.ts");
-      const { Lead } = await getCrmModels(clientCode);
-      const lead = await Lead.findById(leadId).lean();
-      if (!lead) {
-        throw new Error(
-          `[crmWorker] crm.automation_event: lead ${leadId} not found for client ${clientCode}`,
-        );
-      }
-      const { runAutomations } =
-        await import("../../services/saas/crm/automation.service.ts");
-      await runAutomations(clientCode, {
-        trigger,
-        lead: lead as any,
-        stageId,
-        tagName,
-        score,
-        variables,
-      });
-      break;
-    }
-
-    // ── 3. Email — transactional or bulk ─────────────────────────────────────
-    case "crm.email": {
-      const { createEmailService } =
-        await import("../../services/saas/mail/email.service.ts");
-      const svc = createEmailService();
-
-      if (payload.bulk === true && Array.isArray(payload.recipients)) {
-        // Bulk campaign — iterates internally, tracks errors per recipient
-        await svc.sendCampaign(clientCode, {
-          recipients: payload.recipients as string[],
-          subject: payload.subject,
-          html: payload.html,
-        });
-      } else {
-        // Single transactional email
-        await svc.sendEmail(clientCode, {
-          to: payload.to,
-          subject: payload.subject,
-          html: payload.html,
-          text: payload.text,
-        });
-      }
-
-      // Callback if requested
-      if (payload.callbackUrl) {
-        const { sendCallbackWithRetry } =
-          await import("../../lib/callbackSender.ts");
-        void sendCallbackWithRetry({
-          clientCode,
-          callbackUrl: payload.callbackUrl,
-          payload: { status: "sent", sentAt: new Date() },
-          jobId: job._id?.toString(),
-        });
-      }
-      break;
-    }
-
-    // ── 3. Google Meet creation ───────────────────────────────────────────────
-    case "crm.meeting": {
-      const { createGoogleMeetService } =
-        await import("../../services/saas/meet/google.meet.service.ts");
-      const { onMeetingCreated } =
-        await import("../../services/saas/crm/crmHooks.ts");
-
-      const svc = createGoogleMeetService();
-      const result = await svc.createMeeting(clientCode, {
-        summary: payload.title,
-        description: payload.description,
-        attendees: payload.attendees ?? [],
-        start: payload.startTime,
-        end: payload.endTime,
-      });
-
-      if (!result.success) {
-        throw new Error(`Google Meet creation failed: ${result.error}`);
-      }
-
-      // Fire CRM hook — logs timeline + updates score
-      await onMeetingCreated(clientCode, {
-        phone: payload.phone,
-        meetLink: result.hangoutLink ?? "",
-        calendarEventId: result.eventId ?? "",
-        title: payload.title,
-        startTime: payload.startTime ? new Date(payload.startTime) : undefined,
-        appointmentId: payload.appointmentId,
-        performedBy: "system",
-      });
-
-      // Notify client with the meet link
-      if (payload.callbackUrl) {
-        const { sendCallbackWithRetry } =
-          await import("../../lib/callbackSender.ts");
-        void sendCallbackWithRetry({
-          clientCode,
-          callbackUrl: payload.callbackUrl,
-          payload: {
-            status: "created",
-            meetLink: result.hangoutLink,
-            eventId: result.eventId,
-            createdAt: new Date(),
-          },
-          jobId: job._id?.toString(),
-        });
-      }
-      break;
-    }
-
-    // ── 4. Reminder — WhatsApp reminder before appointment ───────────────────
-    case "crm.reminder": {
-      const { createWhatsappService } =
-        await import("../../services/saas/whatsapp/whatsapp.service.ts");
-      const { getTenantConnection, getTenantModel } =
-        await import("../../lib/connectionManager.ts");
-      const { schemas } = await import("../../model/saas/tenant.schemas.ts");
-
-      const svc = createWhatsappService(globalIo);
-      const tenantConn = await getTenantConnection(clientCode);
-      const Conversation = getTenantModel(
-        tenantConn,
-        "Conversation",
-        schemas.conversations,
-      );
-
-      const phone = normalizePhone(payload.phone);
-      let conv = await Conversation.findOne({
-        clientCode,
-        phone,
-      });
-      if (!conv) {
-        conv = await Conversation.create({
-          clientCode,
-          phone,
-          userName: phone,
-          status: "open",
-          channel: "whatsapp",
-        });
-      }
-
-      let finalVariables = payload.variables || [];
-      let templateLanguage = payload.language || "en_US";
-
-      // Final dynamic resolution check
-      try {
-        const { resolveUnifiedWhatsAppTemplate } =
-          await import("../../services/saas/whatsapp/template.service.ts");
-        const { getCrmModels } =
-          await import("../../lib/tenant/get.crm.model.ts");
-        const { Lead } = await getCrmModels(clientCode);
-
-        const lead = payload.leadId ? await Lead.findById(payload.leadId) : {};
-
-        const resolution = await resolveUnifiedWhatsAppTemplate(
-          tenantConn,
-          payload.templateName,
-          lead || {},
-          payload.variables || {},
-        );
-
-        finalVariables = resolution.resolvedVariables;
-        templateLanguage = resolution.languageCode;
-      } catch (err: any) {
-        console.warn(
-          `[crmWorker] Reminder resolution fallback for ${payload.templateName}:`,
-          err.message,
-        );
-      }
-
-      await svc.sendOutboundMessage(
-        clientCode,
-        conv._id.toString(),
-        undefined,
-        undefined,
-        undefined,
-        "system-reminder",
-        payload.templateName,
-        templateLanguage,
-        finalVariables,
-      );
-
-      // Log reminder to CRM timeline
-      const { logActivity } =
-        await import("../../services/saas/crm/activity.service.ts");
-      if (payload.leadId) {
-        await logActivity(clientCode, {
-          leadId: payload.leadId,
-          type: "whatsapp_sent",
-          title: `Reminder sent: ${payload.templateName}`,
-          performedBy: "system-reminder",
-        });
-      }
-      break;
-    }
-
-    // ── 5. Score refresh — background recalculation ──────────────────────────
-    case "crm.score_refresh": {
-      const { recalculateScore } =
-        await import("../../services/saas/crm/lead.service.ts");
-      await recalculateScore(clientCode, payload.leadId);
-      break;
-    }
-
-    // ── 6. Webhook notify — fire HTTP callback to client server ──────────────
-    case "crm.webhook_notify": {
-      const { sendCallbackWithRetry } =
-        await import("../../lib/callbackSender.ts");
-      void sendCallbackWithRetry({
-        clientCode,
-        callbackUrl: payload.callbackUrl,
-        method: "POST",
-        payload: payload.event,
-        jobId: job._id?.toString(),
-      });
-      break;
-    }
-
-    // ── 7. WhatsApp Broadcast — sending individual messages in a campaign ──
-    case "crm.whatsapp_broadcast": {
-      const { broadcastId, phone, templateName, templateLanguage, variables } =
-        payload;
-
-      const { createWhatsappService } =
-        await import("../../services/saas/whatsapp/whatsapp.service.ts");
-      const { getTenantConnection, getTenantModel } =
-        await import("../../lib/connectionManager.ts");
-      const { schemas } = await import("../../model/saas/tenant.schemas.ts");
-
-      const svc = createWhatsappService(globalIo);
-      const tenantConn = await getTenantConnection(clientCode);
-      const Broadcast = getTenantModel<IBroadcast>(
-        tenantConn,
-        "Broadcast",
-        schemas.broadcasts,
-      );
-      const Conversation = getTenantModel<IConversation>(
-        tenantConn,
-        "Conversation",
-        schemas.conversations,
-      );
-
-      let success = false;
-      const normalizedPhone = normalizePhone(phone);
-      try {
-        let conv = await Conversation.findOne({ phone: normalizedPhone });
-        if (!conv) {
-          conv = await Conversation.create({
-            phone: normalizedPhone,
-            userName: "Customer",
-            status: "open",
-            channel: "whatsapp",
-            unreadCount: 0,
-          });
-        }
-
-        await svc.sendOutboundMessage(
-          clientCode,
-          conv._id.toString(),
-          undefined,
-          undefined,
-          undefined,
-          "broadcast",
-          templateName,
-          templateLanguage || "en_US",
-          variables || [],
-        );
-        success = true;
-      } catch (err: any) {
-        console.error(
-          `[crmWorker] Broadcast send failed for ${phone}:`,
-          err.message,
-        );
-      }
-
-      // Update broadcast stats
-      const update: any = {
-        $inc: {},
-      };
-      if (success) update.$inc.sentCount = 1;
-      else update.$inc.failedCount = 1;
-
-      const updatedBroadcast = await Broadcast.findByIdAndUpdate(
-        broadcastId,
-        update,
-        { new: true, returnDocument: "after" },
-      );
-
-      if (updatedBroadcast) {
-        const totalProcessed =
-          updatedBroadcast.sentCount + updatedBroadcast.failedCount;
-        if (totalProcessed >= updatedBroadcast.totalRecipients) {
-          updatedBroadcast.status =
-            updatedBroadcast.failedCount > 0 ? "partially_failed" : "completed";
-          updatedBroadcast.completedAt = new Date();
-          await updatedBroadcast.save();
-        }
-
-        // Optional: Emit broadcast progress via socket
-        if (globalIo) {
-          globalIo.to(clientCode).emit("broadcast_progress", {
-            broadcastId,
-            sentCount: updatedBroadcast.sentCount,
-            failedCount: updatedBroadcast.failedCount,
-            status: updatedBroadcast.status,
-          });
-        }
-      }
-
-      break;
-    }
-
-    // ── 8. Sequence Engine execution step ─────────────────────────────────────
-    case "crm.sequence_step": {
-      const { executeStep } =
-        await import("../../services/saas/automation/sequenceEngine.service.ts");
-      await executeStep(clientCode, payload.enrollmentId, payload.stepNumber);
-      break;
-    }
-
-    default: {
-      throw new Error(`[crmWorker] Unknown job type: ${type}`);
-    }
+  try {
+    await handler.handle(clientCode, payload, job);
+  } catch (err: any) {
+    logger.error(
+      { err, type, clientCode },
+      "[ErixWorker] Handler execution failed",
+    );
+    throw err; // ErixWorkers will handle retries based on backoff
   }
 };
 
 // ─── Worker factory ───────────────────────────────────────────────────────────
-
-export const startCrmWorker = (): MongoWorker => {
-  const worker = new MongoWorker("crm", processCrmJob, {
-    concurrency: 3, // process 3 jobs in parallel
-    pollIntervalMs: 5_000, // poll every 5 seconds
-    baseBackoffMs: 10_000, // retry with 10s base exponential backoff
+export const startCrmWorker = (): ErixWorkers => {
+  const worker = new ErixWorkers("crm", processCrmJob, {
+    concurrency: 50,
+    pollIntervalMs: 1000,
+    maxJobsPerSecond: 50,
+    baseBackoffMs: 10_000,
   });
   worker.start();
-  console.log("[crmWorker] ✅ Started — queue: crm, concurrency: 3, poll: 5s");
+  logger.info(
+    { queue: "crm", concurrency: 50, rateLimit: 50 },
+    "[ErixWorker] ✅ Started with JobRegistry",
+  );
   return worker;
 };

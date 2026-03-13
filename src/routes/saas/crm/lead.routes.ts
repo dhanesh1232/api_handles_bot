@@ -1,83 +1,27 @@
 /**
- * lead.routes.ts
- *
- * Place at: src/routes/saas/crm/lead.routes.ts
- * Mount in server.ts: app.use("/api/crm", leadRouter)
- *
- * All routes read req.clientCode from your validateClientKey middleware.
+ * lead.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
  */
 
 import { Router, type Request, type Response } from "express";
-import * as leadService from "../../../services/saas/crm/lead.service.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { withSDK } from "@/middleware/withSDK";
 
 const router = Router();
+router.use(withSDK()); // stamps req.sdk once for every route below
 
-// ─── Field Discovery ────────────────────────────────────────────────────────
-/**
- * GET /api/crm/fields
- * Returns a list of all mappable fields (core + discovered from metadata).
- */
+// ─── Field Discovery ──────────────────────────────────────────────────────────
 router.get("/fields", async (req: Request, res: Response) => {
   try {
-    const fields = await leadService.getLeadFields(req.clientCode!);
+    const fields = await req.sdk.lead.fields();
     res.json({ success: true, data: fields });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
 
-// ─── Create lead ──────────────────────────────────────────────────────────────
-/**
- * POST /api/crm/leads
- *
- * Minimal request (auto-assigns default pipeline + stage):
- * {
- *   "firstName": "Suresh",
- *   "phone": "+919876543210"
- * }
- *
- * Full request with metadata refs:
- * {
- *   "firstName": "Suresh",
- *   "lastName": "Rao",
- *   "phone": "+919876543210",
- *   "email": "suresh@hospital.in",
- *   "source": "website",
- *   "dealValue": 120000,
- *   "dealTitle": "OPD Automation - City Hospital",
- *   "pipelineId": "6789abc...",   ← optional, uses default if omitted
- *   "stageId": "6789def...",      ← optional, uses stage.isDefault if omitted
- *   "metadata": {
- *     "refs": {
- *       "appointmentId": "6789aaa...",   ← stored as ObjectId
- *       "bookingId": "6789bbb..."        ← stored as ObjectId
- *     },
- *     "extra": {
- *       "appointmentDate": "2026-03-01",
- *       "plan": "Premium"
- *     }
- *   }
- * }
- *
- * Response includes populated pipeline + stage:
- * {
- *   "_id": "...",
- *   "pipelineId": { "_id": "...", "name": "Patient Journey" },
- *   "stageId":    { "_id": "...", "name": "Inquiry", "color": "#6366f1", "probability": 10 },
- *   "metadata": {
- *     "refs": {
- *       "appointmentId": "6789aaa...",   ← ObjectId, client can query their DB with this
- *       "bookingId": "6789bbb..."
- *     },
- *     "extra": { ... }
- *   }
- * }
- */
+// ─── Create ───────────────────────────────────────────────────────────────────
 router.post("/leads", async (req: Request, res: Response) => {
   try {
     const { firstName, phone } = req.body;
-
     if (!firstName?.trim()) {
       res
         .status(400)
@@ -88,8 +32,7 @@ router.post("/leads", async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: "phone is required" });
       return;
     }
-
-    const lead = await leadService.createLead(req.clientCode!, req.body);
+    const lead = await req.sdk.lead.create(req.body);
     res.status(201).json({ success: true, data: lead });
   } catch (err: unknown) {
     const msg = (err as Error).message;
@@ -98,101 +41,111 @@ router.post("/leads", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Upsert lead ──────────────────────────────────────────────────────────────
-/**
- * POST /api/crm/leads/upsert
- * Used by client websites to create or update a lead based on phone number.
- *
- * Body: { leadData: { name, phone, email, source }, moduleInfo?: any }
- */
-router.post("/leads/upsert", async (req: Request, res: Response) => {
+// ─── Upsert ───────────────────────────────────────────────────────────────────
+router.post("/leads/upsert", async (req: any, res: any) => {
   try {
-    const { leadData, moduleInfo, trigger } = req.body;
+    const {
+      leadData,
+      moduleInfo,
+      trigger,
+      pipelineId: inputPipelineId,
+      stageId: inputStageId,
+    } = req.body;
     if (!leadData?.phone) {
       res.status(400).json({ success: false, message: "phone is required" });
       return;
     }
-    const { LeadNote } = await getCrmModels(req.clientCode!);
 
-    // Try finding by phone
-    let lead = await leadService.getLeadByPhone(
-      req.clientCode!,
-      leadData.phone,
-    );
+    let finalPipelineId = inputPipelineId;
+    let finalStageId = inputStageId;
 
-    // Prepare metadata refs based on moduleInfo
-    const refs: any = {};
-    if (moduleInfo?.type === "service_enrollment" && moduleInfo.id) {
-      refs.orderId = moduleInfo.id;
-    } else if (moduleInfo?.type === "doctor_consultation" && moduleInfo.id) {
-      refs.appointmentId = moduleInfo.id;
-    } else if (moduleInfo?.type === "product_purchase" && moduleInfo.id) {
-      refs.orderId = moduleInfo.id;
+    if (!finalPipelineId && trigger) {
+      const { getCrmModels } =
+        await import("@/lib/tenant/get.crm.model");
+      const { CustomEventDef } = await getCrmModels(req.clientCode!);
+      const eventDef = await CustomEventDef.findOne({
+        clientCode: req.clientCode,
+        name: trigger,
+        isActive: true,
+      });
+      if (eventDef?.pipelineId) {
+        finalPipelineId = eventDef.pipelineId;
+        finalStageId = eventDef.stageId;
+      }
     }
 
+    let lead = await req.sdk.lead.getByPhone(leadData.phone);
+
+    const refs: any = {};
+    if (moduleInfo?.type === "service_enrollment" && moduleInfo.id)
+      refs.orderId = moduleInfo.id;
+    else if (moduleInfo?.type === "doctor_consultation" && moduleInfo.id)
+      refs.appointmentId = moduleInfo.id;
+    else if (moduleInfo?.type === "product_purchase" && moduleInfo.id)
+      refs.orderId = moduleInfo.id;
+    else if (moduleInfo?.type === "volunteer_application" && moduleInfo.id)
+      refs.volunteerId = moduleInfo.id;
+    else if (moduleInfo?.type === "user_registration" && moduleInfo.id)
+      refs.userId = moduleInfo.id;
+
     if (lead) {
-      // Add refs to existing lead
-      if (Object.keys(refs).length > 0) {
-        lead = await leadService.updateMetadataRefs(
-          req.clientCode!,
+      if (finalStageId && lead.stageId?.toString() !== finalStageId) {
+        lead = await req.sdk.lead.move(
           lead._id.toString(),
-          refs,
+          finalStageId,
+          "system_upsert",
         );
       }
-      // If message is passed, create a separate LeadNote
+      if (Object.keys(refs).length > 0) {
+        lead = await req.sdk.lead.updateRefs(lead!._id.toString(), refs);
+      }
       if (lead && leadData.message) {
-        await LeadNote.create({
-          clientCode: req.clientCode!,
-          leadId: lead._id,
-          content: leadData.message,
-          createdBy: "system_contact_form",
-        });
+        await req.sdk.activity.createNote(
+          lead._id.toString(),
+          leadData.message,
+          "system_contact_form",
+        );
       }
     } else {
-      // Create new lead
       const names = (leadData.name || "").trim().split(" ");
       const firstName = names[0] || "Unknown";
       const lastName = names.slice(1).join(" ");
 
-      lead = await leadService.createLead(req.clientCode!, {
+      lead = await req.sdk.lead.create({
         firstName,
         lastName,
         phone: leadData.phone,
         email: leadData.email,
         source: leadData.source || "website",
+        pipelineId: finalPipelineId,
+        stageId: finalStageId,
         metadata: {
-          refs: {
-            appointmentId: refs.appointmentId,
-            orderId: refs.orderId,
-          },
-          extra: {
-            upsertedAt: new Date().toISOString(),
-          },
+          refs: { ...refs },
+          extra: { upsertedAt: new Date().toISOString() },
         },
       });
 
-      // If message is passed for new lead, create a separate LeadNote
       if (lead && leadData.message) {
-        await LeadNote.create({
-          clientCode: req.clientCode!,
-          leadId: lead._id,
-          content: leadData.message,
-          createdBy: "system_contact_form",
-        });
+        await req.sdk.activity.createNote(
+          lead._id.toString(),
+          leadData.message,
+          "system_contact_form",
+        );
       }
     }
 
-    // Fire automation if trigger passed
     if (lead && trigger) {
       const { runAutomations } =
-        await import("../../../services/saas/crm/automation.service.ts");
+        await import("@/services/saas/crm/automation.service");
       void runAutomations(req.clientCode!, {
         trigger: trigger as any,
         lead: lead as any,
         variables: {
           ...(moduleInfo || {}),
+          ...(leadData || {}),
           phone: lead.phone,
           name: lead.firstName,
+          fullName: lead.firstName + (lead.lastName ? " " + lead.lastName : ""),
         },
       });
     }
@@ -203,28 +156,7 @@ router.post("/leads/upsert", async (req: Request, res: Response) => {
   }
 });
 
-// ─── List leads ───────────────────────────────────────────────────────────────
-/**
- * GET /api/crm/leads
- *
- * Query params:
- *   status         = open | won | lost | archived
- *   pipelineId     = ObjectId
- *   stageId        = ObjectId
- *   source         = website | whatsapp | ...
- *   assignedTo     = string
- *   tags           = tag1,tag2   (comma-separated)
- *   minScore       = number
- *   search         = "suresh"    (searches name, email, phone, dealTitle)
- *   appointmentId  = ObjectId    → filter by metadata.refs.appointmentId
- *   bookingId      = ObjectId    → filter by metadata.refs.bookingId
- *   orderId        = ObjectId    → filter by metadata.refs.orderId
- *   meetingId      = ObjectId    → filter by metadata.refs.meetingId
- *   page           = 1
- *   limit          = 25
- *   sortBy         = score | createdAt | updatedAt | dealValue | lastContactedAt
- *   sortDir        = asc | desc
- */
+// ─── List ─────────────────────────────────────────────────────────────────────
 router.get("/leads", async (req: Request, res: Response) => {
   try {
     const {
@@ -264,7 +196,7 @@ router.get("/leads", async (req: Request, res: Response) => {
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
 
-    const result = await leadService.listLeads(req.clientCode!, filters, {
+    const result = await req.sdk.lead.list(filters, {
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 25,
       sortBy: sortBy as any,
@@ -285,18 +217,13 @@ router.get("/leads", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Get leads for a board column ─────────────────────────────────────────────
-/**
- * GET /api/crm/pipelines/:pipelineId/stages/:stageId/leads
- * Used by the Kanban board to load leads per column (with pagination).
- */
+// ─── Leads by stage (board column) ────────────────────────────────────────────
 router.get(
   "/pipelines/:pipelineId/stages/:stageId/leads",
   async (req: Request, res: Response) => {
     try {
       const { page, limit } = req.query as Record<string, string>;
-      const result = await leadService.getLeadsByStage(
-        req.clientCode!,
+      const result = await req.sdk.lead.byStage(
         req.params.pipelineId as string,
         req.params.stageId as string,
         { page: page ? Number(page) : 1, limit: limit ? Number(limit) : 50 },
@@ -308,18 +235,10 @@ router.get(
   },
 );
 
-// ─── Get single lead ──────────────────────────────────────────────────────────
-/**
- * GET /api/crm/leads/:leadId
- * Returns lead with populated pipelineId and stageId (name, color, probability).
- * metadata.refs ObjectIds returned as strings — client resolves them in own DB.
- */
+// ─── Get by ID ────────────────────────────────────────────────────────────────
 router.get("/leads/:leadId", async (req: Request, res: Response) => {
   try {
-    const lead = await leadService.getLeadById(
-      req.clientCode!,
-      req.params.leadId as string,
-    );
+    const lead = await req.sdk.lead.getById(req.params.leadId as string);
     if (!lead) {
       res.status(404).json({ success: false, message: "Lead not found" });
       return;
@@ -330,15 +249,10 @@ router.get("/leads/:leadId", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Get lead by phone ────────────────────────────────────────────────────────
-/**
- * GET /api/crm/leads/phone/:phone
- * Used by your WhatsApp webhook to find the CRM lead when a message arrives.
- */
+// ─── Get by phone ─────────────────────────────────────────────────────────────
 router.get("/leads/phone/:phone", async (req: Request, res: Response) => {
   try {
-    const lead = await leadService.getLeadByPhone(
-      req.clientCode!,
+    const lead = await req.sdk.lead.getByPhone(
       decodeURIComponent(req.params.phone as string),
     );
     if (!lead) {
@@ -351,18 +265,7 @@ router.get("/leads/phone/:phone", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Get lead by metadata ref ──────────────────────────────────────────────────
-/**
- * GET /api/crm/leads/ref/:refKey/:refValue
- * Find the lead that has a specific ObjectId in metadata.refs.
- *
- * Example:
- *   GET /api/crm/leads/ref/appointmentId/6789abc...
- *   → returns the lead whose metadata.refs.appointmentId = 6789abc...
- *
- * Useful when: a payment webhook fires with an appointmentId, and you need
- * to find and update the linked CRM lead.
- */
+// ─── Get by metadata ref ──────────────────────────────────────────────────────
 router.get(
   "/leads/ref/:refKey/:refValue",
   async (req: Request, res: Response) => {
@@ -380,9 +283,7 @@ router.get(
         });
         return;
       }
-
-      const lead = await leadService.getLeadByRef(
-        req.clientCode!,
+      const lead = await req.sdk.lead.getByRef(
         req.params.refKey as
           | "appointmentId"
           | "bookingId"
@@ -401,16 +302,10 @@ router.get(
   },
 );
 
-// ─── Update lead fields ───────────────────────────────────────────────────────
-/**
- * PATCH /api/crm/leads/:leadId
- * Update name, email, source, dealValue, assignedTo, etc.
- * Does NOT handle stage changes — use the /move endpoint for that.
- */
+// ─── Update ───────────────────────────────────────────────────────────────────
 router.patch("/leads/:leadId", async (req: Request, res: Response) => {
   try {
-    const lead = await leadService.updateLead(
-      req.clientCode!,
+    const lead = await req.sdk.lead.update(
       req.params.leadId as string,
       req.body,
     );
@@ -425,31 +320,10 @@ router.patch("/leads/:leadId", async (req: Request, res: Response) => {
 });
 
 // ─── Update metadata refs ─────────────────────────────────────────────────────
-/**
- * PATCH /api/crm/leads/:leadId/metadata
- * Add or update ObjectId refs and/or extra plain-value data.
- *
- * Body:
- * {
- *   "refs": {
- *     "appointmentId": "6789abc...",   ← stored as ObjectId
- *     "meetingId": "6789def...",       ← stored as ObjectId
- *     "bookingId": null                ← null = remove this ref
- *   },
- *   "extra": {
- *     "appointmentDate": "2026-03-01",
- *     "plan": "Premium",
- *     "oldKey": null                   ← null = remove this key
- *   }
- * }
- */
 router.patch("/leads/:leadId/metadata", async (req: Request, res: Response) => {
   try {
     const { refs = {}, extra } = req.body;
-
-    const { LeadActivity, LeadNote } = await getCrmModels(req.clientCode!);
-    const lead = await leadService.updateMetadataRefs(
-      req.clientCode!,
+    const lead = await req.sdk.lead.updateRefs(
       req.params.leadId as string,
       refs,
       extra,
@@ -464,15 +338,7 @@ router.patch("/leads/:leadId/metadata", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Move lead to a different stage ──────────────────────────────────────────
-/**
- * PATCH /api/crm/leads/:leadId/move
- * Drag-and-drop on the Kanban board.
- * Auto-logs a stage_change activity.
- * If target stage.isWon → status becomes "won". If isLost → "lost".
- *
- * Body: { "stageId": "6789abc..." }
- */
+// ─── Move stage ───────────────────────────────────────────────────────────────
 router.patch("/leads/:leadId/move", async (req: Request, res: Response) => {
   try {
     const { stageId } = req.body;
@@ -480,11 +346,7 @@ router.patch("/leads/:leadId/move", async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: "stageId is required" });
       return;
     }
-    const lead = await leadService.moveLead(
-      req.clientCode!,
-      req.params.leadId as string,
-      stageId,
-    );
+    const lead = await req.sdk.lead.move(req.params.leadId as string, stageId);
     if (!lead) {
       res.status(404).json({ success: false, message: "Lead not found" });
       return;
@@ -495,11 +357,7 @@ router.patch("/leads/:leadId/move", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Convert lead (won / lost) ────────────────────────────────────────────────
-/**
- * POST /api/crm/leads/:leadId/convert
- * Body: { "outcome": "won" | "lost", "reason": "..." }
- */
+// ─── Convert ──────────────────────────────────────────────────────────────────
 router.post("/leads/:leadId/convert", async (req: Request, res: Response) => {
   try {
     const { outcome, reason } = req.body;
@@ -509,8 +367,7 @@ router.post("/leads/:leadId/convert", async (req: Request, res: Response) => {
         .json({ success: false, message: "outcome must be won or lost" });
       return;
     }
-    const lead = await leadService.convertLead(
-      req.clientCode!,
+    const lead = await req.sdk.lead.convert(
       req.params.leadId as string,
       outcome,
       reason,
@@ -521,16 +378,11 @@ router.post("/leads/:leadId/convert", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Update tags ──────────────────────────────────────────────────────────────
-/**
- * PATCH /api/crm/leads/:leadId/tags
- * Body: { "add": ["hot", "vip"], "remove": ["cold"] }
- */
+// ─── Tags ─────────────────────────────────────────────────────────────────────
 router.patch("/leads/:leadId/tags", async (req: Request, res: Response) => {
   try {
     const { add = [], remove = [] } = req.body;
-    const lead = await leadService.updateTags(
-      req.clientCode!,
+    const lead = await req.sdk.lead.tags(
       req.params.leadId as string,
       add,
       remove,
@@ -542,34 +394,20 @@ router.patch("/leads/:leadId/tags", async (req: Request, res: Response) => {
 });
 
 // ─── Recalculate score ────────────────────────────────────────────────────────
-/**
- * POST /api/crm/leads/:leadId/score
- * Manually trigger score recalculation. Normally called automatically.
- */
 router.post("/leads/:leadId/score", async (req: Request, res: Response) => {
   try {
-    await leadService.recalculateScore(
-      req.clientCode!,
-      req.params.leadId as string,
-    );
-    const lead = await leadService.getLeadById(
-      req.clientCode!,
-      req.params.leadId as string,
-    );
+    await req.sdk.lead.recalcScore(req.params.leadId as string);
+    const lead = await req.sdk.lead.getById(req.params.leadId as string);
     res.json({ success: true, data: lead });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
 
-// ─── Archive lead ─────────────────────────────────────────────────────────────
-/**
- * DELETE /api/crm/leads/:leadId
- * Soft delete — sets isArchived: true, status: "archived".
- */
+// ─── Archive ──────────────────────────────────────────────────────────────────
 router.delete("/leads/:leadId", async (req: Request, res: Response) => {
   try {
-    await leadService.archiveLead(req.clientCode!, req.params.leadId as string);
+    await req.sdk.lead.archive(req.params.leadId as string);
     res.json({ success: true, message: "Lead archived" });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -577,37 +415,23 @@ router.delete("/leads/:leadId", async (req: Request, res: Response) => {
 });
 
 // ─── Bulk delete ──────────────────────────────────────────────────────────────
-/**
- * DELETE /api/crm/leads
- * Delete multiple leads by ID.
- * Body: { "ids": ["6789abc...", "6789def...", ...] }
- */
 router.delete("/leads", async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: "ids must be a non-empty array",
-      });
+      res
+        .status(400)
+        .json({ success: false, message: "ids must be a non-empty array" });
       return;
     }
-
-    const result = await leadService.bulkDelete(req.clientCode as string, ids);
-    res.json({ success: true, deleted: result });
+    await req.sdk.lead.bulkDelete(ids);
+    res.json({ success: true, deleted: ids.length });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
 
 // ─── Bulk import ──────────────────────────────────────────────────────────────
-/**
- * POST /api/crm/leads/import
- * Upsert multiple leads by phone. If phone exists → update. If not → create.
- *
- * Body: { "leads": [ { firstName, phone, metadata: { refs: { appointmentId } } }, ... ] }
- * Response: { created: 5, updated: 3, failed: 0 }
- */
 router.post("/leads/import", async (req: Request, res: Response) => {
   try {
     const { leads } = req.body;
@@ -623,7 +447,7 @@ router.post("/leads/import", async (req: Request, res: Response) => {
         .json({ success: false, message: "Max 1000 leads per import" });
       return;
     }
-    const result = await leadService.bulkUpsertLeads(req.clientCode!, leads);
+    const result = await req.sdk.lead.bulkUpsert(leads);
     res.json({ success: true, data: result });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });

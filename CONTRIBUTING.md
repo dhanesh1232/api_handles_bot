@@ -140,7 +140,7 @@ router.post("/example", async (req: Request, res: Response) => {
 
 ## Adding a Background Job
 
-Jobs are dispatched via `crmQueue.add()` and handled in `crmWorker.ts`.
+Jobs are dispatched via `crmQueue.add()` (powered by `ErixJobs`) and handled in `crmWorker.ts`.
 
 ```typescript
 // Dispatch (from a route or service)

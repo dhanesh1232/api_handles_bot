@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import { dbConnect } from "../lib/config.ts";
-import { Client, type IClient } from "../model/clients/client.ts";
+import { dbConnect } from "@lib/config";
+import { Client, type IClient } from "@models/clients/client";
 
 // AuthRequest now inherits from the augmented Express.Request
 export interface AuthRequest extends Request {

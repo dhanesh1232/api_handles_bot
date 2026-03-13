@@ -3,15 +3,13 @@ import FormData from "form-data";
 import mongoose, { type Connection, type Model } from "mongoose";
 import path from "path";
 import { Server } from "socket.io";
-import { dbConnect } from "../../../lib/config.ts";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
-
-import { normalizePhone } from "../../../utils/phone.ts";
+import { dbConnect } from "@lib/config";
+import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
+import { MetaWhatsAppClient } from "@lib/meta/whatsapp.client";
+import { tenantLogger } from "@lib/logger";
+import { ClientSecrets } from "@models/clients/secrets";
+import { schemas } from "@models/saas/tenant.schemas";
+import { normalizePhone } from "@utils/phone";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -77,29 +75,22 @@ export const createWhatsappService = (io: Server | null) => {
   ): Promise<string | null> => {
     if (!mediaId) return null;
     try {
-      const token = secrets.getDecrypted("whatsappToken");
-      // 1. Get URL
-      const urlRes = await axios.get(`${WHATSAPP_API_URL}/${mediaId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const mediaUrl = urlRes.data.url;
-      const mimeType = urlRes.data.mime_type;
+      const metaClient = MetaWhatsAppClient.fromSecrets(secrets);
 
-      // 2. Download Buffer
-      const response = await axios({
-        url: mediaUrl,
-        method: "GET",
-        responseType: "arraybuffer",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // 1. Resolve media URL + MIME type
+      const resolved = await metaClient.resolveMediaUrl(mediaId);
+      if (!resolved) return null;
+
+      // 2. Download buffer
+      const buffer = await metaClient.downloadMedia(resolved.url);
+      if (!buffer) return null;
 
       // 3. Optimize & Upload
       const { optimizeAndUploadMedia } =
-        await import("../media/media.service.ts");
-
+        await import("@services/saas/media/media.service");
       const result = await optimizeAndUploadMedia(
-        response.data,
-        mimeType,
+        buffer,
+        resolved.mimeType,
         originalFilename,
         mediaId,
         secrets,
@@ -107,7 +98,7 @@ export const createWhatsappService = (io: Server | null) => {
 
       return result.url;
     } catch (e: any) {
-      console.error("Media processing failed:", e.message);
+      tenantLogger("unknown").error({ err: e }, "Media processing failed");
       return null;
     }
   };
@@ -121,8 +112,9 @@ export const createWhatsappService = (io: Server | null) => {
     msgBody: string,
     contacts: any,
   ) => {
+    const log = tenantLogger(clientCode);
     try {
-      console.log(`[${clientCode}] Handling Incoming Message from: ${from}`);
+      log.info({ from }, "Handling incoming WhatsApp message");
       const { secrets, Conversation, Message } = await getContext(clientCode);
 
       const phone = normalizePhone(from);
@@ -130,8 +122,7 @@ export const createWhatsappService = (io: Server | null) => {
       const profilePicture = contacts?.profile?.profile_picture;
 
       // --- Lead Syncing Logic ---
-      const { getCrmModels } =
-        await import("../../../lib/tenant/get.crm.model.ts");
+      const { getCrmModels } = await import("@lib/tenant/get.crm.model");
       const { Lead } = await getCrmModels(clientCode);
 
       let lead: any = await Lead.findOne({
@@ -141,7 +132,7 @@ export const createWhatsappService = (io: Server | null) => {
       }).lean();
       if (!lead) {
         // Create a new lead automatically
-        const { createLead } = await import("../crm/lead.service.ts");
+        const { createLead } = await import("@services/saas/crm/lead.service");
         try {
           lead = await createLead(clientCode, {
             firstName: metaName !== "Customer" ? metaName : "WhatsApp User",
@@ -149,12 +140,9 @@ export const createWhatsappService = (io: Server | null) => {
             source: "whatsapp",
             tags: ["auto-created"],
           });
-          console.log(`[${clientCode}] Auto-created Lead for ${phone}`);
+          log.info({ phone }, "Auto-created lead from WhatsApp");
         } catch (err: any) {
-          console.warn(
-            `[${clientCode}] Failed to auto-create lead:`,
-            err.message,
-          );
+          log.warn({ err, phone }, "Failed to auto-create lead");
         }
       }
 
@@ -186,8 +174,9 @@ export const createWhatsappService = (io: Server | null) => {
           channel: "whatsapp",
           unreadCount: 0,
         });
-        console.log(
-          `[${clientCode}] New Conversation Created: ${conversation._id}`,
+        log.info(
+          { conversationId: conversation._id },
+          "New conversation created",
         );
       } else {
         // Update name if changed
@@ -207,8 +196,9 @@ export const createWhatsappService = (io: Server | null) => {
         whatsappMessageId: messagePayload.id,
       });
       if (exists) {
-        console.log(
-          `[${clientCode}] Duplicate Message Ignored: ${messagePayload.id}`,
+        log.debug(
+          { messageId: messagePayload.id },
+          "Duplicate message ignored",
         );
         return;
       }
@@ -313,9 +303,7 @@ export const createWhatsappService = (io: Server | null) => {
 
       // 3. Save Message if it has content or is a recognized type
       if (!finalMsgBody && !mediaUrl && messageType === "text") {
-        console.log(
-          `[${clientCode}] Skipping empty inbound message from ${from}`,
-        );
+        log.debug({ from }, "Skipping empty inbound message");
         return;
       }
 
@@ -331,9 +319,7 @@ export const createWhatsappService = (io: Server | null) => {
           replyToWhatsappId: replyToWhatsappId || undefined,
           status: "delivered",
         });
-        console.log(
-          `✅ [${clientCode}] Inbound Message saved: ${newMessage._id}`,
-        );
+        log.info({ messageId: newMessage._id }, "Inbound message saved");
 
         // 4. Update Conversation
         await Conversation.updateOne(
@@ -386,11 +372,48 @@ export const createWhatsappService = (io: Server | null) => {
             conversation.toObject(),
           );
         }
+
+        // 6. Emit to EventBus for Automations
+        try {
+          const { EventBus } = await import("../event/eventBus.service.ts");
+          await EventBus.emit(
+            clientCode,
+            "whatsapp.incoming",
+            {
+              phone,
+              variables: {
+                message: finalMsgBody,
+                sender_name: bestName,
+                conversation_id: conversation._id.toString(),
+              },
+              data: {
+                messageType,
+                whatsappMessageId: messagePayload.id,
+                isFirstMessage: conversation.unreadCount === 1,
+              },
+            },
+            {
+              createLeadIfMissing: true,
+              leadData: { firstName: bestName, source: "whatsapp" },
+            },
+          );
+        } catch (eventErr: any) {
+          tenantLogger(clientCode).error(
+            { err: eventErr },
+            "[WhatsAppService] Failed to emit whatsapp.incoming",
+          );
+        }
       } catch (saveError) {
-        console.error(`❌ [${clientCode}] Failed to save message:`, saveError);
+        tenantLogger(clientCode).error(
+          { err: saveError },
+          "Failed to save incoming message",
+        );
       }
     } catch (err) {
-      console.error(`Error handling incoming message for ${clientCode}:`, err);
+      tenantLogger(clientCode).error(
+        { err },
+        "Error handling incoming WhatsApp message",
+      );
     }
   };
 
@@ -449,8 +472,13 @@ export const createWhatsappService = (io: Server | null) => {
         }
       } else {
         if (status !== message.status) {
-          console.log(
-            `[${clientCode}] Status Update Ignored (Priority Protection): Current: ${message.status}, Incoming: ${status} for ${id}`,
+          tenantLogger(clientCode).debug(
+            {
+              currentStatus: message.status,
+              incomingStatus: status,
+              messageId: id,
+            },
+            "Status update skipped (priority protection)",
           );
         }
         return;
@@ -493,7 +521,10 @@ export const createWhatsappService = (io: Server | null) => {
         }
       }
     } catch (err) {
-      console.error("Error handling status update:", err);
+      tenantLogger(clientCode).error(
+        { err },
+        "Error handling WhatsApp status update",
+      );
     }
   };
 
@@ -540,9 +571,8 @@ export const createWhatsappService = (io: Server | null) => {
       if (metadata || !variables || variables.length === 0) {
         try {
           const { resolveUnifiedWhatsAppTemplate } =
-            await import("./template.service.ts");
-          const { getCrmModels } =
-            await import("../../../lib/tenant/get.crm.model.ts");
+            await import("./template.service");
+          const { getCrmModels } = await import("@lib/tenant/get.crm.model");
           const { Lead } = await getCrmModels(clientCode);
 
           // We try to find a lead if metadata has an ID but not the object
@@ -559,12 +589,14 @@ export const createWhatsappService = (io: Server | null) => {
           variables = resolution.resolvedVariables;
           templateLanguage = resolution.languageCode;
           tmpl = resolution.template;
-          console.log(
-            `[WhatsAppService] Unified resolution complete for ${templateName} (${templateLanguage})`,
+          tenantLogger(clientCode).debug(
+            { templateName, templateLanguage },
+            "[WhatsAppService] Unified template resolution complete",
           );
         } catch (resErr: any) {
-          console.warn(
-            `[WhatsAppService] Unified mapping resolution failed for ${templateName}, falling back to static find. Error: ${resErr.message}`,
+          tenantLogger(clientCode).warn(
+            { templateName, err: resErr.message },
+            "[WhatsAppService] Unified mapping failed, falling back to static",
           );
         }
       }
@@ -623,7 +655,10 @@ export const createWhatsappService = (io: Server | null) => {
     }
 
     const message = await Message.create(messageData);
-    console.log(`[${clientCode}] Outbound Message Queued: ${message._id}`);
+    tenantLogger(clientCode).info(
+      { messageId: message._id },
+      "Outbound WhatsApp message queued",
+    );
 
     const conv = await Conversation.findByIdAndUpdate(
       conversationId,
@@ -705,8 +740,9 @@ export const createWhatsappService = (io: Server | null) => {
         };
 
         if (tmpl && tmpl.components) {
-          console.log(
-            `[${clientCode}] Using cached template components for ${templateName}`,
+          tenantLogger(clientCode).debug(
+            { templateName },
+            "Using cached template components",
           );
           const getVarValue = (
             compType: string,
@@ -854,9 +890,9 @@ export const createWhatsappService = (io: Server | null) => {
       }
 
       // 3. Send
-      console.log(
-        `[${clientCode}] WhatsApp Meta Payload:`,
-        JSON.stringify(payload, null, 2),
+      tenantLogger(clientCode).debug(
+        { templateName, payloadType: payload.type },
+        "[WhatsApp] Sending Meta API payload",
       );
 
       const response = await axios.post(
@@ -869,7 +905,10 @@ export const createWhatsappService = (io: Server | null) => {
           },
         },
       );
-      console.log(`[${clientCode}] WhatsApp Meta Response:`, response.data);
+      tenantLogger(clientCode).debug(
+        { response: response.data },
+        "WhatsApp Meta API response",
+      );
 
       // 4. Update Message
       const incomingId = response.data.messages[0].id;
@@ -931,7 +970,10 @@ export const createWhatsappService = (io: Server | null) => {
 
       return message;
     } catch (e: any) {
-      console.error("Send Error:", e.response?.data || e.message);
+      tenantLogger(clientCode).error(
+        { err: e.response?.data ?? e.message },
+        "WhatsApp send error",
+      );
       message.status = "failed";
       message.error = JSON.stringify(e.response?.data || e.message);
       await message.save();

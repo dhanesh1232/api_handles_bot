@@ -8,6 +8,7 @@
 
 import mongoose from "mongoose";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { getPipelineRepo, getPipelineStageRepo } from "./pipeline.repository";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,13 +249,11 @@ const DEFAULT_STAGE_TEMPLATES: Record<
  * @returns {Promise<any[]>} The list of pipelines.
  */
 export const getPipelines = async (clientCode: string): Promise<any[]> => {
-  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
-  const pipelines = await Pipeline.find({ clientCode, isActive: true })
-    .sort({ order: 1 })
-    .lean();
-  const stages = await PipelineStage.find({ clientCode })
-    .sort({ order: 1 })
-    .lean();
+  const pRepo = await getPipelineRepo(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
+
+  const pipelines = await pRepo.findActive();
+  const stages = await sRepo.findMany({});
 
   return pipelines.map((p: any) => ({
     ...p,
@@ -275,17 +274,13 @@ export const getPipelineWithStages = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<{ pipeline: IPipeline; stages: IPipelineStage[] } | null> => {
-  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
-  const pipeline = await Pipeline.findOne({
-    _id: pipelineId,
-    clientCode,
-    isActive: true,
-  });
+  const pRepo = await getPipelineRepo(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
+
+  const pipeline = await pRepo.findOne({ _id: pipelineId, isActive: true });
   if (!pipeline) return null;
-  const stages = await PipelineStage.find({
-    clientCode,
-    pipelineId: pipeline._id,
-  }).sort({ order: 1 });
+
+  const stages = await sRepo.findByPipeline(pipelineId);
   return { pipeline, stages };
 };
 
@@ -302,17 +297,17 @@ export const createPipeline = async (
   input: CreatePipelineInput,
   templateKey?: keyof typeof DEFAULT_STAGE_TEMPLATES,
 ): Promise<{ pipeline: IPipeline; stages: IPipelineStage[] }> => {
-  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
+  const pRepo = await getPipelineRepo(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
 
   if (input.isDefault) {
-    await Pipeline.updateMany({ clientCode }, { isDefault: false });
+    await pRepo.updateMany({}, { isDefault: false });
   }
 
-  const existingCount = await Pipeline.countDocuments({ clientCode });
+  const existingCount = await pRepo.count({});
   const shouldBeDefault = input.isDefault ?? existingCount === 0;
 
-  const pipeline = await Pipeline.create({
-    clientCode,
+  const pipeline = await pRepo.create({
     name: input.name,
     description: input.description ?? "",
     isDefault: shouldBeDefault,
@@ -338,8 +333,8 @@ export const createPipeline = async (
     autoActions: [],
   }));
 
-  const stages = await PipelineStage.insertMany(stageDocuments);
-  return { pipeline, stages: stages as unknown as IPipelineStage[] };
+  const stages = await sRepo.createMany(stageDocuments);
+  return { pipeline, stages };
 };
 
 // ─── 4. Update pipeline metadata ─────────────────────────────────────────────
@@ -355,12 +350,8 @@ export const updatePipeline = async (
   pipelineId: string,
   updates: Partial<Pick<IPipeline, "name" | "description" | "order">>,
 ): Promise<IPipeline | null> => {
-  const { Pipeline } = await getCrmModels(clientCode);
-  return Pipeline.findOneAndUpdate(
-    { _id: pipelineId, clientCode },
-    { $set: updates },
-    { returnDocument: "after" },
-  );
+  const repo = await getPipelineRepo(clientCode);
+  return repo.update(pipelineId, { $set: updates });
 };
 
 // ─── 5. Set default pipeline ─────────────────────────────────────────────────
@@ -374,12 +365,9 @@ export const setDefaultPipeline = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<void> => {
-  const { Pipeline } = await getCrmModels(clientCode);
-  await Pipeline.updateMany({ clientCode }, { $set: { isDefault: false } });
-  await Pipeline.findOneAndUpdate(
-    { _id: pipelineId, clientCode },
-    { $set: { isDefault: true } },
-  );
+  const repo = await getPipelineRepo(clientCode);
+  await repo.updateMany({}, { $set: { isDefault: false } });
+  await repo.update(pipelineId, { $set: { isDefault: true } });
 };
 
 // ─── 6. Check if pipeline is in use ─────────────────────────────────────────
@@ -393,7 +381,7 @@ export const checkPipelineInUse = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<{ inUse: boolean; leadCount: number }> => {
-  const { Lead } = await getCrmModels(clientCode);
+  const { Lead } = await getCrmModels(clientCode); // Lead repo not used here for simplicity as it's a cross-service check
   const leadCount = await Lead.countDocuments({
     clientCode,
     pipelineId: new mongoose.Types.ObjectId(pipelineId),
@@ -412,8 +400,8 @@ export const archivePipeline = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<void> => {
-  const { Pipeline } = await getCrmModels(clientCode);
-  const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
+  const repo = await getPipelineRepo(clientCode);
+  const pipeline = await repo.findById(pipelineId);
   if (!pipeline) throw new Error("Pipeline not found");
   if (pipeline.isDefault)
     throw new Error("Cannot archive the default pipeline");
@@ -422,7 +410,7 @@ export const archivePipeline = async (
     throw new Error(
       `Cannot archive: ${leadCount} lead(s) are assigned to this pipeline. Reassign them first.`,
     );
-  await Pipeline.findByIdAndUpdate(pipelineId, { $set: { isActive: false } });
+  await repo.update(pipelineId, { $set: { isActive: false } });
 };
 
 // ─── 8. Hard delete pipeline (permanent) ─────────────────────────────────────
@@ -436,8 +424,10 @@ export const hardDeletePipeline = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<void> => {
-  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
-  const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
+  const pRepo = await getPipelineRepo(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
+
+  const pipeline = await pRepo.findById(pipelineId);
   if (!pipeline) throw new Error("Pipeline not found");
   if (pipeline.isDefault) throw new Error("Cannot delete the default pipeline");
   const { leadCount } = await checkPipelineInUse(clientCode, pipelineId);
@@ -445,8 +435,10 @@ export const hardDeletePipeline = async (
     throw new Error(
       `Cannot delete: ${leadCount} lead(s) are assigned to this pipeline. Reassign them first.`,
     );
-  await PipelineStage.deleteMany({ clientCode, pipelineId });
-  await Pipeline.deleteOne({ _id: pipelineId, clientCode });
+  await sRepo.deleteMany({
+    pipelineId: new mongoose.Types.ObjectId(pipelineId),
+  });
+  await pRepo.delete(pipelineId);
 };
 
 // ─── 7. Add a stage ──────────────────────────────────────────────────────────
@@ -480,24 +472,29 @@ export const addStage = async (
   const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
   if (!pipeline) throw new Error("Pipeline not found");
 
-  const lastStage = await PipelineStage.findOne({ clientCode, pipelineId })
-    .sort({ order: -1 })
-    .select("order");
+  const sRepo = await getPipelineStageRepo(clientCode);
+  const lastStage = await sRepo.findOne(
+    { pipelineId: new mongoose.Types.ObjectId(pipelineId) },
+    { sort: { order: -1 } },
+  );
+
   const newOrder =
     input.insertAfterOrder !== undefined
       ? input.insertAfterOrder + 1
       : (lastStage?.order ?? -1) + 1;
 
   if (input.insertAfterOrder !== undefined) {
-    await PipelineStage.updateMany(
-      { clientCode, pipelineId, order: { $gte: newOrder } },
+    await sRepo.updateMany(
+      {
+        pipelineId: new mongoose.Types.ObjectId(pipelineId),
+        order: { $gte: newOrder },
+      },
       { $inc: { order: 1 } },
     );
   }
 
-  return PipelineStage.create({
-    clientCode,
-    pipelineId,
+  return sRepo.create({
+    pipelineId: new mongoose.Types.ObjectId(pipelineId),
     name: input.name,
     color: input.color ?? "#3b82f6",
     order: newOrder,
@@ -527,12 +524,8 @@ export const updateStage = async (
     >
   >,
 ): Promise<IPipelineStage | null> => {
-  const { PipelineStage } = await getCrmModels(clientCode);
-  return PipelineStage.findOneAndUpdate(
-    { _id: stageId, clientCode },
-    { $set: updates },
-    { returnDocument: "after" },
-  );
+  const sRepo = await getPipelineStageRepo(clientCode);
+  return sRepo.update(stageId, { $set: updates });
 };
 
 // ─── 9. Reorder all stages ───────────────────────────────────────────────────
@@ -548,15 +541,10 @@ export const reorderStages = async (
   pipelineId: string,
   newOrder: UpdateStageOrderInput[],
 ): Promise<void> => {
-  const { Pipeline, PipelineStage } = await getCrmModels(clientCode);
-  const pipeline = await Pipeline.findOne({ _id: pipelineId, clientCode });
-  if (!pipeline) throw new Error("Pipeline not found");
+  const sRepo = await getPipelineStageRepo(clientCode);
   await Promise.all(
     newOrder.map(({ stageId, newOrder: order }) =>
-      PipelineStage.updateOne(
-        { _id: stageId, clientCode, pipelineId },
-        { $set: { order } },
-      ),
+      sRepo.update(stageId, { $set: { order } }),
     ),
   );
 };
@@ -574,8 +562,10 @@ export const deleteStage = async (
   stageId: string,
   moveLeadsToStageId?: string,
 ): Promise<void> => {
-  const { Lead, PipelineStage } = await getCrmModels(clientCode);
-  const stage = await PipelineStage.findOne({ _id: stageId, clientCode });
+  const { Lead } = await getCrmModels(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
+
+  const stage = await sRepo.findById(stageId);
   if (!stage) throw new Error("Stage not found");
 
   const leadCount = await Lead.countDocuments({ clientCode, stageId });
@@ -585,17 +575,14 @@ export const deleteStage = async (
     );
   }
   if (leadCount > 0 && moveLeadsToStageId) {
-    const targetStage = await PipelineStage.findOne({
-      _id: moveLeadsToStageId,
-      clientCode,
-    });
+    const targetStage = await sRepo.findById(moveLeadsToStageId);
     if (!targetStage) throw new Error("Target stage not found");
     await Lead.updateMany(
       { clientCode, stageId },
       { $set: { stageId: moveLeadsToStageId } },
     );
   }
-  await PipelineStage.deleteOne({ _id: stageId, clientCode });
+  await sRepo.delete(stageId);
 };
 
 // ─── 11. Board summary (Kanban) ──────────────────────────────────────────────
@@ -609,10 +596,9 @@ export const getBoardSummary = async (
   clientCode: string,
   pipelineId: string,
 ): Promise<BoardColumn[]> => {
-  const { Lead, PipelineStage } = await getCrmModels(clientCode);
-  const stages = await PipelineStage.find({ clientCode, pipelineId }).sort({
-    order: 1,
-  });
+  const { Lead } = await getCrmModels(clientCode);
+  const sRepo = await getPipelineStageRepo(clientCode);
+  const stages = await sRepo.findByPipeline(pipelineId);
   if (stages.length === 0) return [];
 
   const agg = await Lead.aggregate([

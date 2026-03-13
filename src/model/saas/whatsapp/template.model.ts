@@ -26,7 +26,15 @@ const VariableMappingSchema = new mongoose.Schema(
     originalIndex: { type: Number },
     transform: {
       type: String,
-      enum: ["none", "uppercase", "lowercase", "titlecase", "date", "currency", "number"],
+      enum: [
+        "none",
+        "uppercase",
+        "lowercase",
+        "titlecase",
+        "date",
+        "currency",
+        "number",
+      ],
       default: "none",
     },
   },

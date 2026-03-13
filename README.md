@@ -23,7 +23,7 @@
 10. [WhatsApp → Chat & Messaging](#7-whatsapp--chat--messaging)
 11. [WhatsApp → Templates](#8-whatsapp--templates)
 12. [WhatsApp → Broadcasts](#9-whatsapp--broadcasts)
-13. [Monitoring → Health, Events & Jobs](#10-monitoring--health-events--jobs)
+13. [Monitoring → Health, Events & Jobs (Erix Workers)](#13-monitoring--health-events--jobs-erix-workers)
 14. [Client Integration Guide](#client-integration-guide)
 15. [Callback Verification](#callback-verification)
 16. [Tech Stack](#tech-stack)
@@ -111,7 +111,10 @@ Before a client can call the API, you (ECODrIx admin) must complete these setup 
 
 ---
 
-## 1. Workflow Triggers — Core Entry Point
+## 1. Workflow Triggers — Real-World Scenarios
+
+The entry point for all website automations.
+**Rate limit:** 60 requests / minute / tenant.
 
 The single endpoint any client website calls to fire an automation.
 **Rate limit:** 60 requests / minute / tenant.
@@ -178,25 +181,29 @@ The single endpoint any client website calls to fire an automation.
 
 **All supported trigger names:**
 
-| Trigger                 | Fired by | Description                                   |
-| ----------------------- | -------- | --------------------------------------------- |
-| `appointment_confirmed` | Client   | Appointment book/confirm                      |
-| `appointment_cancelled` | Client   | Appointment cancellation                      |
-| `appointment_reminder`  | Client   | Pre-appointment reminder (use `delayMinutes`) |
-| `form_submitted`        | Client   | Contact / inquiry form                        |
-| `payment_captured`      | Client   | Payment successful                            |
-| `product_purchased`     | Client   | eCommerce purchase                            |
-| `service_enrolled`      | Client   | Course / service enrolment                    |
-| `deal_won`              | Client   | Manually mark deal as won                     |
-| `deal_lost`             | Client   | Manually mark deal as lost                    |
-| `stage_enter`           | System   | Lead moved into a stage                       |
-| `stage_exit`            | System   | Lead moved out of a stage                     |
-| `lead_created`          | System   | New lead created in CRM                       |
-| `score_above`           | System   | Lead score crosses hot threshold              |
-| `score_below`           | System   | Lead score drops below cold threshold         |
-| `tag_added`             | System   | Tag applied to a lead                         |
-| `tag_removed`           | System   | Tag removed from a lead                       |
-| `no_contact`            | System   | Lead inactive for N days (cron job)           |
+| Trigger                  | Fired by | Real Scenario Description                      |
+| ------------------------ | -------- | ---------------------------------------------- |
+| `appointment_confirmed`  | Client   | Patient books a doctor consultation.           |
+| `appointment_cancelled`  | Client   | User cancels their booking.                    |
+| `appointment_reminder`   | Client   | Sent N hours before the visit.                 |
+| `form_submitted`         | Client   | Generic contact / inquiry form.                |
+| `payment_captured`       | Client   | Successful course or product purchase.         |
+| `payment_initiated`      | Client   | User lands on the checkout page.               |
+| `product_purchased`      | Client   | eCommerce order completed.                     |
+| `service_enrolled`       | Client   | Student registers for a workshop.              |
+| `user_registration`      | Client   | New account created on the portal.             |
+| `volunteer_application`  | Client   | New volunteer submits their resume.            |
+| `consultation_requested` | Client   | Patient requests a callback from a doctor.     |
+| `deal_won`               | Client   | Lead manually marked as successfully closed.   |
+| `deal_lost`              | Client   | Lead marked as dropped or invalid.             |
+| `stage_enter`            | System   | Lead moves into high-intent stage (e.g. "KYC").|
+| `stage_exit`             | System   | Lead leaves a cooling-off stage.               |
+| `lead_created`           | System   | Automatic entry for every new phone number.    |
+| `score_above`            | System   | Lead score crosses 80 (Hot Lead Notification). |
+| `score_below`            | System   | Lead score drops below 20 (Auto-archive).      |
+| `tag_added`              | System   | Specific tag e.g. "VIP" applied.               |
+| `tag_removed`            | System   | "Trial" tag removed after upgrade.             |
+| `no_contact`             | System   | Lead inactive for 7 days (Re-engagement).      |
 
 ---
 
@@ -649,7 +656,7 @@ Manually stop an active sequence for a lead.
 List all active sequence enrollments for a specific lead.
 
 > [!WARNING]
-> `POST /api/crm/automations/events` is **deprecated**. Use `POST /api/saas/workflows/trigger` instead — it supports Meet links, callbacks, EventLog, and delayed execution.
+> `POST /api/crm/automations/events` is **deprecated**. Use `POST /api/saas/workflows/trigger` instead — it supports Meet links, callbacks, EventLog, and delayed execution via `ErixJobs`.
 
 ---
 

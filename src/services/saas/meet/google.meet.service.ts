@@ -1,5 +1,10 @@
-import { google, type Auth } from "googleapis";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { ClientSecrets } from "@models/clients/secrets";
+import {
+  GoogleMeetClient,
+  type MeetingInput,
+} from "@lib/meet/google.meet.client";
+import { getClientConfig } from "@lib/tenant/get.crm.model";
+import { tenantLogger } from "@lib/logger";
 
 /**
  * Google Meet Integration Service
@@ -7,15 +12,7 @@ import { ClientSecrets } from "../../../model/clients/secrets.ts";
  * Handles generating meeting links and managing calendar events for tenants.
  */
 
-const url = process.env.BASE_URL || "http://localhost:4000";
-
-export interface MeetingDetails {
-  summary?: string;
-  description?: string;
-  start?: string;
-  end?: string;
-  attendees?: string[];
-}
+const baseUrl = process.env.BASE_URL || "http://localhost:4000";
 
 export interface GoogleMeetResponse {
   success: boolean;
@@ -27,31 +24,13 @@ export interface GoogleMeetResponse {
 
 export const createGoogleMeetService = () => {
   /**
-   * Get OAuth2 Client for a specific client
-   * @param clientCode
+   * Internal helper to get GoogleMeetClient for a client
    */
-  const getAuthClient = async (
-    clientCode: string,
-  ): Promise<Auth.OAuth2Client> => {
+  const getClient = async (clientCode: string) => {
     const secrets = await ClientSecrets.findOne({ clientCode });
     if (!secrets) throw new Error("Client secrets not found");
 
-    const clientId = secrets.getDecrypted("googleClientId");
-    const clientSecret = secrets.getDecrypted("googleClientSecret");
-    const refreshToken = secrets.getDecrypted("googleRefreshToken");
-
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new Error("Google credentials not configured for this client");
-    }
-
-    const oAuth2Client = new google.auth.OAuth2(
-      clientId as string,
-      clientSecret as string,
-      `${url}/api/auth/google/callback`,
-    );
-
-    oAuth2Client.setCredentials({ refresh_token: refreshToken as string });
-    return oAuth2Client;
+    return GoogleMeetClient.fromSecrets(clientCode, secrets, baseUrl);
   };
 
   /**
@@ -59,62 +38,34 @@ export const createGoogleMeetService = () => {
    */
   const createMeeting = async (
     clientCode: string,
-    meetingDetails: MeetingDetails,
+    meetingDetails: Partial<MeetingInput>,
   ): Promise<GoogleMeetResponse> => {
+    const log = tenantLogger(clientCode);
     try {
-      const auth = await getAuthClient(clientCode);
-      const calendar = google.calendar({ version: "v3", auth });
+      const client = await getClient(clientCode);
+      const clientConfig = await getClientConfig(clientCode);
 
-      const {
-        summary,
-        description,
-        start,
-        end,
-        attendees = [],
-      } = meetingDetails;
-
-      const event = {
-        summary: summary || "Meeting",
-        description: description || "Scheduled via ECODrIx",
-        start: {
-          dateTime: start || new Date().toISOString(),
-          timeZone: "UTC",
-        },
-        end: {
-          dateTime: end || new Date(Date.now() + 30 * 60000).toISOString(), // +30 mins
-          timeZone: "UTC",
-        },
-        attendees: attendees.map((email) => ({ email })),
-        conferenceData: {
-          createRequest: {
-            requestId: `meet_${Date.now()}`,
-            conferenceSolutionKey: { type: "hangoutsMeet" },
-          },
-        },
-      };
-
-      const response = await calendar.events.insert({
-        calendarId: "primary",
-        requestBody: event,
-        conferenceDataVersion: 1,
+      const result = await client.createMeeting({
+        summary: meetingDetails.summary || "Meeting",
+        description:
+          meetingDetails.description || `Scheduled via ${clientConfig.name}`,
+        start: meetingDetails.start || new Date().toISOString(),
+        end:
+          meetingDetails.end || new Date(Date.now() + 30 * 60000).toISOString(),
+        attendees: meetingDetails.attendees,
       });
-
-      let hangoutLink = response.data.hangoutLink;
-      if (!hangoutLink && response.data.conferenceData?.entryPoints) {
-        const meetPoint = response.data.conferenceData.entryPoints.find(
-          (ep) => ep.entryPointType === "video",
-        );
-        hangoutLink = meetPoint?.uri;
-      }
 
       return {
         success: true,
-        hangoutLink: hangoutLink as string | undefined,
-        eventId: response.data.id as string | undefined,
-        summary: response.data.summary as string | undefined,
+        hangoutLink: result.hangoutLink,
+        eventId: result.eventId,
+        summary: result.summary,
       };
     } catch (error: any) {
-      console.error(`❌ Google Meet Error [${clientCode}]:`, error.message);
+      log.error(
+        { err: error },
+        `Google Meet creation failed: ${error.message}`,
+      );
       return { success: false, error: error.message };
     }
   };

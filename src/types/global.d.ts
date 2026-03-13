@@ -93,7 +93,14 @@ declare global {
     | "DISABLED";
   export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
 
-  type TransformType = "none" | "uppercase" | "lowercase" | "titlecase" | "date" | "currency" | "number";
+  type TransformType =
+    | "none"
+    | "uppercase"
+    | "lowercase"
+    | "titlecase"
+    | "date"
+    | "currency"
+    | "number";
   interface IVariableMapping {
     position: number;
     label: string;
@@ -248,6 +255,13 @@ declare global {
     convertedAt?: Date;
     isArchived: boolean;
     dynamicFields?: Record<string, any>;
+    enteredStageAt: Date;
+    stageHistory: {
+      stageId: mongoose.Types.ObjectId;
+      enteredAt: Date;
+      leftAt?: Date;
+      durationMs?: number;
+    }[];
     createdAt: Date;
     updatedAt: Date;
     fullName?: string;
@@ -351,6 +365,14 @@ declare global {
     | "no_contact"
     | "tag_added"
     | "tag_removed"
+    | "lead.created"
+    | "lead.stage_enter"
+    | "lead.stage_exit"
+    | "lead.deal_won"
+    | "lead.deal_lost"
+    | "lead.tag_added"
+    | "lead.tag_removed"
+    | "lead.score_refreshed"
     | "appointment_confirmed"
     | "appointment_cancelled"
     | "appointment_reminder"
@@ -398,7 +420,9 @@ declare global {
       tagName?: string; // for tag_added / tag_removed
       inactiveDays?: number; // for no_contact
     };
-    condition?: IAutomationCondition; // optional extra condition on the lead
+    condition?: IAutomationCondition; // legacy
+    conditions: IAutomationCondition[]; // new
+    conditionLogic: "AND" | "OR";
     actions: IAutomationAction[];
     steps?: any[];
     isSequence?: boolean;
@@ -482,6 +506,38 @@ declare global {
       contextSnapshot?: Record<string, any>;
       [key: string]: any;
     };
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface ICustomEventDef extends mongoose.Document {
+    clientCode: string;
+    name: string;
+    displayName: string;
+    description?: string;
+    payloadSchema?: Record<string, any>;
+    isActive: boolean;
+    isSystem: boolean;
+    pipelineId?: string;
+    stageId?: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface ISegment extends mongoose.Document {
+    clientCode: string;
+    name: string;
+    description?: string;
+    color: string;
+    rules: {
+      field: string;
+      operator: string;
+      value: any;
+    }[];
+    logic: "AND" | "OR";
+    memberCount: number;
+    lastCalculatedAt: Date;
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
   }

@@ -1,4 +1,4 @@
-import { dbConnect } from "../lib/config.ts";
+import { dbConnect } from "@/lib/config";
 import { CorsOrigin } from "./cors-origin.model.ts";
 
 let cachedOrigins: string[] | null = null;

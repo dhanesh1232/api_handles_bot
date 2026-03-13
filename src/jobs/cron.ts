@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { jobLogger } from "@/lib/logger";
 import {
   autoCloseJob,
   firstContactJob,
@@ -9,76 +10,63 @@ import {
   templateSyncJob,
 } from "./index.ts";
 
-/**
- * @borrows Cron Jobs for leads
- *
- * @param {firstContactJob} - First contact job
- * @param {followUpJob} - Follow-up job
- * @param {researchJob} - Research job
- * @param {remindersJob} - Reminders job
- * @param {autoCloseJob} - Auto-close job
- * @param {followUpLimitJob} - Follow-up limit job
- * @param {templateSyncJob} - Template sync job
- *
- */
 export function cronJobs() {
   // Every 5 mins — small tasks
   cron.schedule("*/5 * * * *", async () => {
+    const log = jobLogger("cron:5min");
     try {
       await firstContactJob();
       await followUpJob();
     } catch (err) {
-      console.error("❌ 5-minute jobs failed:", err);
+      log.error({ err }, "5-minute cron jobs failed");
     }
   });
 
   // Every midnight — heavy tasks
   cron.schedule("0 0 * * *", async () => {
+    const log = jobLogger("cron:midnight");
     try {
       await researchJob();
       await remindersJob();
       await autoCloseJob();
       await followUpLimitJob();
     } catch (err) {
-      console.error("❌ Midnight jobs failed:", err);
+      log.error({ err }, "Midnight cron jobs failed");
     }
   });
 
   // Every day at 2:00 AM
   cron.schedule("0 2 * * *", async () => {
+    const log = jobLogger("cron:2am");
+
     try {
       await templateSyncJob();
     } catch (err) {
-      console.error("❌ 2 AM templateSyncJob failed:", err);
+      log.error({ err }, "templateSyncJob failed");
     }
 
     try {
       const { crmQueue } = await import("./saas/crmWorker.ts");
-      const mongoose = (await import("mongoose")).default;
-      const db = mongoose.connection.useDb("saas_services", { useCache: true });
-      const Tenant =
-        db.models.Tenant ||
-        db.model(
-          "Tenant",
-          new mongoose.Schema(
-            { clientCode: String, status: String },
-            { strict: false },
-          ),
-        );
-      const tenants = await Tenant.find({ status: "active" });
+      const { dbConnect } = await import("@/lib/config");
+      const { Client } = await import("@/model/clients/client");
 
-      for (const tenant of tenants) {
+      await dbConnect("services");
+      const clients = await Client.find({ status: "active" }).lean();
+
+      for (const client of clients) {
         await crmQueue.add({
-          clientCode: tenant.clientCode,
+          clientCode: client.clientCode,
           type: "crm.score_refresh",
           payload: { batch: true },
         });
       }
-      console.log(
-        `[cron] Enqueued nightly score recalculation for ${tenants.length} tenants.`,
+
+      log.info(
+        { tenantCount: clients.length },
+        "Enqueued nightly score recalculation",
       );
     } catch (err) {
-      console.error("❌ Nightly score recalculation failed:", err);
+      log.error({ err }, "Nightly score recalculation failed");
     }
   });
 }

@@ -1,7 +1,5 @@
-import dotenv from "dotenv";
+import { env } from "@lib/env";
 import mongoose from "mongoose";
-
-dotenv.config({ path: "./.env" });
 
 // Global mongoose configuration (runs once)
 mongoose.set("strictPopulate", false);
@@ -24,8 +22,8 @@ declare global {
 // Cache connection
 let cached: MongooseCache | undefined = global.mongoose;
 
-const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_URI_END = process.env.MONGODB_URI_END;
+const MONGODB_URI = env.MONGODB_URI;
+const MONGODB_URI_END = env.MONGODB_URI_END || "";
 
 if (!cached) {
   cached = global.mongoose = {
@@ -86,6 +84,7 @@ async function dbConnect(db: string): Promise<typeof mongoose> {
       socketTimeoutMS: 45000,
       bufferCommands: false,
       maxPoolSize: 50,
+      minPoolSize: 10,
       retryWrites: true,
     };
     cached.promise = mongoose

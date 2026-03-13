@@ -8,7 +8,7 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { getCrmModels } from "@/lib/tenant/get.crm.model";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

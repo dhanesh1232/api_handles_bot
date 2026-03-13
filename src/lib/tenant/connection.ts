@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import mongoose, { type Connection } from "mongoose";
-import { ClientDataSource } from "../../model/clients/dataSource.ts";
-import { dbConnect } from "../config.ts";
+import { ClientDataSource } from "@models/clients/dataSource";
+import { dbConnect } from "@lib/config";
+import { logger } from "@lib/logger";
 
 dotenv.config({ path: "./.env" });
 
@@ -15,11 +16,14 @@ async function tenantDBConnect(URI: string): Promise<Connection> {
         return conn;
       }
     } catch (_e) {
-      console.warn(`Cached connection check failed, reconnecting... ${_e}`);
+      logger.warn({ err: _e }, "Cached connection check failed, reconnecting");
     }
   }
 
-  console.log(`🔌 Creating new connection to: ${URI}`);
+  logger.debug(
+    { uri: URI.slice(0, 30) + "..." },
+    "Creating new tenant DB connection",
+  );
   const conn = mongoose.createConnection(URI, {
     serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
@@ -32,11 +36,11 @@ async function tenantDBConnect(URI: string): Promise<Connection> {
   await conn.asPromise();
 
   conn.on("connected", () => {
-    console.log(`✅ Tenant DB Connected: ${URI}`);
+    logger.info({ uri: URI.slice(0, 30) + "..." }, "Tenant DB connected");
   });
 
   conn.on("error", (err) => {
-    console.error(`❌ Tenant DB Error (${URI}):`, err);
+    logger.error({ err, uri: URI.slice(0, 30) + "..." }, "Tenant DB error");
   });
 
   connectionMap.set(URI, conn);

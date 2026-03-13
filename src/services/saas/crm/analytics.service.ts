@@ -360,6 +360,53 @@ export const getAvgTimeInStage = async (
   }));
 };
 
+// ─── 7b. Pipeline Velocity (Time spent per stage) ───────────────────────────
+
+export const getPipelineVelocity = async (
+  clientCode: string,
+  pipelineId: string,
+) => {
+  const { Lead, PipelineStage } = await getCrmModels(clientCode);
+
+  const agg = await Lead.aggregate([
+    {
+      $match: {
+        clientCode,
+        pipelineId: new mongoose.Types.ObjectId(pipelineId),
+        "stageHistory.0": { $exists: true }, // At least one entry
+      },
+    },
+    { $unwind: "$stageHistory" },
+    {
+      $group: {
+        _id: "$stageHistory.stageId",
+        avgDurationMs: { $avg: "$stageHistory.durationMs" },
+        leadCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const stages = await PipelineStage.find({
+    clientCode,
+    pipelineId: new mongoose.Types.ObjectId(pipelineId),
+  }).sort({ order: 1 });
+
+  const statsMap = new Map(agg.map((r: any) => [r._id.toString(), r]));
+
+  return stages.map((stage) => {
+    const stats = statsMap.get(stage._id.toString());
+    const avgMs = stats?.avgDurationMs ?? 0;
+    return {
+      stageId: stage._id.toString(),
+      stageName: stage.name,
+      stageColor: stage.color,
+      avgDurationDays: Math.round((avgMs / (1000 * 60 * 60 * 24)) * 10) / 10,
+      avgDurationHours: Math.round((avgMs / (1000 * 60 * 60)) * 10) / 10,
+      leadCount: stats?.leadCount ?? 0,
+    };
+  });
+};
+
 // ─── 8. Score distribution ────────────────────────────────────────────────────
 
 export const getScoreDistribution = async (clientCode: string) => {
@@ -386,4 +433,32 @@ export const getScoreDistribution = async (clientCode: string) => {
     count: bucket.count,
     avgDealValue: Math.round(bucket.avgDealValue ?? 0),
   }));
+};
+
+// ─── 9. Predictive Intelligence ───────────────────────────────────────────────
+
+/**
+ * Calculates a predictive conversion probability (0-100) based on:
+ * 1. Current lead score (weighted 40%)
+ * 2. Current pipeline stage probability (weighted 60%)
+ */
+export const getPredictiveConversionScore = async (
+  clientCode: string,
+  leadId: string,
+): Promise<number> => {
+  const { Lead, PipelineStage } = await getCrmModels(clientCode);
+  const lead = await Lead.findById(leadId);
+  if (!lead) return 0;
+
+  let stageProb = 0;
+  if (lead.stageId) {
+    const stage = await PipelineStage.findById(lead.stageId);
+    stageProb = stage?.probability || 0;
+  }
+
+  const leadScore = lead.score?.total || 0;
+
+  // Simple weighted logic for v1
+  const weighted = leadScore * 0.4 + stageProb * 0.6;
+  return Math.round(Math.min(100, Math.max(0, weighted)));
 };

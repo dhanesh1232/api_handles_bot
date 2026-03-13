@@ -1,13 +1,12 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
-import { dbConnect } from "../../../lib/config.ts";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { createWhatsappService } from "../../../services/saas/whatsapp/whatsapp.service.ts";
+import { dbConnect } from "@/lib/config";
+import { ClientSecrets } from "@/model/clients/secrets";
+import { createSDK } from "@/sdk/index";
 
 export const createWebhookRouter = async (io: Server) => {
   await dbConnect("services");
   const router = express.Router();
-  const whatsappService = createWhatsappService(io);
 
   /**
    * WhatsApp Webhook Verification (Meta Cloud API)
@@ -53,6 +52,13 @@ export const createWebhookRouter = async (io: Server) => {
         try {
           if (body.entry && body.entry.length > 0) {
             const allSecrets = await ClientSecrets.find({});
+
+            // Cache SDK instances per clientCode for this webhook batch
+            const sdkCache = new Map<string, ReturnType<typeof createSDK>>();
+            const getSDK = (code: string) => {
+              if (!sdkCache.has(code)) sdkCache.set(code, createSDK(code, io));
+              return sdkCache.get(code)!;
+            };
 
             for (const entry of body.entry) {
               const changes = entry.changes;
@@ -108,8 +114,7 @@ export const createWebhookRouter = async (io: Server) => {
                         `[${clientCode}] Incoming ${message.type} from ${from} | Meta TS: ${message.timestamp}`,
                       );
 
-                      await whatsappService.handleIncomingMessage(
-                        clientCode,
+                      await getSDK(clientCode).whatsapp.handleIncoming(
                         message,
                         from,
                         msgBody,
@@ -124,10 +129,7 @@ export const createWebhookRouter = async (io: Server) => {
                       console.log(
                         `📩 [${clientCode}] Status Update: ${status.status} for ${status.id}`,
                       );
-                      await whatsappService.handleStatusUpdate(
-                        clientCode,
-                        status,
-                      );
+                      await getSDK(clientCode).whatsapp.handleStatus(status);
                     }
                   }
                 }

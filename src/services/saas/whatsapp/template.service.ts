@@ -33,7 +33,9 @@ const getDeep = (obj: any, path: string) => {
 
     if (Array.isArray(parentValue)) {
       // Return an array of the leaf properties
-      return parentValue.map((item) => _.get(item, leaf!)).filter((v) => v !== undefined);
+      return parentValue
+        .map((item) => _.get(item, leaf!))
+        .filter((v) => v !== undefined);
     }
   }
 
@@ -70,7 +72,8 @@ const smartStringify = (value: any): string => {
 
   // 4. Handle Objects (Line Item Detection & Identity)
   // Smartly detect if this represents a "purchasable item" or "line item"
-  const name = value.name || value.label || value.title || value.text || value.displayName;
+  const name =
+    value.name || value.label || value.title || value.text || value.displayName;
   const qty = value.qty || value.quantity;
   const price = value.price || value.amount || value.cost;
 
@@ -78,14 +81,22 @@ const smartStringify = (value: any): string => {
     let line = String(name);
     if (qty !== undefined && qty > 1) line += ` x${qty}`;
     if (price !== undefined) {
-      const formattedPrice = typeof price === 'number' ? `₹${price.toLocaleString('en-IN')}` : price;
+      const formattedPrice =
+        typeof price === "number" ? `₹${price.toLocaleString("en-IN")}` : price;
       line += ` (${formattedPrice})`;
     }
     return line;
   }
 
   // Identity Detection Fallback
-  const identityFields = ["name", "label", "title", "text", "displayName", "Id"];
+  const identityFields = [
+    "name",
+    "label",
+    "title",
+    "text",
+    "displayName",
+    "Id",
+  ];
   for (const field of identityFields) {
     if (value[field]) return String(value[field]);
   }
@@ -1312,7 +1323,9 @@ export const getCollectionFields = async (
 
       Object.keys(obj).forEach((key) => {
         if (
-          ["clientCode", "__v", "_id", "id", "password", "salt"].includes(key) ||
+          ["clientCode", "__v", "_id", "id", "password", "salt"].includes(
+            key,
+          ) ||
           key.startsWith("_")
         )
           return;

@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import {
+  getClientConfig,
+  getCrmModels,
+} from "../../../lib/tenant/get.crm.model.ts";
 import { createGoogleMeetService } from "./google.meet.service.ts";
 
 export interface CreateMeetingInput {
@@ -46,10 +49,11 @@ export const createMeeting = async (
 
   if (input.meetingMode === "online") {
     try {
+      const clientConfig = await getClientConfig(clientCode);
       const googleMeetService = createGoogleMeetService();
       const response = await googleMeetService.createMeeting(clientCode, {
         summary: `Meeting: ${input.participantName}`,
-        description: `Scheduled via ECODrIx. Type: ${input.type}`,
+        description: `Scheduled via ${clientConfig.name}. Type: ${input.type}`,
         start: startTime.toISOString(),
         end: endTime.toISOString(),
         attendees: emails,
@@ -109,39 +113,32 @@ export const createMeeting = async (
       performedBy: "system",
     });
 
-    const { runAutomations } = await import("../crm/automation.service.ts");
-    const { Lead } = await getCrmModels(clientCode);
-    const lead = await Lead.findById(meeting.leadId);
-    if (lead) {
-      const meetCode = meeting.meetLink?.split("/").pop() || "";
-      const variables = {
-        meet_link: meeting.meetLink || "",
-        meet_code: meetCode,
-        start_time: meeting.startTime.toISOString(),
-        date: meeting.startTime.toLocaleDateString("en-IN"),
-        time: meeting.startTime.toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        participant_name: meeting.participantName,
-        meeting_mode: meeting.meetingMode,
-        amount: meeting.amount?.toString() || "0",
-        meeting_id: (meeting as any)._id?.toString(),
-        ...(meeting.metadata as any)?.extra,
-      };
+    // Trigger event via EventBus — handles both runAutomations and scheduleMeetingReminders
+    const { EventBus } = await import("../event/eventBus.service.ts");
+    const meetCode = meeting.meetLink?.split("/").pop() || "";
 
-      await runAutomations(clientCode, {
-        trigger: "meeting_created" as any,
-        lead: lead as any,
-        variables,
-        meetingId: (meeting as any)._id?.toString(),
-      });
+    // Build standard variables context
+    const variables = {
+      meet_link: meeting.meetLink || "",
+      meet_code: meetCode,
+      start_time: meeting.startTime.toISOString(),
+      date: meeting.startTime.toLocaleDateString("en-IN"),
+      time: meeting.startTime.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      participant_name: meeting.participantName,
+      meeting_mode: meeting.meetingMode,
+      amount: meeting.amount?.toString() || "0",
+      meeting_id: (meeting as any)._id?.toString(),
+      ...(meeting.metadata as any)?.extra,
+    };
 
-      // 4. Schedule future reminders (e.g. 1 hour before slot)
-      const { scheduleMeetingReminders } =
-        await import("../crm/automation.service.ts");
-      await scheduleMeetingReminders(clientCode, meeting as any);
-    }
+    void EventBus.emit(clientCode, "meeting.created", {
+      phone: meeting.participantPhone,
+      data: meeting,
+      variables,
+    });
   } catch (err) {
     console.error(
       `[meetingService] Hook execution failed for ${clientCode}:`,

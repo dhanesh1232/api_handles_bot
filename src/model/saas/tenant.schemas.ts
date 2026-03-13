@@ -13,6 +13,8 @@ import BroadcastSchema from "./whatsapp/broadcast.model.ts";
 import ConversationSchema from "./whatsapp/conversation.model.ts";
 import MessageSchema from "./whatsapp/message.model.ts";
 import TemplateSchema from "./whatsapp/template.model.ts";
+import CustomEventDefSchema from "./event/customEventDef.model.ts";
+import SegmentSchema from "./crm/segment.model.ts";
 
 export {
   AutomationRuleSchema,
@@ -29,6 +31,8 @@ export {
   ScoringConfigSchema,
   SequenceEnrollmentSchema,
   TemplateSchema,
+  CustomEventDefSchema,
+  SegmentSchema,
 };
 
 export const schemas: Record<string, Schema<any>> = {
@@ -46,4 +50,6 @@ export const schemas: Record<string, Schema<any>> = {
   sequenceEnrollments: SequenceEnrollmentSchema,
   scoringConfigs: ScoringConfigSchema,
   meetings: MeetingSchema,
+  customEventDefs: CustomEventDefSchema,
+  segments: SegmentSchema,
 };

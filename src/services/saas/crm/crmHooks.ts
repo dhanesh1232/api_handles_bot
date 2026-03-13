@@ -9,8 +9,8 @@ import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
 import { logActivity } from "./activity.service.ts";
-import { runAutomations } from "./automation.service.ts";
 import { recalculateScore } from "./lead.service.ts";
+import { EventBus } from "../event/eventBus.service.ts";
 
 // ─── WhatsApp outbound ────────────────────────────────────────────────────────
 
@@ -312,10 +312,17 @@ export const onPaymentCaptured = async (
       performedBy: "system",
     });
 
-    await runAutomations(clientCode, {
-      trigger: "stage_enter",
-      lead: lead as unknown as ILead,
-      stageId: (lead as any).stageId.toString(),
+    void EventBus.emit(clientCode, "payment.captured", {
+      phone: lead.phone,
+      email: lead.email,
+      data: lead,
+      variables: {
+        amount: String(input.amount),
+        currency: input.currency ?? "INR",
+        orderId: input.orderId || "",
+        appointmentId: input.appointmentId || "",
+        stageId: (lead as any).stageId?.toString(),
+      },
     });
   } catch {
     /* non-critical */

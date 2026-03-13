@@ -115,7 +115,7 @@ Provide these four values securely (use 1Password, Vault, or encrypted email):
 
 ## 2. Inspecting & Managing the Job Queue
 
-The MongoQueue stores jobs in the central `services` database (`jobs` collection).
+The ErixJobs system stores tasks in the central `services` database (`jobs` collection).
 
 ### View pending / stuck jobs (MongoDB Atlas UI or mongosh)
 
@@ -123,7 +123,7 @@ The MongoQueue stores jobs in the central `services` database (`jobs` collection
 // Count by status
 db.jobs.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
 
-// View stuck jobs (processing > 10 min)
+// View stuck jobs (processing > 10 min) — e.g. a WhatsApp broadcast failed mid-way
 db.jobs.find({
   status: "processing",
   updatedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) },
@@ -179,7 +179,7 @@ There is no automated tooling for this — write a one-off script when needed.
 
 ## 5. Force Re-sync WhatsApp Templates for a Client
 
-Use when a client has approved new templates in Meta Business Manager that haven't appeared in ECODrIx:
+Use when a client (e.g. Dr. Sharma Clinic) has approved new templates in Meta Business Manager that haven't appeared in ECODrIx:
 
 ```bash
 curl -X POST "$BASE/api/saas/chat/templates/sync" \

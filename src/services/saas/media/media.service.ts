@@ -1,18 +1,25 @@
-import {
-  DeleteObjectCommand,
-  HeadObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
+/**
+ * services/saas/media/media.service.ts
+ *
+ * Media Service — Handles media processing (compression, optimization)
+ * and delegates storage operations to the StorageClient.
+ */
+
 import ffmpegPath from "ffmpeg-static";
 import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import type { IClientSecrets } from "../../../model/clients/secrets.ts";
+import { logger } from "@lib/logger";
+import {
+  StorageClient,
+  type ListResult,
+  type UploadResult,
+} from "@lib/storage/r2.client";
+import type { IClientSecrets } from "@models/clients/secrets";
 
-// Set FFmpeg path
+// ─── FFmpeg Setup ─────────────────────────────────────────────────────────────
+
 if (ffmpegPath && fs.existsSync(ffmpegPath as unknown as string)) {
   ffmpeg.setFfmpegPath(ffmpegPath as unknown as string);
 } else {
@@ -20,6 +27,11 @@ if (ffmpegPath && fs.existsSync(ffmpegPath as unknown as string)) {
   ffmpeg.setFfmpegPath("ffmpeg");
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Compresses video or audio buffer using FFmpeg.
+ */
 export const compressMedia = async (
   buffer: Buffer,
   mimeType: string,
@@ -64,12 +76,11 @@ export const compressMedia = async (
     });
 
     if (fs.existsSync(outputPath)) {
-      const compressedBuffer = fs.readFileSync(outputPath);
-      return compressedBuffer;
+      return fs.readFileSync(outputPath);
     }
     return buffer;
-  } catch (error) {
-    console.error("FFmpeg compression failed:", error);
+  } catch (err) {
+    logger.error({ err, id }, "FFmpeg compression failed");
     return buffer;
   } finally {
     if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
@@ -77,55 +88,41 @@ export const compressMedia = async (
   }
 };
 
-export const getR2Client = (secrets: IClientSecrets): S3Client | null => {
-  const r2AccessKeyId = secrets.getDecrypted("r2AccessKeyId");
-  const r2SecretKey = secrets.getDecrypted("r2SecretKey");
-  const r2Endpoint = secrets.getDecrypted("r2Endpoint");
+// ─── Service API ──────────────────────────────────────────────────────────────
 
-  if (!r2AccessKeyId || !r2SecretKey || !r2Endpoint) return null;
-
-  return new S3Client({
-    region: "auto",
-    endpoint: r2Endpoint,
-    credentials: {
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretKey,
-    },
-  });
-};
-
-export interface OptimizedMediaResult {
-  url: string;
+export interface OptimizedMediaResult extends UploadResult {
   mimeType: string;
   fileName: string;
-  r2Key: string;
 }
 
+/**
+ * Processes (optimizes) and uploads media to R2.
+ */
 export const optimizeAndUploadMedia = async (
   fileBuffer: Buffer,
   originalMimeType: string,
   originalFileName: string | undefined | null,
   mediaId: string,
-  secrets: IClientSecrets, // Injected secrets
+  secrets: IClientSecrets,
   folder: string = "whatsapp",
 ): Promise<OptimizedMediaResult> => {
   let mimeType = originalMimeType;
   let buffer = fileBuffer;
 
-  // Optimize Image
+  // 1. Optimize Image
   if (mimeType.startsWith("image/")) {
     try {
       buffer = await sharp(buffer)
-        .resize({ width: 1280, withoutEnlargement: true }) // Balanced resolution
+        .resize({ width: 1280, withoutEnlargement: true })
         .jpeg({ quality: 80, mozjpeg: true })
         .toBuffer();
       mimeType = "image/jpeg";
-    } catch (sharpError: any) {
-      console.warn("Sharp optimization failed:", sharpError.message);
+    } catch (err: any) {
+      logger.warn({ err: err.message, mediaId }, "Sharp optimization failed");
     }
   }
 
-  // Optimize Video/Audio
+  // 2. Optimize Video/Audio
   if (mimeType.startsWith("video/") || mimeType.startsWith("audio/")) {
     const compressed = await compressMedia(buffer, mimeType, mediaId);
     if (compressed !== buffer) {
@@ -135,11 +132,11 @@ export const optimizeAndUploadMedia = async (
     }
   }
 
-  // Determine Filename (Logic copied from reference)
+  // 3. Determine Filename
   const mimeToExt: Record<string, string> = {
     "image/jpeg": "jpg",
     "image/png": "png",
-    "image/webp": "jpg", // Convert webp to jpg for compatibility
+    "image/webp": "jpg",
     "application/pdf": "pdf",
     "video/mp4": "mp4",
     "audio/mpeg": "mp3",
@@ -166,44 +163,26 @@ export const optimizeAndUploadMedia = async (
   }
 
   const r2Key = `${folder}/${fileName}`;
+  const storage = StorageClient.fromSecrets(secrets);
 
-  const s3Client = getR2Client(secrets);
-  if (!s3Client) throw new Error("R2 Storage not configured");
-
-  const r2BucketName = secrets.getDecrypted("r2BucketName");
-  const r2PublicDomain = secrets.getDecrypted("r2PublicDomain");
-  const r2Endpoint = secrets.getDecrypted("r2Endpoint");
-
-  if (!r2BucketName || !r2Endpoint) {
-    throw new Error("R2 Bucket Name or Endpoint missing in secrets.");
-  }
-
-  // Upload
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: r2BucketName,
-      Key: r2Key,
-      Body: buffer,
-      ContentType: mimeType,
-    }),
-  );
-
-  const publicUrl = r2PublicDomain
-    ? `${r2PublicDomain}/${r2Key}`
-    : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${r2Key}`;
+  // 4. Upload
+  const uploadResult = await storage.upload(r2Key, buffer, mimeType);
 
   const cleanName = originalFileName
     ? path.parse(originalFileName.replace(/[^a-zA-Z0-9.-]/g, "_")).name
     : mediaId;
 
   return {
-    url: publicUrl,
+    ...uploadResult,
     mimeType,
     fileName: cleanName,
-    r2Key,
-  };
+    r2Key: uploadResult.key, // Backward compatibility alias
+  } as any;
 };
 
+/**
+ * Upload simple buffer if it doesn't exist.
+ */
 export const uploadBufferToR2 = async (
   buffer: Buffer,
   mimeType: string,
@@ -211,105 +190,51 @@ export const uploadBufferToR2 = async (
   secrets: IClientSecrets,
 ): Promise<string> => {
   const r2Key = `whatsapp/${filename}`;
+  const storage = StorageClient.fromSecrets(secrets);
 
-  const s3Client = getR2Client(secrets);
-  if (!s3Client) throw new Error("R2 Storage not configured");
-
-  const r2BucketName = secrets.getDecrypted("r2BucketName");
-  const r2PublicDomain = secrets.getDecrypted("r2PublicDomain");
-
-  if (!r2BucketName) throw new Error("R2 Bucket Name missing in secrets.");
-
-  try {
-    // Check if file already exists
-    await s3Client.send(
-      new HeadObjectCommand({
-        Bucket: r2BucketName,
-        Key: r2Key,
-      }),
-    );
-    console.log("File already exists in R2, skipping upload:", filename);
-  } catch (error: any) {
-    if (error.name === "NotFound") {
-      // File does not exist, upload it
-      await s3Client.send(
-        new PutObjectCommand({
-          Bucket: r2BucketName,
-          Key: r2Key,
-          Body: buffer,
-          ContentType: mimeType,
-        }),
-      );
-      console.log("Uploaded new file to R2:", filename);
-    } else {
-      throw error;
-    }
+  if (await storage.exists(r2Key)) {
+    logger.debug({ filename }, "File already exists in R2, skipping upload");
+    return storage["getPublicUrl"](r2Key); // Internal access for exact legacy behavior
   }
 
-  return `${r2PublicDomain}/${r2Key}`;
+  const result = await storage.upload(r2Key, buffer, mimeType);
+  logger.info({ filename }, "Uploaded new file to R2");
+  return result.url;
 };
 
+/**
+ * Lists objects from a folder for a client.
+ */
 export const listObjectsFromR2 = async (
   folder: string,
   secrets: IClientSecrets,
-): Promise<any[]> => {
-  const s3Client = getR2Client(secrets);
-  if (!s3Client) throw new Error("R2 Storage not configured");
-
-  const r2BucketName = secrets.getDecrypted("r2BucketName");
-  const r2PublicDomain = secrets.getDecrypted("r2PublicDomain");
-  const r2Endpoint = secrets.getDecrypted("r2Endpoint");
-
-  if (!r2BucketName || !r2Endpoint) {
-    throw new Error("R2 Bucket Name or Endpoint missing in secrets.");
-  }
-
+): Promise<ListResult[]> => {
+  const storage = StorageClient.fromSecrets(secrets);
   const prefix = folder.endsWith("/") ? folder : `${folder}/`;
 
-  const command = new ListObjectsV2Command({
-    Bucket: r2BucketName,
-    Prefix: prefix,
-  });
+  const items = await storage.list(prefix);
 
-  const response = await s3Client.send(command);
+  return items.map((item) => {
+    const basename = path.basename(item.key);
+    const parsed = path.parse(basename);
+    const cleanName = parsed.name.replace(/_\d{13}$/, "");
 
-  return (response.Contents || [])
-    .map((item) => {
-      const publicUrl = r2PublicDomain
-        ? `${r2PublicDomain}/${item.Key}`
-        : `${r2Endpoint.replace("https://", `https://${r2BucketName}.`)}/${item.Key}`;
-
-      const basename = path.basename(item.Key as string);
-      const parsed = path.parse(basename);
-      const cleanName = parsed.name.replace(/_\d{13}$/, "");
-
-      return {
-        url: publicUrl,
-        name: cleanName,
-        fileName: cleanName,
-        key: item.Key,
-        lastModified: item.LastModified,
-        size: item.Size,
-        type: parsed.ext.substring(1),
-      };
-    })
-    .sort((a: any, b: any) => b.lastModified - a.lastModified);
+    return {
+      ...item,
+      name: cleanName,
+      fileName: cleanName,
+      type: parsed.ext.substring(1),
+    };
+  }) as any;
 };
 
+/**
+ * Deletes an object by key.
+ */
 export const deleteObjectFromR2 = async (
   key: string,
   secrets: IClientSecrets,
 ): Promise<void> => {
-  const s3Client = getR2Client(secrets);
-  if (!s3Client) throw new Error("R2 Storage not configured");
-
-  const r2BucketName = secrets.getDecrypted("r2BucketName");
-  if (!r2BucketName) throw new Error("R2 Bucket Name missing in secrets.");
-
-  await s3Client.send(
-    new DeleteObjectCommand({
-      Bucket: r2BucketName,
-      Key: key,
-    }),
-  );
+  const storage = StorageClient.fromSecrets(secrets);
+  await storage.delete(key);
 };

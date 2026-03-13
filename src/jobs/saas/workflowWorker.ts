@@ -1,9 +1,7 @@
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../lib/connectionManager.ts";
-import { schemas } from "../../model/saas/tenant.schemas.ts";
-import { normalizePhone } from "../../utils/phone.ts";
+import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
+import { logger } from "@lib/logger";
+import { schemas } from "@models/saas/tenant.schemas";
+import { normalizePhone } from "@utils/phone";
 
 let globalIo: any = null;
 
@@ -30,7 +28,7 @@ export const executeWorkflow = async (data: any) => {
   } = data;
 
   const { createWhatsappService } =
-    await import("../../services/saas/whatsapp/whatsapp.service.ts");
+    await import("@services/saas/whatsapp/whatsapp.service");
   const whatsappService = createWhatsappService(globalIo);
 
   try {
@@ -66,7 +64,7 @@ export const executeWorkflow = async (data: any) => {
         try {
           const tenantConn = await getTenantConnection(clientCode);
           const { resolveUnifiedWhatsAppTemplate } =
-            await import("../../services/saas/whatsapp/template.service.ts");
+            await import("@services/saas/whatsapp/template.service");
 
           const resolution = await resolveUnifiedWhatsAppTemplate(
             tenantConn,
@@ -78,20 +76,21 @@ export const executeWorkflow = async (data: any) => {
           finalVariables = resolution.resolvedVariables;
           templateLanguage = resolution.languageCode;
 
-          console.log(
-            `[WorkflowExecutor] Resolved variables for ${templateName}:`,
-            finalVariables,
+          logger.debug(
+            { clientCode, templateName, resolvedCount: finalVariables.length },
+            "[WorkflowExecutor] Resolved template variables",
           );
         } catch (err: any) {
-          console.error(
-            `[WorkflowExecutor] Variable resolution failed:`,
-            err.message,
+          logger.warn(
+            { clientCode, templateName, err },
+            "[WorkflowExecutor] Variable resolution failed",
           );
 
           // Legacy fallback: if variables array is also present, use it
           if (variables && variables.length > 0) {
-            console.warn(
-              `[WorkflowExecutor] Falling back to static variables for ${templateName}`,
+            logger.warn(
+              { templateName },
+              "[WorkflowExecutor] Falling back to static variables",
             );
             finalVariables = variables;
           } else {
@@ -100,8 +99,9 @@ export const executeWorkflow = async (data: any) => {
           }
         }
       } else if (variables && variables.length > 0) {
-        console.log(
-          `[WorkflowExecutor] Using static variables (deprecated) for ${templateName}`,
+        logger.debug(
+          { templateName },
+          "[WorkflowExecutor] Using static variables (deprecated)",
         );
       }
 
@@ -119,9 +119,11 @@ export const executeWorkflow = async (data: any) => {
 
       // Handle Callback if provided
       if (callbackUrl) {
-        console.log(`[Callback] Triggering callback to ${callbackUrl}`);
-        const { sendCallbackWithRetry } =
-          await import("../../lib/callbackSender.ts");
+        logger.info(
+          { clientCode, callbackUrl },
+          "[Callback] Triggering callback",
+        );
+        const { sendCallbackWithRetry } = await import("@lib/callbackSender");
         void sendCallbackWithRetry({
           clientCode,
           callbackUrl,
@@ -138,7 +140,7 @@ export const executeWorkflow = async (data: any) => {
       );
     }
   } catch (err: any) {
-    console.error(`[Processor Logic] Execution failed:`, err.message);
+    logger.error({ err }, "[WorkflowExecutor] Execution failed");
     throw err;
   }
 };

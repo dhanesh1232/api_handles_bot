@@ -7,6 +7,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.7.0] — 2026-03-13
+
+### Changed
+
+- **Infrastructure Rebranding**: Renamed `MongoQueue` to `ErixJobs` and `MongoWorker` to `ErixWorkers` for better alignment with the Erix branding.
+- **Job System**: Standardized all background processing under the `erixJobs` namespace.
+
+### Added
+
+- **New CRM Triggers**: Added support for `user_registration`, `volunteer_application`, `consultation_requested`, and `payment_initiated` triggers.
+- **Enhanced Automation Variables**: Templates now have access to a richer context including `fullName`, `message`, and all fields from `leadData` and `moduleInfo`.
+- **Lead Attribution**: Improved linking of leads to `volunteerId` and `userId` in metadata.
+
 ## [1.6.0] — 2026-02-27
 
 ### Added

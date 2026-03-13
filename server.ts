@@ -1,5 +1,6 @@
-import dotenv from "dotenv";
-dotenv.config({ path: "./.env" });
+import "@lib/env";
+import { logger } from "@lib/logger";
+import mongoose from "mongoose";
 
 import cors from "cors";
 import crypto from "crypto";
@@ -9,23 +10,24 @@ import helmet from "helmet";
 import http from "http";
 import { join } from "path";
 import { Server, type Socket } from "socket.io";
-import { renderView } from "./src/lib/renderView.ts";
-import { getDynamicOrigins } from "./src/model/cors-origins.ts";
-import googleAuthRouter from "./src/routes/auth/google.ts";
-import corsRouter from "./src/routes/saas/cors/cors.routes.ts";
-import crmRouter from "./src/routes/saas/crm/crm.router.ts";
-import eventLogRouter from "./src/routes/saas/eventLog.routes.ts";
-import healthRouter from "./src/routes/saas/health.routes.ts";
-import { createImagesRouter } from "./src/routes/saas/images.ts";
-import marketingRouter from "./src/routes/saas/marketing.ts";
-import meetRouter from "./src/routes/saas/meet/meet.routes.ts";
-import { createChatRouter } from "./src/routes/saas/whatsapp/chat.routes.ts";
-import { createTemplateRouter } from "./src/routes/saas/whatsapp/templates.routes.ts";
-import { createWebhookRouter } from "./src/routes/saas/whatsapp/webhook.routes.ts";
-import triggerRouter from "./src/routes/saas/workflows/trigger.routes.ts";
-import blogsRouter from "./src/routes/services/blogs.ts";
-import clientsRouter from "./src/routes/services/clients.ts";
-import leadsRouter from "./src/routes/services/leads.ts";
+import { renderView } from "@lib/renderView";
+import { getDynamicOrigins } from "@models/cors-origins";
+import googleAuthRouter from "@routes/auth/google";
+import corsRouter from "@routes/saas/cors/cors.routes";
+import crmRouter from "@routes/saas/crm/crm.router";
+import eventLogRouter from "@routes/saas/eventLog.routes";
+import eventRouter from "@routes/saas/events.routes";
+import healthRouter from "@routes/saas/health.routes";
+import { createImagesRouter } from "@/routes/saas/media.routes";
+import marketingRouter from "@routes/saas/marketing";
+import meetRouter from "@routes/saas/meet/meet.routes";
+import { createChatRouter } from "@routes/saas/whatsapp/chat.routes";
+import { createTemplateRouter } from "@routes/saas/whatsapp/templates.routes";
+import { createWebhookRouter } from "@routes/saas/whatsapp/webhook.routes";
+import triggerRouter from "@routes/saas/workflows/trigger.routes";
+import blogsRouter from "@routes/services/blogs";
+import clientsRouter from "@routes/services/clients";
+import leadsRouter from "@routes/services/leads";
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
@@ -36,12 +38,14 @@ import leadsRouter from "./src/routes/services/leads.ts";
  * @param {cronJobs} - Cron jobs for leads
  */
 
-import { cronJobs } from "./src/jobs/cron.ts";
-import { registerCrmIo, startCrmWorker } from "./src/jobs/saas/crmWorker.ts";
-import { registerGlobalIo } from "./src/jobs/saas/workflowWorker.ts";
-import { requestLogger } from "./src/middleware/logger.ts";
-import { limiter, triggerLimiter } from "./src/middleware/rate-limit.ts";
-import { validateClientKey } from "./src/middleware/saasAuth.ts";
+import { cronJobs } from "@jobs/cron";
+import { registerCrmIo, startCrmWorker } from "@jobs/saas/crmWorker";
+import { registerGlobalIo } from "@jobs/saas/workflowWorker";
+import { errorHandler } from "@middleware/errorHandler";
+import { requestLogger } from "@middleware/logger";
+import { limiter, triggerLimiter } from "@middleware/rate-limit";
+import { validateClientKey } from "@middleware/saasAuth";
+import queueRouter from "@routes/saas/queue.routes";
 
 const PORT = process.env.PORT || 4000;
 const app = express();
@@ -161,7 +165,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
       (err as any).status === 400 &&
       "body" in err
     ) {
-      console.error(`⚠️ JSON Parse Error: ${err.message}`);
+      logger.warn({ url: req.url }, `JSON parse error: ${err.message}`);
       return res.status(400).json({ error: "Invalid JSON format" });
     }
     next(err);
@@ -196,6 +200,9 @@ const io = new Server(server, {
   },
 });
 
+// Register global io for convenience in services/workers
+(global as any).io = io;
+
 /**
  * @Start Socket Events
  * @borrows Socket events for saas
@@ -208,7 +215,7 @@ const io = new Server(server, {
 
 // Socket events
 io.on("connection", (socket: Socket) => {
-  console.log("User connected:", socket.id);
+  logger.info({ socketId: socket.id }, "User connected");
 
   // Allow clients to join a room for their specific tenant
   socket.on("join-room", (clientCode: string) => {
@@ -221,16 +228,19 @@ io.on("connection", (socket: Socket) => {
   socket.on("join", (clientCode: string) => {
     if (clientCode) {
       socket.join(clientCode);
-      console.log(`📡 Socket ${socket.id} joined room (legacy): ${clientCode}`);
+      logger.info(
+        { socketId: socket.id, clientCode },
+        `📡 Socket joined room (legacy)`,
+      );
     }
   });
 
   socket.on("send-message", async (msg: any) => {
-    console.log("Received:", msg);
+    logger.debug({ msg }, "Received message");
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    logger.info({ socketId: socket.id }, "User disconnected");
   });
 });
 
@@ -254,7 +264,7 @@ cronJobs();
 
 // ─── CRM Worker — handles all async CRM jobs (WhatsApp, email, meeting, reminders)
 registerCrmIo(io);
-startCrmWorker();
+const crmWorker = startCrmWorker();
 
 /**
  * @Start Middleware
@@ -351,9 +361,9 @@ const initializeRoutes = async () => {
   app.use("/api/auth/google", googleAuthRouter);
   app.use("/api/crm", validateClientKey, crmRouter);
   app.use("/api/saas", healthRouter);
+  app.use("/api/saas/events", validateClientKey, eventRouter);
   app.use("/api/saas", validateClientKey, eventLogRouter);
 
-  // Override for trigger endpoint (stricter limit)
   app.use(
     "/api/saas/workflows",
     validateClientKey,
@@ -361,20 +371,11 @@ const initializeRoutes = async () => {
     triggerRouter,
   );
 
-  /**
-   * @Start Global Error Handler
-   */
-  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error(`❌ Global Error Handler: ${err.message}`, err.stack);
-    res.status(err.status || 500).json({
-      success: false,
-      message:
-        process.env.NODE_ENV === "production"
-          ? "Internal Server Error"
-          : err.message,
-      code: err.code ?? "INTERNAL_ERROR",
-    });
-  });
+  // Queue admin (dead-letter visibility + retry)
+  app.use("/api/saas/admin/queue", queueRouter);
+
+  // Global error handler — must be last, handles AppError + ZodError + unknown
+  app.use(errorHandler);
 
   /**
    * @Start Server
@@ -384,7 +385,7 @@ const initializeRoutes = async () => {
    */
 
   server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+    logger.info(`Server running at http://localhost:${PORT}`);
   });
 };
 
@@ -393,21 +394,36 @@ initializeRoutes().catch(console.error);
 /**
  * @Start Graceful Shutdown
  */
-const shutdown = () => {
-  console.log("Shutting down gracefully...");
-  server.close(() => {
-    console.log("Closed out remaining connections.");
+const shutdown = async (signal: string) => {
+  logger.info({ signal }, "Shutting down gracefully...");
+
+  // 1. Stop processing new jobs
+  crmWorker.stop();
+
+  // 2. Close HTTP server (stops accepting new connections)
+  server.close(async () => {
+    logger.info("Closed HTTP server.");
+
+    // 3. Close MongoDB Connection
+    try {
+      await mongoose.connection.close();
+      logger.info("Closed MongoDB connection.");
+    } catch (err) {
+      logger.error({ err }, "Error closing MongoDB");
+    }
+
+    logger.info("Graceful shutdown complete. Exiting.");
     process.exit(0);
   });
 
-  // Force close after 10 seconds
+  // Force close after 15 seconds
   setTimeout(() => {
-    console.error(
+    logger.error(
       "Could not close connections in time, forcefully shutting down",
     );
     process.exit(1);
-  }, 10000);
+  }, 15000);
 };
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

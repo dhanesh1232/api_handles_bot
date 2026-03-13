@@ -11,23 +11,30 @@
  */
 
 import mongoose, { type Model } from "mongoose";
-import { AutomationRuleSchema } from "../../model/saas/crm/automationRule.model.ts";
-import { LeadSchema } from "../../model/saas/crm/lead.model.ts";
-import { LeadActivitySchema } from "../../model/saas/crm/leadActivity.model.ts";
-import { LeadNoteSchema } from "../../model/saas/crm/leadNote.model.ts";
-import { NotificationSchema } from "../../model/saas/crm/notification.model.ts";
-import { PipelineSchema } from "../../model/saas/crm/pipeline.model.ts";
-import { PipelineStageSchema } from "../../model/saas/crm/pipelineStage.model.ts";
+import { AutomationRuleSchema } from "@/model/saas/crm/automationRule.model";
+import { LeadSchema } from "@/model/saas/crm/lead.model";
+import { LeadActivitySchema } from "@/model/saas/crm/leadActivity.model";
+import { LeadNoteSchema } from "@/model/saas/crm/leadNote.model";
+import { NotificationSchema } from "@/model/saas/crm/notification.model";
+import { PipelineSchema } from "@/model/saas/crm/pipeline.model";
+import { PipelineStageSchema } from "@/model/saas/crm/pipelineStage.model";
+import { SegmentSchema, type ISegment } from "@/model/saas/crm/segment.model";
 import {
   callbackLogSchema,
   type ICallbackLog,
-} from "../../model/saas/event/callbackLog.model.ts";
+} from "@/model/saas/event/callbackLog.model";
 import {
   eventLogSchema,
   type IEventLog,
-} from "../../model/saas/event/eventLog.model.ts";
-import { MeetingSchema } from "../../model/saas/meet/meeting.model.ts";
-import { getTenantConnection } from "../connectionManager.ts";
+} from "@/model/saas/event/eventLog.model";
+import {
+  ConversationSchema,
+  MessageSchema,
+  CustomEventDefSchema,
+} from "@/model/saas/tenant.schemas";
+import { MeetingSchema } from "@/model/saas/meet/meeting.model";
+import { getTenantConnection } from "@lib/connectionManager";
+import { Client } from "@/model/clients/client";
 
 // ─── Model registry per connection ────────────────────────────────────────────
 // Each tenant Connection caches its own compiled models.
@@ -55,6 +62,10 @@ export interface CrmModels {
   Notification: Model<INotification>;
   EventLog: Model<IEventLog>;
   CallbackLog: Model<ICallbackLog>;
+  CustomEventDef: Model<ICustomEventDef>;
+  Segment: Model<ISegment>;
+  Conversation: Model<IConversation>;
+  Message: Model<IMessage>;
 }
 
 /**
@@ -95,5 +106,29 @@ export async function getCrmModels(clientCode: string): Promise<CrmModels> {
       "CallbackLog",
       callbackLogSchema,
     ),
+    CustomEventDef: getOrCreate<ICustomEventDef>(
+      conn,
+      "CustomEventDef",
+      CustomEventDefSchema,
+    ),
+    Segment: getOrCreate<ISegment>(conn, "Segment", SegmentSchema),
+    Conversation: getOrCreate<IConversation>(
+      conn,
+      "Conversation",
+      ConversationSchema,
+    ),
+    Message: getOrCreate<IMessage>(conn, "Message", MessageSchema),
+  };
+}
+
+/**
+ * Returns basic configuration for the client (name, etc.)
+ */
+export async function getClientConfig(clientCode: string) {
+  const client = await Client.findOne({ clientCode: clientCode.toUpperCase() });
+  return {
+    name: client?.name || "Our Business",
+    businessEmail: client?.business?.email,
+    businessPhone: client?.business?.phone,
   };
 }

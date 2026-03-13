@@ -13,6 +13,7 @@ export interface IEventLog extends Document {
   callbackStatus: "not_required" | "sent" | "failed";
   payload?: any;
   error?: string;
+  idempotencyKey?: string;
   processedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +41,7 @@ export const eventLogSchema = new Schema<IEventLog>(
     },
     payload: { type: Schema.Types.Mixed },
     error: { type: String },
+    idempotencyKey: { type: String, index: true },
     processedAt: { type: Date },
   },
   { timestamps: true },
@@ -47,6 +49,10 @@ export const eventLogSchema = new Schema<IEventLog>(
 
 eventLogSchema.index({ clientCode: 1, trigger: 1, createdAt: -1 });
 eventLogSchema.index({ clientCode: 1, status: 1 });
+eventLogSchema.index(
+  { clientCode: 1, idempotencyKey: 1 },
+  { sparse: true, unique: true },
+);
 
 export const EventLog =
   mongoose.models.EventLog ||

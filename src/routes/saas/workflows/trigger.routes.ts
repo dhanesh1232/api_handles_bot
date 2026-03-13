@@ -2,11 +2,11 @@ import { Router } from "express";
 import { normalizePhone } from "../../../utils/phone.ts";
 import { sendCallbackWithRetry } from "../../../lib/callbackSender.ts";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { runAutomations } from "../../../services/saas/crm/automation.service.ts";
 import {
   createLead,
   getLeadByPhone,
 } from "../../../services/saas/crm/lead.service.ts";
+import { EventBus } from "../../../services/saas/event/eventBus.service.ts";
 
 const triggerRouter = Router();
 
@@ -107,7 +107,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
         lastName: leadData?.lastName || "",
         email: email || "",
         phone,
-        source: leadData?.source || "webhook",
+        source: (leadData?.source as LeadSource) || "webhook",
       });
     }
 
@@ -168,27 +168,42 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
         : {}),
     };
 
-    // 6. Run matching automation rules
-    await runAutomations(clientCode, {
-      trigger: trigger as any,
-      lead: lead as any,
-      variables: eventVariables,
-    });
-
-    // 7. Finalize EventLog
-    await EventLog.findByIdAndUpdate(eventLog._id, {
-      status: "completed",
-      processedAt: new Date(),
-      jobsCreated: rulesMatched,
-    });
+    // 6. Emit event via EventBus
+    // EventBus handles:
+    // - Lead resolution/creation (though we did it above for immediate validation)
+    // - Rule matching
+    // - Execution (via runAutomations)
+    // - Logging & Idempotency
+    const result = await EventBus.emit(
+      clientCode,
+      trigger,
+      {
+        phone,
+        email,
+        variables,
+        data,
+      },
+      {
+        createLeadIfMissing,
+        leadData: leadData
+          ? {
+              ...leadData,
+              source: (leadData?.source as LeadSource) || "webhook",
+            }
+          : undefined,
+        delayMinutes:
+          Number(req.body.delaySeconds || 0) / 60 || req.body.delayMinutes,
+        runAt: req.body.runAt,
+      },
+    );
 
     return res.json({
       success: true,
       data: {
-        eventLogId: eventLog._id.toString(),
+        eventLogId: result?._id?.toString(),
         trigger,
         leadId: lead._id.toString(),
-        rulesMatched,
+        rulesMatched: result?.rulesMatched || rulesMatched,
       },
     });
   } catch (err: any) {

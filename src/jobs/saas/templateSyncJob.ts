@@ -1,55 +1,53 @@
-import { dbConnect } from "../../lib/config.ts";
-import { getTenantConnection } from "../../lib/connectionManager.ts";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
-import { syncTemplatesFromMeta } from "../../services/saas/whatsapp/template.service.ts";
+import { dbConnect } from "@lib/config";
+import { jobLogger } from "@lib/logger";
+import { getTenantConnection } from "@lib/connectionManager";
+import { ClientSecrets } from "@models/clients/secrets";
+import { syncTemplatesFromMeta } from "@services/saas/whatsapp/template.service";
 
 export const templateSyncJob = async () => {
-  console.log("🚀 Starting Daily Template Sync Job...");
+  const log = jobLogger("templateSync");
+  log.info("Starting Daily Template Sync Job");
   await dbConnect("services");
 
-  // Get all clients with WhatsApp credentials
   const clients = await ClientSecrets.find({
     isActive: true,
     "secrets.whatsappToken": { $exists: true },
     "secrets.whatsappBusinessId": { $exists: true },
   });
 
-  console.log(`Found ${clients.length} clients to sync.`);
+  log.info({ count: clients.length }, "Clients to sync");
 
   for (const client of clients) {
+    const clientLog = log.child({ clientCode: client.clientCode });
     try {
       const clientCode = client.clientCode;
       const token = client.getDecrypted("whatsappToken");
       const businessId = client.getDecrypted("whatsappBusinessId");
 
       if (!token || !businessId) {
-        console.warn(
-          `[${clientCode}] Missing WhatsApp credentials, skipping sync.`,
-        );
+        clientLog.warn("Missing WhatsApp credentials, skipping");
         continue;
       }
 
-      console.log(`[${clientCode}] Syncing templates...`);
+      clientLog.info("Syncing templates");
       const tenantConn = await getTenantConnection(clientCode);
       const result = await syncTemplatesFromMeta(tenantConn, token, businessId);
 
-      console.log(
-        `[${clientCode}] Sync completed: ${result.synced} templates. ${result.outdated.length} outdated.`,
+      clientLog.info(
+        { synced: result.synced, outdated: result.outdated.length },
+        "Sync completed",
       );
 
       if (result.outdated.length > 0) {
-        console.warn(
-          `[${clientCode}] The following templates need mapping update: ${result.outdated.join(", ")}`,
+        clientLog.warn(
+          { templates: result.outdated.join(", ") },
+          "Templates need mapping update",
         );
-        // TODO: Send alert/notification to tenant admin if required
       }
     } catch (error: any) {
-      console.error(
-        `❌ [${client.clientCode}] Template sync failed:`,
-        error.message,
-      );
+      clientLog.error({ err: error }, "Template sync failed");
     }
   }
 
-  console.log("✅ Daily Template Sync Job Finished.");
+  log.info("Daily Template Sync Job finished");
 };

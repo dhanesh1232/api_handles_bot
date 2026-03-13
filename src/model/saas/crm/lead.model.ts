@@ -131,6 +131,17 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
 
     // Multi-business support
     dynamicFields: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+
+    // Pipeline Intelligence
+    enteredStageAt: { type: Date, default: Date.now },
+    stageHistory: [
+      {
+        stageId: { type: mongoose.Schema.Types.ObjectId, ref: "PipelineStage" },
+        enteredAt: { type: Date },
+        leftAt: { type: Date },
+        durationMs: { type: Number },
+      },
+    ],
   },
   { timestamps: true },
 );

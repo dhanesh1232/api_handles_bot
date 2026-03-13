@@ -1,11 +1,8 @@
-import { crmQueue } from "../../../jobs/saas/crmWorker.ts";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import { runAutomations } from "./automation.service.ts";
+import { crmQueue } from "@/jobs/saas/crmWorker";
+import { getTenantConnection, getTenantModel } from "@/lib/connectionManager";
+import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import { schemas } from "@/model/saas/tenant.schemas";
+import { EventBus } from "../event/eventBus.service.ts";
 
 export function calculateScore(lead: any, scoringConfig: any): number {
   let totalPoints = 0;
@@ -127,10 +124,11 @@ export async function recalculateLeadScore(clientCode: string, leadId: string) {
     await lead.save();
 
     if (newScore >= (config.hotThreshold || 70)) {
-      await runAutomations(clientCode, {
-        trigger: "score_above" as any,
-        lead: lead.toJSON() as any,
-        score: newScore,
+      void EventBus.emit(clientCode, "lead.score_refreshed", {
+        phone: lead.phone,
+        email: lead.email,
+        data: lead.toJSON(),
+        variables: { score: String(newScore), trigger: "score_above" },
       });
     }
   } else {

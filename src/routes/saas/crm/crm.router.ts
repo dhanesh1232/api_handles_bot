@@ -20,6 +20,8 @@ import paymentRouter from "./payment.routes.ts";
 import pipelineRoutes from "./pipeline.routes.ts";
 import scoringRouter from "./scoring.routes.ts";
 import sequenceRouter from "./sequence.routes.ts";
+import customEventRouter from "./customEvent.routes.ts";
+import automationDashboardRouter from "./automationDashboard.routes.ts";
 
 const router = Router();
 
@@ -31,6 +33,8 @@ router.use(automationRouter);
 router.use(analyticsRouter);
 router.use(scoringRouter);
 router.use(notificationRoutes);
+router.use(customEventRouter);
+router.use(automationDashboardRouter);
 router.use("/sequences", sequenceRouter);
 
 export default router;

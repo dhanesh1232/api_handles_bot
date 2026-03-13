@@ -119,28 +119,7 @@ export const AutomationRuleSchema: Schema<IAutomationRule> =
       clientCode: { type: String, required: true, index: true },
       name: { type: String, required: true },
       trigger: {
-        type: String,
-        enum: [
-          // ── Internal CRM lifecycle (fired automatically by lead.service.ts) ──
-          "stage_enter",
-          "stage_exit",
-          "lead_created",
-          "deal_won",
-          "deal_lost",
-          "score_above",
-          "score_below",
-          "no_contact",
-          "tag_added",
-          "tag_removed",
-          // ── External business events (fired by client apps via POST /api/crm/automations/events) ──
-          "appointment_confirmed",
-          "appointment_cancelled",
-          "appointment_reminder",
-          "product_purchased",
-          "service_enrolled",
-          "payment_captured",
-          "form_submitted",
-        ],
+        type: String, // Relaxed from strict enum to allow custom sequences and events
         required: true,
       },
       triggerConfig: {
@@ -151,6 +130,8 @@ export const AutomationRuleSchema: Schema<IAutomationRule> =
         inactiveDays: { type: Number, default: null },
       },
       condition: { type: conditionSchema, default: null },
+      conditions: { type: [conditionSchema], default: [] },
+      conditionLogic: { type: String, enum: ["AND", "OR"], default: "AND" },
       actions: { type: [actionSchema], required: true, default: [] },
       steps: { type: [sequenceStepSchema], default: [] },
       isSequence: { type: Boolean, default: false },

@@ -1,5 +1,6 @@
-import nodemailer from "nodemailer";
-import { ClientSecrets } from "../../../model/clients/secrets.ts";
+import { ClientSecrets } from "@models/clients/secrets";
+import { MailClient } from "@lib/mail/mail.client";
+import { tenantLogger } from "@lib/logger";
 
 /**
  * Email Marketing & Transactional Service
@@ -20,36 +21,13 @@ interface CampaignDetails {
 
 export const createEmailService = () => {
   /**
-   * Get SMTP Transporter for a client
+   * Internal helper to get MailClient for a client
    */
-  const getTransporter = async (clientCode: string) => {
+  const getClient = async (clientCode: string) => {
     const secrets = await ClientSecrets.findOne({ clientCode });
     if (!secrets) throw new Error("Client secrets not found");
 
-    const host = secrets.getDecrypted("smtpHost");
-    const port = secrets.getDecrypted("smtpPort") || 587;
-    const user = secrets.getDecrypted("smtpUser");
-    const pass = secrets.getDecrypted("smtpPass");
-    const fromName =
-      secrets.getDecrypted("emailFromName") || "Business Support";
-    const fromEmail = secrets.getDecrypted("smtpFrom") || user;
-
-    if (!host || !user || !pass) {
-      throw new Error("SMTP credentials not configured for this client");
-    }
-
-    return {
-      transporter: nodemailer.createTransport({
-        host: host as string,
-        port: Number(port),
-        secure: secrets.smtpSecure ?? Number(port) === 465,
-        auth: {
-          user: user as string,
-          pass: pass as string,
-        },
-      }),
-      from: `"${fromName}" <${fromEmail}>`,
-    };
+    return MailClient.fromSecrets(clientCode, secrets);
   };
 
   /**
@@ -59,30 +37,24 @@ export const createEmailService = () => {
     clientCode: string,
     { to, subject, html, text }: EmailDetails,
   ) => {
+    const log = tenantLogger(clientCode);
     try {
-      const { transporter, from } = await getTransporter(clientCode);
+      const client = await getClient(clientCode);
+      const result = await client.send({ to, subject, html, text });
 
-      const info = await transporter.sendMail({
-        from,
-        to,
-        subject,
-        text,
-        html,
-      });
-
-      return { success: true, messageId: info.messageId };
+      return { success: true, messageId: result.messageId };
     } catch (error: any) {
       let friendlyError = error.message;
 
       if (error.code === "ENOTFOUND") {
-        friendlyError = `SMTP Host not found: ${error.hostname}. Please check for typos (e.g., 'smpt' vs 'smtp').`;
+        friendlyError = `SMTP Host not found: ${error.hostname}. Please check for typos.`;
       } else if (error.code === "ECONNREFUSED") {
-        friendlyError = `Connection refused at ${error.address}:${error.port}. Please check your firewall or port setting.`;
+        friendlyError = `Connection refused at ${error.address}:${error.port}.`;
       } else if (error.code === "ETIMEDOUT") {
-        friendlyError = `Connection to SMTP server timed out. Check your network or use port 465 (SSL).`;
+        friendlyError = `Connection to SMTP server timed out.`;
       }
 
-      console.error(`❌ Email Error [${clientCode}]:`, friendlyError);
+      log.error({ err: error, to, subject }, `Email failed: ${friendlyError}`);
       return { success: false, error: friendlyError };
     }
   };
@@ -101,7 +73,8 @@ export const createEmailService = () => {
       errors: [] as { recipient: string; error: any }[],
     };
 
-    // Use a small delay between emails to avoid spam filters if sending many
+    // Note: In a production environment with very large lists,
+    // this should be offloaded to a background job.
     for (const recipient of recipients) {
       const res = await sendEmail(clientCode, { to: recipient, subject, html });
       if (res.success) {

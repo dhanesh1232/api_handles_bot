@@ -14,7 +14,7 @@ ECODrIx is an **API-first, multi-tenant business automation platform** built aro
 
 - **Central Database** (`services`) — global system config, credentials, jobs
 - **Tenant Databases** (dynamic, one per client) — CRM, conversations, automations, templates
-- **Background Worker** (`crmWorker`) — single centralized queue for all async jobs
+- **Background Worker** (`ErixWorker`) — single centralized queue for all async jobs
 - **Express API Layer** — all routes scoped and isolated by `clientCode`
 - **Real-time Layer** — Socket.IO for WhatsApp inbox updates
 
@@ -37,7 +37,7 @@ Client Website
  └──────────────┬───────────────────────────┘
                 │
         ┌───────┴───────┐
-        │  MongoQueue   │  (crmWorker.ts)
+        │   Erix Jobs   │  (crmWorker.ts)
         │ centralised   │
         │ job executor  │
         └───────┬───────┘
@@ -125,7 +125,7 @@ When `POST /api/saas/workflows/trigger` is called:
    e. Count matching AutomationRule documents
    f. Update EventLog { status: "processing", rulesMatched }
    g. if callbackUrl: sendCallbackWithRetry() [non-blocking void]
-   h. if delayMinutes > 0: crmQueue.add({ type: "crm.automation_event" })
+   h. if delayMinutes > 0: crmQueue.add({ type: "crm.automation_event" }) [ErixJobs]
       else: runAutomations(clientCode, ctx) [inline]
    i. Update EventLog { status: "completed" }
    j. Return response with eventLogId, leadId, meetLink, rulesMatched
@@ -145,7 +145,7 @@ When `POST /api/saas/workflows/trigger` is called:
 
 ### Action Execution (`executeAction`)
 
-Actions are executed by `crmWorker.ts` pulling from the `MongoQueue`. Each action handler:
+Actions are executed by `crmWorker.ts` pulling from the `ErixJobs` queue. Each action handler:
 
 | Action type              | What happens                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -183,16 +183,16 @@ This context is passed to `resolveTemplateVariables()` which maps each `{{1}}`, 
 
 ## 6. Background Job System
 
-### MongoQueue (`src/lib/mongoQueue/`)
+### Erix Jobs (`src/lib/erixJobs/`)
 
-A custom lightweight polling queue backed by MongoDB. No Redis dependency.
+A custom lightweight polling queue backed by MongoDB (formerly MongoQueue). No Redis dependency.
 
 - **Poll interval:** 5000ms
 - **Concurrency:** 3 workers per process
 - **Job persistence:** jobs survive server restarts
 - **Retry:** built-in retry with exponential backoff
 
-### crmWorker.ts — Centralized Job Handler
+### crmWorker.ts — Centralized Job Handler (Erix Worker)
 
 All tenant jobs route through a single worker:
 
@@ -219,7 +219,7 @@ src/
 │
 ├── lib/
 │   ├── connectionManager.ts    ← tenant connection pool
-│   ├── mongoQueue/             ← custom queue (poll-based, no Redis)
+│   ├── erixJobs/               ← custom queue (poll-based, no Redis)
 │   ├── callbackSender.ts       ← HMAC-signed webhook delivery with retry
 │   └── tenant/
 │       └── get.crm.model.ts    ← safe tenant model accessor

@@ -1,16 +1,7 @@
 import express, { type Response } from "express";
 import multer from "multer";
-import { dbConnect } from "../../lib/config.ts";
-import {
-  validateClientKey,
-  type AuthRequest,
-} from "../../middleware/saasAuth.ts";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
-import {
-  deleteObjectFromR2,
-  listObjectsFromR2,
-  optimizeAndUploadMedia,
-} from "../../services/saas/media/media.service.ts";
+import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
+import { withSDK } from "@/middleware/withSDK";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,30 +15,18 @@ export const createImagesRouter = (_io: any) => {
   router.get(
     "/",
     validateClientKey,
+    withSDK(),
     async (req: AuthRequest, res: Response) => {
       try {
-        const { clientCode } = req;
         const folder = (req.query.folder as string) || "profile";
-
-        if (!clientCode) {
-          return res.status(401).json({ error: "Unauthorized" });
-        }
-
-        await dbConnect("services");
-        const secrets = await ClientSecrets.findOne({ clientCode });
-
-        if (!secrets) {
-          return res.status(404).json({ error: "Client secrets not found" });
-        }
-
-        const images = await listObjectsFromR2(folder, secrets);
+        const images = await req.sdk.storage.list(folder);
 
         res.status(200).json({
           message: "Images fetched successfully",
           data: { images },
         });
       } catch (error: any) {
-        console.error("List images error:", error.message);
+        req.log.error({ err: error.message }, "List images error");
         res.status(500).json({ error: "Failed to fetch images" });
       }
     },
@@ -57,32 +36,20 @@ export const createImagesRouter = (_io: any) => {
   router.post(
     "/",
     validateClientKey,
+    withSDK(),
     upload.single("file"),
     async (req: AuthRequest, res: Response) => {
       try {
-        const { clientCode } = req;
-        if (!clientCode) {
-          return res.status(401).json({ error: "Unauthorized" });
-        }
         if (!req.file) {
           return res.status(400).json({ error: "No file uploaded" });
         }
 
         const folder = req.body.folder || "profile";
 
-        await dbConnect("services");
-        const secrets = await ClientSecrets.findOne({ clientCode });
-
-        if (!secrets) {
-          return res.status(404).json({ error: "Client secrets not found" });
-        }
-
-        const result = await optimizeAndUploadMedia(
+        const result = await req.sdk.storage.upload(
           req.file.buffer,
           req.file.mimetype,
           req.file.originalname,
-          `img_${Date.now()}`,
-          secrets,
           folder,
         );
 
@@ -92,12 +59,12 @@ export const createImagesRouter = (_io: any) => {
             url: result.url,
             name: result.fileName,
             fileName: result.fileName,
-            key: result.r2Key,
-            type: result.r2Key.split(".").pop(),
+            key: result.key,
+            type: result.key.split(".").pop(),
           },
         });
       } catch (error: any) {
-        console.error("Upload error:", error.message);
+        req.log.error({ err: error.message }, "Upload error");
         res.status(500).json({ error: "Upload failed: " + error.message });
       }
     },
@@ -107,33 +74,23 @@ export const createImagesRouter = (_io: any) => {
   router.delete(
     "/",
     validateClientKey,
+    withSDK(),
     async (req: AuthRequest, res: Response) => {
       try {
-        const { clientCode } = req;
         const key = req.query.key as string;
 
-        if (!clientCode) {
-          return res.status(401).json({ error: "Unauthorized" });
-        }
         if (!key) {
           return res.status(400).json({ error: "Media key is required" });
         }
 
-        await dbConnect("services");
-        const secrets = await ClientSecrets.findOne({ clientCode });
-
-        if (!secrets) {
-          return res.status(404).json({ error: "Client secrets not found" });
-        }
-
-        await deleteObjectFromR2(key, secrets);
+        await req.sdk.storage.delete(key);
 
         res.status(200).json({
           message: "Media deleted successfully",
           data: { key },
         });
       } catch (error: any) {
-        console.error("Delete media error:", error.message);
+        req.log.error({ err: error.message }, "Delete media error");
         res.status(500).json({ error: "Failed to delete media" });
       }
     },

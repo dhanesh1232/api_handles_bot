@@ -1,13 +1,10 @@
 import express, { type Response } from "express";
-import { getTenantConnection } from "../../lib/connectionManager.ts";
-import {
-  validateClientKey,
-  type AuthRequest,
-} from "../../middleware/saasAuth.ts";
-import { Client } from "../../model/clients/client.ts";
-import { schemas } from "../../model/saas/tenant.schemas.ts";
-import { createEmailService } from "../../services/saas/mail/email.service.ts";
-import { createGoogleMeetService } from "../../services/saas/meet/google.meet.service.ts";
+import { getTenantConnection } from "@/lib/connectionManager";
+import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
+import { Client } from "@/model/clients/client";
+import { schemas } from "@/model/saas/tenant.schemas";
+import { createEmailService } from "@/services/saas/mail/email.service";
+import { createGoogleMeetService } from "@/services/saas/meet/google.meet.service";
 
 const router = express.Router();
 const meetService = createGoogleMeetService();

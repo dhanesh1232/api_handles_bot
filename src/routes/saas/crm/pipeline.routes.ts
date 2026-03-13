@@ -1,41 +1,26 @@
 /**
- * pipeline.routes.ts
- *
- * Place at: src/routes/saas/crm/pipeline.routes.ts
- * Mount in server.ts: app.use("/api/crm", validateClientKey, pipelineRouter)
- *
- * All routes are protected by your existing validateClientKey middleware.
- * req.clientCode is set by that middleware.
+ * pipeline.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
  */
 
 import { Router, type Request, type Response } from "express";
-import * as pipelineService from "../../../services/saas/crm/pipeline.service.ts";
+import { withSDK } from "../../../middleware/withSDK.ts";
 
 const router = Router();
+router.use(withSDK()); // stamps req.sdk once for every route below
 
 // ─── Pipelines ────────────────────────────────────────────────────────────────
 
-/**
- * GET /api/crm/pipelines
- * Returns all active pipelines for this client.
- */
 router.get("/pipelines", async (req: Request, res: Response) => {
   try {
-    const pipelines = await pipelineService.getPipelines(req.clientCode!);
-    res.json({ success: true, data: pipelines });
+    res.json({ success: true, data: await req.sdk.pipeline.list() });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
 
-/**
- * GET /api/crm/pipelines/:pipelineId
- * Returns one pipeline + all its stages.
- */
 router.get("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   try {
-    const result = await pipelineService.getPipelineWithStages(
-      req.clientCode!,
+    const result = await req.sdk.pipeline.getWithStages(
       req.params.pipelineId as string,
     );
     if (!result) {
@@ -48,22 +33,6 @@ router.get("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/crm/pipelines
- * Create a pipeline with stages.
- *
- * Body:
- * {
- *   name: "Patient Journey",
- *   description?: "...",
- *   isDefault?: true,
- *   template?: "sales" | "support" | "recruitment",  // use a built-in template
- *   stages?: [                                         // OR pass custom stages
- *     { name: "Inquiry", color: "#6366f1", probability: 10 },
- *     { name: "Consulted", color: "#10b981", probability: 60, isWon: true }
- *   ]
- * }
- */
 router.post("/pipelines", async (req: Request, res: Response) => {
   try {
     const {
@@ -74,37 +43,25 @@ router.post("/pipelines", async (req: Request, res: Response) => {
       stages = [],
       customStages,
     } = req.body;
-
     if (!name?.trim()) {
       res.status(400).json({ success: false, message: "name is required" });
       return;
     }
-
-    // `customStages` is sent by the frontend custom stage builder;
-    // treat it as `stages` when template is "custom" or stages array is empty.
     const resolvedStages = stages.length > 0 ? stages : (customStages ?? []);
-
-    const result = await pipelineService.createPipeline(
-      req.clientCode!,
+    const result = await req.sdk.pipeline.create(
       { name: name.trim(), description, isDefault, stages: resolvedStages },
       template,
     );
-
     res.status(201).json({ success: true, data: result });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
   }
 });
 
-/**
- * PATCH /api/crm/pipelines/:pipelineId
- * Update pipeline name or description.
- */
 router.patch("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   try {
     const { name, description, order } = req.body;
-    const pipeline = await pipelineService.updatePipeline(
-      req.clientCode!,
+    const pipeline = await req.sdk.pipeline.update(
       req.params.pipelineId as string,
       { name, description, order },
     );
@@ -118,18 +75,11 @@ router.patch("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * PATCH /api/crm/pipelines/:pipelineId/default
- * Make this the default pipeline. Unsets all others.
- */
 router.patch(
   "/pipelines/:pipelineId/default",
   async (req: Request, res: Response) => {
     try {
-      await pipelineService.setDefaultPipeline(
-        req.clientCode!,
-        req.params.pipelineId as string,
-      );
+      await req.sdk.pipeline.setDefault(req.params.pipelineId as string);
       res.json({ success: true, message: "Default pipeline updated" });
     } catch (err: unknown) {
       res.status(500).json({ success: false, message: (err as Error).message });
@@ -137,73 +87,53 @@ router.patch(
   },
 );
 
-/**
- * GET /api/crm/pipelines/:pipelineId/in-use
- * Returns whether this pipeline has any leads assigned to it.
- */
 router.get(
   "/pipelines/:pipelineId/in-use",
   async (req: Request, res: Response) => {
     try {
-      const result = await pipelineService.checkPipelineInUse(
-        req.clientCode!,
-        req.params.pipelineId as string,
-      );
-      res.json({ success: true, data: result });
+      res.json({
+        success: true,
+        data: await req.sdk.pipeline.checkInUse(
+          req.params.pipelineId as string,
+        ),
+      });
     } catch (err: unknown) {
       res.status(500).json({ success: false, message: (err as Error).message });
     }
   },
 );
 
-/**
- * PATCH /api/crm/pipelines/:pipelineId/archive
- * Soft-archives the pipeline (sets isActive: false).
- * Blocked if any leads are assigned to this pipeline.
- */
 router.patch(
   "/pipelines/:pipelineId/archive",
   async (req: Request, res: Response) => {
     try {
-      await pipelineService.archivePipeline(
-        req.clientCode!,
-        req.params.pipelineId as string,
-      );
+      await req.sdk.pipeline.archive(req.params.pipelineId as string);
       res.json({ success: true, message: "Pipeline archived" });
     } catch (err: unknown) {
       const msg = (err as Error).message;
-      const status =
-        msg.includes("default") || msg.includes("Cannot archive") ? 400 : 500;
-      res.status(status).json({ success: false, message: msg });
+      res
+        .status(
+          msg.includes("default") || msg.includes("Cannot archive") ? 400 : 500,
+        )
+        .json({ success: false, message: msg });
     }
   },
 );
 
-/**
- * DELETE /api/crm/pipelines/:pipelineId
- * Permanently deletes the pipeline and all its stages.
- * Blocked if any leads are assigned to this pipeline.
- */
 router.delete("/pipelines/:pipelineId", async (req: Request, res: Response) => {
   try {
-    await pipelineService.hardDeletePipeline(
-      req.clientCode!,
-      req.params.pipelineId as string,
-    );
+    await req.sdk.pipeline.hardDelete(req.params.pipelineId as string);
     res.json({ success: true, message: "Pipeline deleted" });
   } catch (err: unknown) {
     const msg = (err as Error).message;
-    const status =
-      msg.includes("default") || msg.includes("Cannot delete") ? 400 : 500;
-    res.status(status).json({ success: false, message: msg });
+    res
+      .status(
+        msg.includes("default") || msg.includes("Cannot delete") ? 400 : 500,
+      )
+      .json({ success: false, message: msg });
   }
 });
 
-/**
- * POST /api/crm/pipelines/:pipelineId/duplicate
- * Clone a pipeline with all stages (no leads copied).
- * Body: { name: "Copy of Patient Journey" }
- */
 router.post(
   "/pipelines/:pipelineId/duplicate",
   async (req: Request, res: Response) => {
@@ -213,8 +143,7 @@ router.post(
         res.status(400).json({ success: false, message: "name is required" });
         return;
       }
-      const result = await pipelineService.duplicatePipeline(
-        req.clientCode!,
+      const result = await req.sdk.pipeline.duplicate(
         req.params.pipelineId as string,
         name.trim(),
       );
@@ -227,26 +156,17 @@ router.post(
 
 // ─── Stages ───────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/crm/pipelines/:pipelineId/stages
- * Add a new stage to an existing pipeline.
- *
- * Body: { name, color?, probability?, isWon?, isLost?, insertAfterOrder? }
- */
 router.post(
   "/pipelines/:pipelineId/stages",
   async (req: Request, res: Response) => {
     try {
       const { name, color, probability, isWon, isLost, insertAfterOrder } =
         req.body;
-
       if (!name?.trim()) {
         res.status(400).json({ success: false, message: "name is required" });
         return;
       }
-
-      const stage = await pipelineService.addStage(
-        req.clientCode!,
+      const stage = await req.sdk.pipeline.addStage(
         req.params.pipelineId as string,
         {
           name: name.trim(),
@@ -264,17 +184,19 @@ router.post(
   },
 );
 
-/**
- * PATCH /api/crm/stages/:stageId
- * Update a stage's name, color, probability, or autoActions.
- */
 router.patch("/stages/:stageId", async (req: Request, res: Response) => {
   try {
     const { name, color, probability, isWon, isLost, autoActions } = req.body;
-    const stage = await pipelineService.updateStage(
-      req.clientCode!,
+    const stage = await req.sdk.pipeline.updateStage(
       req.params.stageId as string,
-      { name, color, probability, isWon, isLost, autoActions },
+      {
+        name,
+        color,
+        probability,
+        isWon,
+        isLost,
+        autoActions,
+      },
     );
     if (!stage) {
       res.status(404).json({ success: false, message: "Stage not found" });
@@ -286,12 +208,6 @@ router.patch("/stages/:stageId", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * PATCH /api/crm/pipelines/:pipelineId/stages/reorder
- * Save new stage order after drag-and-drop.
- *
- * Body: { order: [{ stageId: "abc", newOrder: 0 }, ...] }
- */
 router.patch(
   "/pipelines/:pipelineId/stages/reorder",
   async (req: Request, res: Response) => {
@@ -303,8 +219,7 @@ router.patch(
           .json({ success: false, message: "order array is required" });
         return;
       }
-      await pipelineService.reorderStages(
-        req.clientCode!,
+      await req.sdk.pipeline.reorderStages(
         req.params.pipelineId as string,
         order,
       );
@@ -315,75 +230,51 @@ router.patch(
   },
 );
 
-/**
- * DELETE /api/crm/stages/:stageId
- * Delete a stage.
- * If leads exist in that stage, pass moveLeadsToStageId in body to migrate them.
- *
- * Body (optional): { moveLeadsToStageId: "xyz" }
- */
 router.delete("/stages/:stageId", async (req: Request, res: Response) => {
   try {
     const { moveLeadsToStageId } = req.body;
-    await pipelineService.deleteStage(
-      req.clientCode!,
+    await req.sdk.pipeline.deleteStage(
       req.params.stageId as string,
       moveLeadsToStageId,
     );
     res.json({ success: true, message: "Stage deleted" });
   } catch (err: unknown) {
     const msg = (err as Error).message;
-    const status = msg.includes("leads are in this stage") ? 409 : 500;
-    res.status(status).json({ success: false, message: msg });
+    res
+      .status(msg.includes("leads are in this stage") ? 409 : 500)
+      .json({ success: false, message: msg });
   }
 });
 
 // ─── Board & Analytics ────────────────────────────────────────────────────────
 
-/**
- * GET /api/crm/pipelines/:pipelineId/board
- * Returns each stage with lead count + total deal value.
- * Fast — uses aggregation, not individual lead fetches.
- * The frontend fetches leads per stage separately for pagination.
- */
 router.get(
   "/pipelines/:pipelineId/board",
   async (req: Request, res: Response) => {
     try {
-      const board = await pipelineService.getBoardSummary(
-        req.clientCode!,
-        req.params.pipelineId as string,
-      );
-      res.json({ success: true, data: board });
+      res.json({
+        success: true,
+        data: await req.sdk.pipeline.board(req.params.pipelineId as string),
+      });
     } catch (err: unknown) {
       res.status(500).json({ success: false, message: (err as Error).message });
     }
   },
 );
 
-/**
- * GET /api/crm/pipelines/:pipelineId/forecast
- * Revenue forecast: each stage's total deal value × probability.
- * Returns expected revenue per stage + grand total.
- */
 router.get(
   "/pipelines/:pipelineId/forecast",
   async (req: Request, res: Response) => {
     try {
-      const rows = await pipelineService.getRevenueForecast(
-        req.clientCode!,
+      const rows = await req.sdk.pipeline.forecast(
         req.params.pipelineId as string,
       );
-
-      const grandTotal = rows.reduce((sum, r) => sum + r.expectedRevenue, 0);
-      const totalPipeline = rows.reduce((sum, r) => sum + r.totalValue, 0);
-
       res.json({
         success: true,
         data: {
           rows,
-          grandTotal, // weighted expected revenue
-          totalPipeline, // raw sum of all deals (unweighted)
+          grandTotal: rows.reduce((sum, r) => sum + r.expectedRevenue, 0),
+          totalPipeline: rows.reduce((sum, r) => sum + r.totalValue, 0),
         },
       });
     } catch (err: unknown) {

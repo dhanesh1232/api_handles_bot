@@ -13,6 +13,7 @@
  */
 
 import mongoose from "mongoose";
+import { BaseRepository } from "../../../lib/tenant/base.repository";
 import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
 import { normalizePhone } from "../../../utils/phone.ts";
 import {
@@ -21,28 +22,77 @@ import {
   getDefaultStage,
 } from "./pipeline.service.ts";
 
-// Lazy import to avoid circular-dependency at module load time.
-// automation.service imports lead.service, so we import it dynamically only when needed.
-const fireAutomations = async (
-  clientCode: string,
-  ctx: Parameters<
-    (typeof import("./automation.service.ts"))["runAutomations"]
-  >[1],
-) => {
-  try {
-    const { runAutomations } = await import("./automation.service.ts");
-    await runAutomations(clientCode, ctx);
-  } catch {
-    // Automation failures must NEVER break the primary DB operation.
-  }
-};
-
 // ─── Population config ────────────────────────────────────────────────────────
 
 const PIPELINE_POPULATE = { path: "pipelineId", select: "_id name isDefault" };
 const STAGE_POPULATE = {
   path: "stageId",
   select: "_id name color probability isWon isLost order",
+};
+
+/**
+ * LeadRepository
+ *
+ * Tenant-scoped repository for Lead operations.
+ */
+export class LeadRepository extends BaseRepository<ILead> {
+  /**
+   * Custom query to find a lead by normalized phone.
+   */
+  async findByPhone(phone: string) {
+    return this.findOne(
+      { phone },
+      { populate: [PIPELINE_POPULATE, STAGE_POPULATE] },
+    );
+  }
+
+  /**
+   * Find leads in a specific stage.
+   */
+  async findByStage(pipelineId: string, stageId: string) {
+    return this.findMany(
+      { pipelineId, stageId },
+      { populate: [PIPELINE_POPULATE, STAGE_POPULATE] },
+    );
+  }
+
+  /**
+   * Find one with population.
+   */
+  async getFullLead(id: string) {
+    return this.findById(id, {
+      populate: [PIPELINE_POPULATE, STAGE_POPULATE],
+      lean: { virtuals: true },
+    });
+  }
+}
+
+/**
+ * Factory to get a LeadRepository bound to a tenant.
+ */
+export async function getLeadRepo(clientCode: string): Promise<LeadRepository> {
+  const { Lead } = await getCrmModels(clientCode);
+  return new LeadRepository(Lead, clientCode);
+}
+
+// Lazy import to avoid circular-dependency at module load time.
+// automation.service imports lead.service, so we import it dynamically only when needed.
+// Lazy import to avoid circular-dependency at module load time.
+const fireEvent = async (
+  clientCode: string,
+  trigger: string,
+  payload: { phone?: string; email?: string; data?: any; variables?: any },
+  opts?: { idempotencyKey?: string },
+) => {
+  try {
+    const { EventBus } = await import("../event/eventBus.service.ts");
+    await EventBus.emit(clientCode, trigger, payload, opts);
+  } catch (err: any) {
+    console.error(
+      `[leadService] EventBus emit failed for ${trigger}:`,
+      err.message,
+    );
+  }
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,7 +144,8 @@ export const createLead = async (
   clientCode: string,
   input: CreateLeadInput,
 ): Promise<ILead> => {
-  const { Lead, LeadActivity } = await getCrmModels(clientCode);
+  const { LeadActivity } = await getCrmModels(clientCode);
+  const repo = await getLeadRepo(clientCode);
 
   let pipelineId = input.pipelineId;
   let stageId = input.stageId;
@@ -143,8 +194,7 @@ export const createLead = async (
 
   const metadataRefs = buildMetadataRefs(input.metadata?.refs);
 
-  const lead = await Lead.create({
-    clientCode,
+  const lead = await repo.create({
     firstName: input.firstName,
     lastName: input.lastName ?? "",
     email: input.email || undefined,
@@ -160,7 +210,14 @@ export const createLead = async (
     tags: input.tags ?? [],
     metadata: { refs: metadataRefs, extra: input.metadata?.extra ?? {} },
     dynamicFields: input.dynamicFields ?? {},
-  });
+    enteredStageAt: new Date(),
+    stageHistory: [
+      {
+        stageId: new mongoose.Types.ObjectId(stageId),
+        enteredAt: new Date(),
+      },
+    ],
+  } as any);
 
   await LeadActivity.create({
     clientCode,
@@ -171,15 +228,13 @@ export const createLead = async (
     performedBy: "system",
   });
 
-  const freshLead = (await getLeadById(
-    clientCode,
-    lead._id.toString(),
-  )) as ILead;
+  const freshLead = (await repo.getFullLead(lead._id.toString())) as ILead;
 
   // Fire automation — non-blocking, never throws
-  void fireAutomations(clientCode, {
-    trigger: "lead_created",
-    lead: freshLead,
+  void fireEvent(clientCode, "lead.created", {
+    phone: freshLead.phone,
+    email: freshLead.email,
+    data: freshLead,
   });
 
   return freshLead;
@@ -191,11 +246,8 @@ export const getLeadById = async (
   clientCode: string,
   leadId: string,
 ): Promise<ILead | null> => {
-  const { Lead } = await getCrmModels(clientCode);
-  return Lead.findOne({ _id: leadId, clientCode, isArchived: false })
-    .populate(PIPELINE_POPULATE)
-    .populate(STAGE_POPULATE)
-    .lean({ virtuals: true }) as unknown as ILead;
+  const repo = await getLeadRepo(clientCode);
+  return repo.getFullLead(leadId);
 };
 
 // ─── 3. Get lead by phone ─────────────────────────────────────────────────────
@@ -204,12 +256,8 @@ export const getLeadByPhone = async (
   clientCode: string,
   phone: string,
 ): Promise<ILead | null> => {
-  const { Lead } = await getCrmModels(clientCode);
-  const normalizedPhone = normalizePhone(phone);
-  return Lead.findOne({ clientCode, phone: normalizedPhone, isArchived: false })
-    .populate(PIPELINE_POPULATE)
-    .populate(STAGE_POPULATE)
-    .lean({ virtuals: true }) as unknown as ILead;
+  const repo = await getLeadRepo(clientCode);
+  return repo.findByPhone(phone);
 };
 
 // ─── 4. Get lead by metadata ref ─────────────────────────────────────────────
@@ -219,15 +267,14 @@ export const getLeadByRef = async (
   refKey: "appointmentId" | "bookingId" | "orderId" | "meetingId",
   refValue: string,
 ): Promise<ILead | null> => {
-  const { Lead } = await getCrmModels(clientCode);
-  return Lead.findOne({
-    clientCode,
-    [`metadata.refs.${refKey}`]: new mongoose.Types.ObjectId(refValue),
-    isArchived: false,
-  })
-    .populate(PIPELINE_POPULATE)
-    .populate(STAGE_POPULATE)
-    .lean({ virtuals: true }) as unknown as ILead;
+  const repo = await getLeadRepo(clientCode);
+  return repo.findOne(
+    {
+      [`metadata.refs.${refKey}`]: new mongoose.Types.ObjectId(refValue),
+      isArchived: false,
+    },
+    { populate: [PIPELINE_POPULATE, STAGE_POPULATE], lean: { virtuals: true } },
+  );
 };
 
 // ─── 5. List leads ────────────────────────────────────────────────────────────
@@ -438,6 +485,10 @@ export const moveLead = async (
     extraUpdates.convertedAt = new Date();
   }
 
+  const now = new Date();
+  const enteredAt = existing.enteredStageAt || existing.createdAt;
+  const durationMs = now.getTime() - enteredAt.getTime();
+
   const updated = await Lead.findOneAndUpdate(
     { _id: leadId, clientCode },
     {
@@ -445,7 +496,16 @@ export const moveLead = async (
         stageId: new mongoose.Types.ObjectId(newStageId),
         pipelineId: stage.pipelineId,
         status: newStatus,
+        enteredStageAt: now,
         ...extraUpdates,
+      },
+      $push: {
+        stageHistory: {
+          stageId: new mongoose.Types.ObjectId(previousStageId),
+          enteredAt: enteredAt,
+          leftAt: now,
+          durationMs: durationMs,
+        },
       },
     },
     { returnDocument: "after" },
@@ -470,28 +530,25 @@ export const moveLead = async (
 
   // Fire stage automations — non-blocking, never throws
   if (updated) {
+    const payload = {
+      phone: updated.phone,
+      email: updated.email,
+      data: updated,
+    };
     void Promise.allSettled([
-      fireAutomations(clientCode, {
-        trigger: "stage_exit",
-        lead: updated as unknown as ILead,
-        stageId: previousStageId,
+      fireEvent(clientCode, "lead.stage_exit", {
+        ...payload,
+        variables: { stageId: previousStageId },
       }),
-      fireAutomations(clientCode, {
-        trigger: "stage_enter",
-        lead: updated as unknown as ILead,
-        stageId: newStageId,
+      fireEvent(clientCode, "lead.stage_enter", {
+        ...payload,
+        variables: { stageId: newStageId },
       }),
       stage.isWon
-        ? fireAutomations(clientCode, {
-            trigger: "deal_won",
-            lead: updated as unknown as ILead,
-          })
+        ? fireEvent(clientCode, "lead.deal_won", payload)
         : Promise.resolve(),
       stage.isLost
-        ? fireAutomations(clientCode, {
-            trigger: "deal_lost",
-            lead: updated as unknown as ILead,
-          })
+        ? fireEvent(clientCode, "lead.deal_lost", payload)
         : Promise.resolve(),
     ]);
   }
@@ -557,19 +614,22 @@ export const updateTags = async (
 
   // Fire tag automations — non-blocking, never throws
   if (result) {
+    const payload = {
+      phone: result.phone,
+      email: result.email,
+      data: result,
+    };
     void Promise.allSettled([
       ...add.map((tag) =>
-        fireAutomations(clientCode, {
-          trigger: "tag_added",
-          lead: result,
-          tagName: tag,
+        fireEvent(clientCode, "lead.tag_added", {
+          ...payload,
+          variables: { tagName: tag },
         }),
       ),
       ...remove.map((tag) =>
-        fireAutomations(clientCode, {
-          trigger: "tag_removed",
-          lead: result,
-          tagName: tag,
+        fireEvent(clientCode, "lead.tag_removed", {
+          ...payload,
+          variables: { tagName: tag },
         }),
       ),
     ]);
@@ -650,6 +710,15 @@ export const bulkUpsertLeads = async (
               status: "open",
               tags: input.tags ?? [],
               "metadata.refs": metadataRefs,
+              enteredStageAt: new Date(),
+              stageHistory: [
+                {
+                  stageId: new mongoose.Types.ObjectId(
+                    input.stageId ?? defaultStage._id.toString(),
+                  ),
+                  enteredAt: new Date(),
+                },
+              ],
             },
           },
           { upsert: true, returnDocument: "after" },

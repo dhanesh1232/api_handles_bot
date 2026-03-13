@@ -1,9 +1,9 @@
-import type { JobDocument } from "../../lib/mongoQueue/types.ts";
-import { MongoWorker } from "../../lib/mongoQueue/worker.ts";
+import type { JobDocument } from "@lib/erixJobs/types";
+import { ErixWorkers } from "@lib/erixJobs/worker";
 import { executeWorkflow } from "./workflowWorker.ts";
 
 /**
- * Starts the MongoDB-backed workflow worker.
+ * Starts the Erix-branded workflow worker.
  * Replaces the previous node-cron polling loop.
  *
  * - Polls the central "services" DB every 10 seconds
@@ -11,7 +11,7 @@ import { executeWorkflow } from "./workflowWorker.ts";
  * - Auto-retries failed jobs with exponential backoff (up to 3 attempts)
  */
 export const startWorkflowProcessor = () => {
-  const worker = new MongoWorker(
+  const worker = new ErixWorkers(
     "whatsapp-workflow",
     async (job: JobDocument) => {
       await executeWorkflow(job.data as any);

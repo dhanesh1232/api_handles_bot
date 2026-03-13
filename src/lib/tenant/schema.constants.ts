@@ -34,7 +34,7 @@ export const CURATED_FIELDS: Record<string, Record<string, string>> = {
     "shippingAddress.Name": "Shipping Name",
     "shippingAddress.City": "Shipping City",
     "payment.method": "Payment Method",
-    "orderItems": "Order Items (Full List)",
+    orderItems: "Order Items (Full List)",
   },
   doctors: {
     name: "Doctor Name",

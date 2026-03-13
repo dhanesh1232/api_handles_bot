@@ -1,5 +1,6 @@
-import Job from "../../model/queue/job.model.ts";
-import { dbConnect } from "../config.ts";
+import Job from "@models/queue/job.model";
+import { dbConnect } from "@lib/config";
+import { logger } from "@lib/logger";
 import type { AddJobOptions } from "./types.ts";
 
 /**
@@ -32,8 +33,9 @@ export class MongoQueue {
       status: "waiting",
     });
 
-    console.log(
-      `[MongoQueue:${this.queueName}] Job ${job._id} queued, runAt=${runAt.toISOString()}`,
+    logger.info(
+      { queue: this.queueName, jobId: job._id, runAt: runAt.toISOString() },
+      `[MongoQueue] Job queued`,
     );
     return job;
   }
