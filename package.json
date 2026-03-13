@@ -11,10 +11,10 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "nodemon --exec 'tsx server.ts' --ext ts,js,html",
-    "type-check": "tsc --noEmit && tsc-alias",
+    "type-check": "tsc --noEmit && tsc-alias -f",
     "lint": "eslint .",
     "format": "pnpm exec prettier --write .",
-    "build": "tsc && tsc-alias",
+    "build": "tsc && tsc-alias -f",
     "test:worker": "tsx scripts/test-worker.ts",
     "test": "tsx --test src/smoke.test.ts",
     "test:all": "tsx --test src/tests/smoke.test.ts && pnpm run test:worker",
