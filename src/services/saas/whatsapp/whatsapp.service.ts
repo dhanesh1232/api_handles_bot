@@ -4,12 +4,12 @@ import mongoose, { type Connection, type Model } from "mongoose";
 import path from "path";
 import { Server } from "socket.io";
 import { dbConnect } from "@lib/config";
-import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
 import { MetaWhatsAppClient } from "@lib/meta/whatsapp.client";
 import { tenantLogger } from "@lib/logger";
 import { ClientSecrets } from "@models/clients/secrets";
-import { schemas } from "@models/saas/tenant.schemas";
+
 import { normalizePhone } from "@utils/phone";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -20,14 +20,6 @@ const STATUS_PRIORITY: Record<string, number> = {
   sent: 3,
   queued: 1,
 };
-
-interface WhatsAppServiceContext {
-  secrets: any;
-  Conversation: Model<IConversation>;
-  Message: Model<IMessage>;
-  Template: Model<ITemplate>;
-  tenantConn: Connection;
-}
 
 /**
  * WhatsApp Service Factory
@@ -42,25 +34,17 @@ export const createWhatsappService = (io: Server | null) => {
     clientCode: string,
   ): Promise<WhatsAppServiceContext> => {
     await dbConnect("services");
-    const secrets = await ClientSecrets.findOne({ clientCode });
+    const secrets = await ClientSecrets.findOne({
+      clientCode: clientCode.toUpperCase(),
+    });
     if (!secrets) throw new Error("Client secrets not found");
 
-    const tenantConn = await getTenantConnection(clientCode);
-    const Conversation = getTenantModel<IConversation>(
-      tenantConn,
-      "Conversation",
-      schemas.conversations,
-    );
-    const Message = getTenantModel<IMessage>(
-      tenantConn,
-      "Message",
-      schemas.messages,
-    );
-    const Template = getTenantModel<ITemplate>(
-      tenantConn,
-      "Template",
-      schemas.templates,
-    );
+    const {
+      Conversation,
+      Message,
+      Template,
+      conn: tenantConn,
+    } = await getCrmModels(clientCode);
 
     return { secrets, Conversation, Message, Template, tenantConn };
   };
@@ -990,7 +974,7 @@ export const createWhatsappService = (io: Server | null) => {
     messageId: string,
     emoji: string,
   ) => {
-    const { secrets, Message } = await getContext(clientCode);
+    const { secrets, Message, Conversation } = await getContext(clientCode);
     const token = secrets.getDecrypted("whatsappToken");
     const phoneId = secrets.getDecrypted("whatsappPhoneNumberId");
 
@@ -998,9 +982,7 @@ export const createWhatsappService = (io: Server | null) => {
     if (!message || !message.whatsappMessageId)
       throw new Error("Message not found on WhatsApp");
 
-    const conversation = await Message.db
-      .model("Conversation", schemas.conversations)
-      .findById(message.conversationId);
+    const conversation = await Conversation.findById(message.conversationId);
     if (!conversation) throw new Error("Conversation not found");
 
     const response = await axios.post(

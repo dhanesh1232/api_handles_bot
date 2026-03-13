@@ -1,7 +1,5 @@
 import { logger } from "@/lib/logger";
 import { getCrmModels } from "@/lib/tenant/get.crm.model";
-import { getTenantConnection, getTenantModel } from "@/lib/connectionManager";
-import { schemas } from "@/model/saas/tenant.schemas";
 
 export class ActionExecutor {
   /**
@@ -66,6 +64,9 @@ export class ActionExecutor {
         case "http_webhook":
           return await this.executeWebhook(clientCode, config, context);
 
+        case "generate_ai_summary":
+          return await this.generateAiSummary(clientCode, context);
+
         default:
           throw new Error(`Unsupported action type: ${type}`);
       }
@@ -88,12 +89,7 @@ export class ActionExecutor {
       await import("../whatsapp/template.service.ts");
     const { createWhatsappService } =
       await import("../whatsapp/whatsapp.service.ts");
-    const tenantConn = await getTenantConnection(clientCode);
-    const Conversation = getTenantModel<any>(
-      tenantConn,
-      "Conversation",
-      schemas.conversations,
-    );
+    const { Conversation, conn: tenantConn } = await getCrmModels(clientCode);
 
     const lead = context.lead;
     const templateData = context.variables || context.event || context;
@@ -228,6 +224,16 @@ export class ActionExecutor {
     });
 
     return { status: response.status, ok: response.ok };
+  }
+
+  private static async generateAiSummary(clientCode: string, context: any) {
+    const { generateConversationSummary } = await import("../ai/ai.service.ts");
+    const { updateAiSummary } = await import("../crm/lead.service.ts");
+
+    const leadId = context.lead._id.toString();
+    const summary = await generateConversationSummary(clientCode, leadId);
+
+    return await updateAiSummary(clientCode, leadId, summary);
   }
 
   public static resolveTemplate(template: any, context: any): any {

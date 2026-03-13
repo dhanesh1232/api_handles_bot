@@ -1,21 +1,6 @@
 import mongoose, { type Document } from "mongoose";
 
-export interface IBroadcast extends Document {
-  name: string;
-  templateId: mongoose.Types.ObjectId;
-  status:
-    | "pending"
-    | "processing"
-    | "completed"
-    | "failed"
-    | "partially_failed";
-  totalRecipients: number;
-  sentCount: number;
-  failedCount: number;
-  completedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// IBroadcast is now defined globally
 
 export const BroadcastSchema = new mongoose.Schema<IBroadcast>(
   {

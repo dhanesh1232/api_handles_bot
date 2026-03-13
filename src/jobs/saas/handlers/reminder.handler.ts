@@ -1,8 +1,7 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
-import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
-import { schemas } from "@models/saas/tenant.schemas";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 import { normalizePhone } from "@utils/phone";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
@@ -12,13 +11,7 @@ export class ReminderJobHandler extends JobHandler {
     // Note: globalIo is typically injected via worker registration
     const io = (global as any).io;
     const svc = createWhatsappService(io);
-    const tenantConn = await getTenantConnection(clientCode);
-
-    const Conversation = getTenantModel<IConversation>(
-      tenantConn,
-      "Conversation",
-      schemas.conversations,
-    );
+    const { Conversation, conn: tenantConn } = await getCrmModels(clientCode);
 
     const phone = normalizePhone(payload.phone);
     let conv = await Conversation.findOne({ phone });
@@ -37,7 +30,6 @@ export class ReminderJobHandler extends JobHandler {
     try {
       const { resolveUnifiedWhatsAppTemplate } =
         await import("@services/saas/whatsapp/template.service");
-      const { getCrmModels } = await import("@lib/tenant/get.crm.model");
       const { Lead } = await getCrmModels(clientCode);
 
       const lead = payload.leadId ? await Lead.findById(payload.leadId) : {};

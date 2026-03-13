@@ -87,6 +87,7 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
         "product",
         "service",
         "doctor",
+        "report_download",
         "webhook",
         "manual",
         "other",
@@ -142,7 +143,12 @@ const leadSchema: Schema<ILead> = new mongoose.Schema(
         durationMs: { type: Number },
       },
     ],
+    aiSummary: {
+      text: { type: String, default: "" },
+      updatedAt: { type: Date, default: null },
+    },
   },
+
   { timestamps: true },
 );
 

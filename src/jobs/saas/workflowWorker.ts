@@ -1,6 +1,5 @@
-import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 import { logger } from "@lib/logger";
-import { schemas } from "@models/saas/tenant.schemas";
 import { normalizePhone } from "@utils/phone";
 
 let globalIo: any = null;
@@ -37,12 +36,8 @@ export const executeWorkflow = async (data: any) => {
       const normalizedPhone = normalizePhone(phone);
 
       if (!targetConversationId) {
-        const tenantConn = await getTenantConnection(clientCode);
-        const Conversation = getTenantModel(
-          tenantConn,
-          "Conversation",
-          schemas.conversations,
-        );
+        const { Conversation, conn: tenantConn } =
+          await getCrmModels(clientCode);
 
         let conv = await Conversation.findOne({ phone: normalizedPhone });
         if (!conv) {
@@ -62,7 +57,8 @@ export const executeWorkflow = async (data: any) => {
       // New way: Resolve variables from context
       if (templateName && data.context) {
         try {
-          const tenantConn = await getTenantConnection(clientCode);
+          const { conn: tenantConn } = await getCrmModels(clientCode);
+
           const { resolveUnifiedWhatsAppTemplate } =
             await import("@services/saas/whatsapp/template.service");
 

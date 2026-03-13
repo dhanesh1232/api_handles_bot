@@ -1,6 +1,5 @@
 import { getCrmModels } from "@/lib/tenant/get.crm.model";
 import { BaseRepository } from "@/lib/tenant/base.repository";
-import { ISegment } from "@/model/saas/crm/segment.model";
 
 export class SegmentRepository extends BaseRepository<ISegment> {
   // Add specialized methods if needed

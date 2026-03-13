@@ -43,23 +43,6 @@ export { NotificationSDK } from "./notification.sdk.ts";
 export { JobSDK } from "./job.sdk.ts";
 export { CacheSDK } from "./cache.sdk.ts";
 
-// ─── Aggregate SDK type ────────────────────────────────────────────────────────
-
-export interface SDK {
-  lead: LeadSDK;
-  pipeline: PipelineSDK;
-  activity: ActivitySDK;
-  whatsapp: WhatsAppSDK;
-  media: MediaSDK;
-  storage: StorageSDK;
-  mail: MailSDK;
-  meet: MeetSDK;
-  automation: AutomationSDK;
-  notification: NotificationSDK;
-  jobs: JobSDK;
-  cache: CacheSDK;
-}
-
 // ─── Factory ───────────────────────────────────────────────────────────────────
 
 /**

@@ -1,7 +1,5 @@
 import { crmQueue } from "@/jobs/saas/crmWorker";
-import { getTenantConnection, getTenantModel } from "@/lib/connectionManager";
 import { getCrmModels } from "@/lib/tenant/get.crm.model";
-import { schemas } from "@/model/saas/tenant.schemas";
 import { EventBus } from "../event/eventBus.service.ts";
 
 export function calculateScore(lead: any, scoringConfig: any): number {
@@ -97,13 +95,7 @@ export function getScoreBreakdown(lead: any, scoringConfig: any) {
 }
 
 export async function recalculateLeadScore(clientCode: string, leadId: string) {
-  const tenantConn = await getTenantConnection(clientCode);
-  const ScoringConfig = getTenantModel<any>(
-    tenantConn,
-    "ScoringConfig",
-    schemas.scoringConfigs,
-  );
-  const { Lead } = await getCrmModels(clientCode);
+  const { ScoringConfig, Lead } = await getCrmModels(clientCode);
 
   const lead = await Lead.findById(leadId);
   if (!lead) return null;
@@ -163,12 +155,8 @@ export async function recalculateAllScores(clientCode: string) {
 }
 
 export async function getScoringConfig(clientCode: string) {
-  const tenantConn = await getTenantConnection(clientCode);
-  const ScoringConfig = getTenantModel<any>(
-    tenantConn,
-    "ScoringConfig",
-    schemas.scoringConfigs,
-  );
+  const { ScoringConfig } = await getCrmModels(clientCode);
+
   return ScoringConfig.findOne({ clientCode });
 }
 
@@ -179,12 +167,7 @@ export async function updateScoringConfig(
   coldThreshold: number,
   recalculateOnTriggers: string[],
 ) {
-  const tenantConn = await getTenantConnection(clientCode);
-  const ScoringConfig = getTenantModel<any>(
-    tenantConn,
-    "ScoringConfig",
-    schemas.scoringConfigs,
-  );
+  const { ScoringConfig, Lead } = await getCrmModels(clientCode);
 
   const config = await ScoringConfig.findOneAndUpdate(
     { clientCode },
@@ -193,7 +176,7 @@ export async function updateScoringConfig(
   );
 
   // Enqueue bulk recalculation job
-  const { Lead } = await getCrmModels(clientCode);
+
   const leads = await Lead.find(
     { clientCode, isArchived: { $ne: true } },
     "_id",

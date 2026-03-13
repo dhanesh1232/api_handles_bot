@@ -1,31 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface ISequenceEnrollment extends Document {
-  ruleId: mongoose.Types.ObjectId;
-  clientCode: string;
-  phone: string;
-  email?: string;
-  trigger?: string;
-  leadId?: mongoose.Types.ObjectId;
-  eventData?: any;
-  resolvedVariables?: any;
-  currentStep: number;
-  totalSteps: number;
-  status: "active" | "completed" | "exited" | "failed" | "paused";
-  stepResults: {
-    stepNumber: number;
-    status: "pending" | "completed" | "failed" | "skipped";
-    executedAt?: Date;
-    result?: any;
-    error?: string;
-  }[];
-  nextStepAt?: Date;
-  exitReason?: string;
-  completedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export const SequenceEnrollmentSchema = new Schema<ISequenceEnrollment>(
   {
     ruleId: { type: Schema.Types.ObjectId, required: true },

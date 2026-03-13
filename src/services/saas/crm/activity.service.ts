@@ -12,27 +12,7 @@ import { getCrmModels } from "@/lib/tenant/get.crm.model";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface LogActivityInput {
-  leadId: string;
-  type: ActivityType;
-  title: string;
-  body?: string;
-  metadata?: Record<string, unknown>;
-  performedBy?: string;
-}
-
-export interface TimelineItem {
-  id: string;
-  kind: "activity" | "note";
-  type?: ActivityType;
-  title: string;
-  body?: string;
-  metadata?: Record<string, unknown>;
-  isPinned?: boolean;
-  performedBy?: string;
-  createdBy?: string;
-  createdAt: Date;
-}
+// LogActivityInput and TimelineItem are now defined globally in src/types/global.d.ts
 
 // ─── Activity: log ────────────────────────────────────────────────────────────
 

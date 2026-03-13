@@ -5,7 +5,8 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import * as automationService from "../../../services/saas/crm/automation.service.ts";
+import { getCrmModels } from "@/lib/tenant/get.crm.model";
+import * as automationService from "@/services/saas/crm/automation.service";
 
 const router = Router();
 
@@ -235,15 +236,7 @@ router.get("/:ruleId/enrollments", async (req: Request, res: Response) => {
     const { ruleId } = req.params;
     const { status, page = 1, limit = 20, startDate, endDate } = req.query;
 
-    const { getTenantConnection, getTenantModel } =
-      await import("../../../lib/connectionManager.ts");
-    const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
-    const tenantConn = await getTenantConnection(clientCode);
-    const SequenceEnrollment = getTenantModel<any>(
-      tenantConn,
-      "SequenceEnrollment",
-      schemas.sequenceEnrollments,
-    );
+    const { SequenceEnrollment } = await getCrmModels(clientCode);
 
     const query: any = { clientCode, ruleId };
     if (status) query.status = status;
@@ -285,15 +278,7 @@ router.get(
       const clientCode = req.clientCode!;
       const { enrollmentId } = req.params;
 
-      const { getTenantConnection, getTenantModel } =
-        await import("../../../lib/connectionManager.ts");
-      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
-      const tenantConn = await getTenantConnection(clientCode);
-      const SequenceEnrollment = getTenantModel<any>(
-        tenantConn,
-        "SequenceEnrollment",
-        schemas.sequenceEnrollments,
-      );
+      const { SequenceEnrollment } = await getCrmModels(clientCode);
 
       const enrollment = await SequenceEnrollment.findOne({
         _id: enrollmentId,
@@ -323,15 +308,7 @@ router.post(
       const clientCode = req.clientCode!;
       const { ruleId, enrollmentId } = req.params;
 
-      const { getTenantConnection, getTenantModel } =
-        await import("../../../lib/connectionManager.ts");
-      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
-      const tenantConn = await getTenantConnection(clientCode);
-      const SequenceEnrollment = getTenantModel<any>(
-        tenantConn,
-        "SequenceEnrollment",
-        schemas.sequenceEnrollments,
-      );
+      const { SequenceEnrollment } = await getCrmModels(clientCode);
 
       const enrollment = await SequenceEnrollment.findOneAndUpdate(
         { _id: enrollmentId, ruleId, clientCode },
@@ -363,15 +340,7 @@ router.post(
       const clientCode = req.clientCode!;
       const { ruleId, enrollmentId } = req.params;
 
-      const { getTenantConnection, getTenantModel } =
-        await import("../../../lib/connectionManager.ts");
-      const { schemas } = await import("../../../model/saas/tenant.schemas.ts");
-      const tenantConn = await getTenantConnection(clientCode);
-      const SequenceEnrollment = getTenantModel<any>(
-        tenantConn,
-        "SequenceEnrollment",
-        schemas.sequenceEnrollments,
-      );
+      const { SequenceEnrollment } = await getCrmModels(clientCode);
 
       const enrollment = await SequenceEnrollment.findOne({
         _id: enrollmentId,
@@ -390,7 +359,7 @@ router.post(
         await enrollment.save();
 
         // Enqueue next step
-        const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+        const { crmQueue } = await import("@/jobs/saas/crmWorker");
         let delayMs = 0;
         if (
           enrollment.nextStepAt &&

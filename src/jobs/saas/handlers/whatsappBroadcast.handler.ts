@@ -1,11 +1,9 @@
 import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
-import { getTenantConnection, getTenantModel } from "@lib/connectionManager";
-import { schemas } from "@models/saas/tenant.schemas";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 import { normalizePhone } from "@utils/phone";
 import { createNotification } from "@services/saas/crm/notification.service";
-import type { IBroadcast } from "@models/saas/whatsapp/broadcast.model";
 
 export class WhatsAppBroadcastJobHandler extends JobHandler {
   async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
@@ -13,18 +11,11 @@ export class WhatsAppBroadcastJobHandler extends JobHandler {
       payload;
     const io = (global as any).io;
     const svc = createWhatsappService(io);
-    const tenantConn = await getTenantConnection(clientCode);
-
-    const Broadcast = getTenantModel<IBroadcast>(
-      tenantConn,
-      "Broadcast",
-      schemas.broadcasts,
-    );
-    const Conversation = getTenantModel<IConversation>(
-      tenantConn,
-      "Conversation",
-      schemas.conversations,
-    );
+    const {
+      Broadcast,
+      Conversation,
+      conn: tenantConn,
+    } = await getCrmModels(clientCode);
 
     let success = false;
     const normalizedPhone = normalizePhone(phone);

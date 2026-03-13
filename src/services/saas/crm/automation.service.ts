@@ -6,18 +6,12 @@
  */
 
 import mongoose from "mongoose";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 import { getAutomationRuleRepo } from "./automation.repository";
-import { ConversationSchema } from "../../../model/saas/tenant.schemas.ts";
-
-import { normalizePhone } from "../../../utils/phone.ts";
-import { createSDK } from "../../../sdk/index.ts";
-import { ConditionEvaluator } from "../automation/conditionEvaluator.service.ts";
-import { ActionExecutor } from "../automation/actionExecutor.service.ts";
+import { normalizePhone } from "@utils/phone";
+import { createSDK } from "@/sdk/index";
+import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
+import { ActionExecutor } from "../automation/actionExecutor.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -453,7 +447,8 @@ async function validateActionBeforeEnqueue(
     if (cfg && cfg.templateName) {
       const { resolveUnifiedWhatsAppTemplate, resolveUnifiedEmailTemplate } =
         await import("../whatsapp/template.service.ts");
-      const tenantConn = await getTenantConnection(clientCode);
+      const { conn: tenantConn } = await getCrmModels(clientCode);
+
       try {
         if (action.type === "send_whatsapp") {
           const { resolvedVariables, languageCode, isReady, contextSnapshot } =

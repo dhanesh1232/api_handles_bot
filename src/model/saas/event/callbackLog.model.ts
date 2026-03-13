@@ -1,21 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
-
-export interface ICallbackLog extends Document {
-  clientCode: string;
-  callbackUrl: string;
-  method: string;
-  payload?: any;
-  jobId?: string;
-  enrollmentId?: string;
-  responseStatus: number;
-  responseBody: string;
-  status: "sent" | "failed" | "pending_retry";
-  attempts: number;
-  lastAttemptAt?: Date;
-  signature?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import mongoose, { Schema } from "mongoose";
 
 export const callbackLogSchema = new Schema<ICallbackLog>(
   {

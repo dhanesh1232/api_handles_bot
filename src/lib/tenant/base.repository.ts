@@ -74,7 +74,7 @@ export class BaseRepository<T> {
   async update(
     id: string | Types.ObjectId,
     updates: UpdateQuery<T>,
-    options: QueryOptions = { new: true },
+    options: QueryOptions = { returnDocument: "after" },
   ): Promise<T | null> {
     return this.model
       .findOneAndUpdate(
@@ -93,7 +93,7 @@ export class BaseRepository<T> {
     updates: UpdateQuery<T>,
     options: QueryOptions = {
       upsert: true,
-      new: true,
+      returnDocument: "after",
       setDefaultsOnInsert: true,
     },
   ): Promise<T | null> {

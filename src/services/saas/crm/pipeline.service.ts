@@ -636,6 +636,7 @@ export const getBoardSummary = async (
  * @param {string} pipelineId - The ID of the pipeline.
  * @returns {Promise<ForecastRow[]>}
  */
+// ForecastRow moved to global.d.ts
 export const getRevenueForecast = async (
   clientCode: string,
   pipelineId: string,
@@ -667,7 +668,7 @@ export const getRevenueForecast = async (
   ]);
 
   const statsMap = new Map(agg.map((r: any) => [r._id.toString(), r]));
-  return stages.map((stage) => {
+  return stages.map((stage: IPipelineStage) => {
     const stats: any = statsMap.get(stage._id.toString());
     const totalValue = stats?.totalValue ?? 0;
     return {

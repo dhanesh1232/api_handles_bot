@@ -1,10 +1,6 @@
-import { crmQueue } from "../../../jobs/saas/crmWorker.ts";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
-import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
+import { crmQueue } from "@/jobs/saas/crmWorker";
+import { getCrmModels } from "@/lib/tenant/get.crm.model";
+
 import { ConditionEvaluator } from "./conditionEvaluator.service.ts";
 import { ActionExecutor } from "./actionExecutor.service.ts";
 
@@ -14,31 +10,24 @@ export async function enrollInSequence(
   lead: any,
   eventVariables: any = {},
 ): Promise<string> {
-  const { AutomationRule } = await getCrmModels(clientCode);
+  const { AutomationRule, SequenceEnrollment } = await getCrmModels(clientCode);
   const rule = await AutomationRule.findById(ruleId);
 
   if (!rule || !rule.isSequence || !rule.steps || rule.steps.length === 0) {
     throw new Error("Invalid rule or not a sequence");
   }
 
-  const tenantConn = await getTenantConnection(clientCode);
-  const SequenceEnrollment = getTenantModel<any>(
-    tenantConn,
-    "SequenceEnrollment",
-    schemas.sequenceEnrollments,
-  );
-
-  const firstStep = rule.steps[0];
+  const firstStep = rule?.steps[0];
   const nextStepAt = new Date(
-    Date.now() + (firstStep.delayMinutes || 0) * 60 * 1000,
+    Date.now() + (firstStep?.delayMinutes || 0) * 60 * 1000,
   );
 
   const enrollment = await SequenceEnrollment.create({
-    ruleId: rule._id,
+    ruleId: rule?._id,
     clientCode,
     phone: lead.phone,
     email: lead.email,
-    trigger: rule.trigger,
+    trigger: rule?.trigger,
     leadId: lead._id,
     eventData: eventVariables,
     resolvedVariables: {
@@ -79,13 +68,8 @@ export async function executeStep(
   stepNumber: number,
   io?: any,
 ): Promise<void> {
-  const tenantConn = await getTenantConnection(clientCode);
-  const SequenceEnrollment = getTenantModel<any>(
-    tenantConn,
-    "SequenceEnrollment",
-    schemas.sequenceEnrollments,
-  );
-  const { AutomationRule, Lead } = await getCrmModels(clientCode);
+  const { AutomationRule, Lead, SequenceEnrollment } =
+    await getCrmModels(clientCode);
 
   const enrollment = await SequenceEnrollment.findById(enrollmentId);
   if (!enrollment || enrollment.status !== "active") return;

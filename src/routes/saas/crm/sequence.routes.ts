@@ -1,11 +1,7 @@
 import { Router } from "express";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
-import { enrollInSequence } from "../../../services/saas/automation/sequenceEngine.service.ts";
-import { getLeadById } from "../../../services/saas/crm/lead.service.ts";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
+import { enrollInSequence } from "@/services/saas/automation/sequenceEngine.service";
+import { getLeadById } from "@/services/saas/crm/lead.service";
 
 const sequenceRouter = Router();
 
@@ -50,12 +46,7 @@ sequenceRouter.delete("/unenroll/:enrollmentId", async (req: any, res: any) => {
   const { enrollmentId } = req.params;
 
   try {
-    const tenantConn = await getTenantConnection(clientCode);
-    const SequenceEnrollment = getTenantModel<any>(
-      tenantConn,
-      "SequenceEnrollment",
-      schemas.sequenceEnrollments,
-    );
+    const { SequenceEnrollment } = await getCrmModels(clientCode);
 
     const enrollment = await SequenceEnrollment.findOne({
       _id: enrollmentId,
@@ -86,13 +77,7 @@ sequenceRouter.get("/lead/:leadId", async (req: any, res: any) => {
   const { leadId } = req.params;
 
   try {
-    const tenantConn = await getTenantConnection(clientCode);
-    const SequenceEnrollment = getTenantModel<any>(
-      tenantConn,
-      "SequenceEnrollment",
-      schemas.sequenceEnrollments,
-    );
-
+    const { SequenceEnrollment } = await getCrmModels(clientCode);
     const enrollments = await SequenceEnrollment.find({
       leadId,
       clientCode,

@@ -95,49 +95,6 @@ const fireEvent = async (
   }
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface CreateLeadInput {
-  firstName: string;
-  lastName?: string;
-  email?: string;
-  phone: string;
-  source?: LeadSource;
-  dealValue?: number;
-  currency?: string;
-  dealTitle?: string;
-  assignedTo?: string;
-  tags?: string[];
-  pipelineId?: string;
-  stageId?: string;
-  metadata?: {
-    refs?: {
-      appointmentId?: string;
-      bookingId?: string;
-      orderId?: string;
-      productId?: string;
-      serviceId?: string;
-      meetingId?: string;
-      [key: string]: string | undefined;
-    };
-    extra?: Record<string, string | number | boolean | null>;
-  };
-  dynamicFields?: Record<string, any>;
-}
-
-export interface UpdateLeadInput {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
-  source?: LeadSource;
-  dealValue?: number;
-  currency?: string;
-  dealTitle?: string;
-  assignedTo?: string;
-  tags?: string[];
-}
-
 // ─── 1. Create lead ───────────────────────────────────────────────────────────
 
 export const createLead = async (
@@ -831,3 +788,23 @@ function buildMetadataRefs(
   }
   return result;
 }
+
+export const updateAiSummary = async (
+  clientCode: string,
+  leadId: string,
+  summaryText: string,
+) => {
+  const { Lead } = await getCrmModels(clientCode);
+  return await Lead.findByIdAndUpdate(
+    leadId,
+    {
+      $set: {
+        aiSummary: {
+          text: summaryText,
+          updatedAt: new Date(),
+        },
+      },
+    },
+    { new: true },
+  );
+};

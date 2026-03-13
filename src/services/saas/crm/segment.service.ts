@@ -1,8 +1,6 @@
 import { getCrmModels } from "@/lib/tenant/get.crm.model";
 import { getSegmentRepo } from "./segment.repository";
 import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
-import { crmQueue } from "@/jobs/saas/crmWorker";
-import { ISegment } from "@/model/saas/crm/segment.model";
 
 export class SegmentService {
   constructor(private readonly clientCode: string) {}

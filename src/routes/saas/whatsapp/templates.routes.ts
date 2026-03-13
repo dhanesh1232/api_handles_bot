@@ -1,12 +1,10 @@
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
+
 import {
   checkTemplateUsageInAutomations,
   createTemplate,
@@ -36,7 +34,7 @@ export const createTemplateRouter = (io: Server) => {
     async (req: Request, res: Response) => {
       try {
         const sReq = req as SaasRequest;
-        const tenantConn = await getTenantConnection(sReq.clientCode!);
+        const { conn: tenantConn } = await getCrmModels(sReq.clientCode!);
         const collections = await getTenantCollections(
           tenantConn,
           sReq.clientCode!,
@@ -55,7 +53,7 @@ export const createTemplateRouter = (io: Server) => {
     async (req: Request, res: Response) => {
       try {
         const sReq = req as SaasRequest;
-        const tenantConn = await getTenantConnection(sReq.clientCode!);
+        const { conn: tenantConn } = await getCrmModels(sReq.clientCode!);
         const fields = await getCollectionFields(
           tenantConn,
           sReq.clientCode!,
@@ -107,7 +105,7 @@ export const createTemplateRouter = (io: Server) => {
           });
         }
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
         const result = await syncTemplatesFromMeta(tenantConn, token, wabaId);
 
         res.json({ success: true, data: result });
@@ -130,12 +128,7 @@ export const createTemplateRouter = (io: Server) => {
       const mappingStatus = req.query.mappingStatus as string | undefined;
       const channel = req.query.channel as string | undefined;
 
-      const tenantConn = await getTenantConnection(clientCode);
-      const Template = getTenantModel<ITemplate>(
-        tenantConn,
-        "Template",
-        schemas.templates,
-      );
+      const { Template, conn: tenantConn } = await getCrmModels(clientCode);
 
       const query: any = {};
       if (status) query.status = status;
@@ -162,12 +155,7 @@ export const createTemplateRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const templateName = req.params.templateName as string;
 
-        const tenantConn = await getTenantConnection(clientCode);
-        const Template = getTenantModel<ITemplate>(
-          tenantConn,
-          "Template",
-          schemas.templates,
-        );
+        const { Template, conn: tenantConn } = await getCrmModels(clientCode);
 
         // Try searching by ID if it's a valid ObjectId, otherwise search by name
         let query: any = { name: templateName };
@@ -204,7 +192,7 @@ export const createTemplateRouter = (io: Server) => {
         const templateName = req.params.templateName as string;
         const { mappings, onEmptyVariable } = req.body;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
         const result = await saveVariableMapping(
           tenantConn,
           templateName,
@@ -230,7 +218,7 @@ export const createTemplateRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const templateName = req.params.templateName as string;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
         const { isReady } = await resolveUnifiedWhatsAppTemplate(
           tenantConn,
           templateName,
@@ -256,7 +244,7 @@ export const createTemplateRouter = (io: Server) => {
         const templateName = req.params.templateName as string;
         const { context: inputContext } = req.body;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { Template, conn: tenantConn } = await getCrmModels(clientCode);
         const { resolvedVariables } = await resolveUnifiedWhatsAppTemplate(
           tenantConn,
           templateName,
@@ -264,11 +252,6 @@ export const createTemplateRouter = (io: Server) => {
           inputContext?.vars || {},
         );
 
-        const Template = getTenantModel<ITemplate>(
-          tenantConn,
-          "Template",
-          schemas.templates,
-        );
         const template = await Template.findOne({ name: templateName });
 
         let previewText = template?.bodyText || "";
@@ -295,7 +278,8 @@ export const createTemplateRouter = (io: Server) => {
       const token = secrets?.getDecrypted("whatsappToken") || null;
       const wabaId = secrets?.getDecrypted("whatsappBusinessId") || null;
 
-      const tenantConn = await getTenantConnection(clientCode);
+      const { conn: tenantConn } = await getCrmModels(clientCode);
+
       const result = await createTemplate(
         tenantConn,
         token,
@@ -327,7 +311,8 @@ export const createTemplateRouter = (io: Server) => {
         const token = secrets?.getDecrypted("whatsappToken") || null;
         const wabaId = secrets?.getDecrypted("whatsappBusinessId") || null;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
+
         const result = await updateTemplate(
           tenantConn,
           token,
@@ -356,7 +341,8 @@ export const createTemplateRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const templateName = req.params.templateName as string;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
+
         const usage = await checkTemplateUsageInAutomations(
           tenantConn,
           templateName,
@@ -384,7 +370,7 @@ export const createTemplateRouter = (io: Server) => {
         const token = secrets?.getDecrypted("whatsappToken") || null;
         const wabaId = secrets?.getDecrypted("whatsappBusinessId") || null;
 
-        const tenantConn = await getTenantConnection(clientCode);
+        const { conn: tenantConn } = await getCrmModels(clientCode);
 
         if (force) {
           const cleanup = await removeTemplateFromAutomations(

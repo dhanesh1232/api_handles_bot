@@ -3,7 +3,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { withSDK } from "../../../middleware/withSDK.ts";
+import { withSDK } from "@/middleware/withSDK";
 
 const router = Router();
 router.use(withSDK()); // stamps req.sdk once for every route below
@@ -273,8 +273,14 @@ router.get(
         success: true,
         data: {
           rows,
-          grandTotal: rows.reduce((sum, r) => sum + r.expectedRevenue, 0),
-          totalPipeline: rows.reduce((sum, r) => sum + r.totalValue, 0),
+          grandTotal: rows.reduce(
+            (sum: number, r: any) => sum + r.expectedRevenue,
+            0,
+          ),
+          totalPipeline: rows.reduce(
+            (sum: number, r: any) => sum + r.totalValue,
+            0,
+          ),
         },
       });
     } catch (err: unknown) {

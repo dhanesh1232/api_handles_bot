@@ -10,7 +10,7 @@
  * central services DB.
  */
 
-import mongoose, { type Model } from "mongoose";
+import mongoose from "mongoose";
 import { AutomationRuleSchema } from "@/model/saas/crm/automationRule.model";
 import { LeadSchema } from "@/model/saas/crm/lead.model";
 import { LeadActivitySchema } from "@/model/saas/crm/leadActivity.model";
@@ -18,54 +18,32 @@ import { LeadNoteSchema } from "@/model/saas/crm/leadNote.model";
 import { NotificationSchema } from "@/model/saas/crm/notification.model";
 import { PipelineSchema } from "@/model/saas/crm/pipeline.model";
 import { PipelineStageSchema } from "@/model/saas/crm/pipelineStage.model";
-import { SegmentSchema, type ISegment } from "@/model/saas/crm/segment.model";
-import {
-  callbackLogSchema,
-  type ICallbackLog,
-} from "@/model/saas/event/callbackLog.model";
-import {
-  eventLogSchema,
-  type IEventLog,
-} from "@/model/saas/event/eventLog.model";
+import { SegmentSchema } from "@/model/saas/crm/segment.model";
+import { callbackLogSchema } from "@/model/saas/event/callbackLog.model";
+import { eventLogSchema } from "@/model/saas/event/eventLog.model";
 import {
   ConversationSchema,
   MessageSchema,
   CustomEventDefSchema,
+  SequenceEnrollmentSchema,
+  TemplateSchema,
+  BroadcastSchema,
+  ScoringConfigSchema,
 } from "@/model/saas/tenant.schemas";
 import { MeetingSchema } from "@/model/saas/meet/meeting.model";
 import { getTenantConnection } from "@lib/connectionManager";
 import { Client } from "@/model/clients/client";
 
-// ─── Model registry per connection ────────────────────────────────────────────
-// Each tenant Connection caches its own compiled models.
-// We reuse them on subsequent calls — no re-compilation overhead.
+// --- Models registry per connection ---
+// CrmModels interface is now defined globally in src/types/global.d.ts
 
 function getOrCreate<T>(
   conn: mongoose.Connection,
   name: string,
   schema: mongoose.Schema<T>,
-): Model<T> {
-  if (conn.models[name]) return conn.models[name] as Model<T>;
+): mongoose.Model<T> {
+  if (conn.models[name]) return conn.models[name] as mongoose.Model<T>;
   return conn.model<T>(name, schema);
-}
-
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-export interface CrmModels {
-  Lead: Model<ILead>;
-  Pipeline: Model<IPipeline>;
-  PipelineStage: Model<IPipelineStage>;
-  LeadActivity: Model<ILeadActivity>;
-  LeadNote: Model<ILeadNote>;
-  AutomationRule: Model<IAutomationRule>;
-  Meeting: Model<IMeeting>;
-  Notification: Model<INotification>;
-  EventLog: Model<IEventLog>;
-  CallbackLog: Model<ICallbackLog>;
-  CustomEventDef: Model<ICustomEventDef>;
-  Segment: Model<ISegment>;
-  Conversation: Model<IConversation>;
-  Message: Model<IMessage>;
 }
 
 /**
@@ -73,7 +51,8 @@ export interface CrmModels {
  * The connection is cached — subsequent calls for the same clientCode are free.
  */
 export async function getCrmModels(clientCode: string): Promise<CrmModels> {
-  const conn = await getTenantConnection(clientCode);
+  const code = clientCode.toUpperCase();
+  const conn = await getTenantConnection(code);
 
   return {
     Lead: getOrCreate<ILead>(conn, "Lead", LeadSchema),
@@ -118,6 +97,15 @@ export async function getCrmModels(clientCode: string): Promise<CrmModels> {
       ConversationSchema,
     ),
     Message: getOrCreate<IMessage>(conn, "Message", MessageSchema),
+    Template: getOrCreate<ITemplate>(conn, "Template", TemplateSchema),
+    Broadcast: getOrCreate<IBroadcast>(conn, "Broadcast", BroadcastSchema),
+    SequenceEnrollment: getOrCreate<ISequenceEnrollment>(
+      conn,
+      "SequenceEnrollment",
+      SequenceEnrollmentSchema,
+    ),
+    ScoringConfig: getOrCreate<any>(conn, "ScoringConfig", ScoringConfigSchema),
+    conn,
   };
 }
 
@@ -125,7 +113,8 @@ export async function getCrmModels(clientCode: string): Promise<CrmModels> {
  * Returns basic configuration for the client (name, etc.)
  */
 export async function getClientConfig(clientCode: string) {
-  const client = await Client.findOne({ clientCode: clientCode.toUpperCase() });
+  const code = clientCode.toUpperCase();
+  const client = await Client.findOne({ clientCode: code });
   return {
     name: client?.name || "Our Business",
     businessEmail: client?.business?.email,

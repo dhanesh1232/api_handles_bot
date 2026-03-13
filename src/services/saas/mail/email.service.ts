@@ -5,20 +5,6 @@ import { tenantLogger } from "@lib/logger";
 /**
  * Email Marketing & Transactional Service
  */
-
-interface EmailDetails {
-  to: string;
-  subject: string;
-  html?: string;
-  text?: string;
-}
-
-interface CampaignDetails {
-  recipients: string[];
-  subject: string;
-  html: string;
-}
-
 export const createEmailService = () => {
   /**
    * Internal helper to get MailClient for a client
@@ -32,6 +18,12 @@ export const createEmailService = () => {
 
   /**
    * Send a single email
+   * @param clientCode - The client code
+   * @param to - The recipient email address
+   * @param subject - The email subject
+   * @param html - The email HTML content
+   * @param text - The email text content
+   * @returns The email result
    */
   const sendEmail = async (
     clientCode: string,

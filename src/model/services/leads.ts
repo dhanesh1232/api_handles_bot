@@ -16,146 +16,15 @@ const statuses = [
   "not-interested",
 ];
 
-export interface IAttachment {
-  fileUrl?: string;
-  fileName?: string;
-  uploadedAt?: Date;
-}
+// IAttachment moved to global.d.ts
 
-export interface IFollowUp {
-  message: string;
-  method: "call" | "whatsapp" | "email" | "sms" | "in-person" | "other";
-  outcome?:
-    | "connected"
-    | "not-answered"
-    | "interested"
-    | "busy"
-    | "not-interested"
-    | "follow-up-scheduled"
-    | "wrong-number"
-    | "converted"
-    | null;
-  priority?: "low" | "normal" | "high" | "urgent";
-  date?: Date;
-  nextFollowUpDate?: Date | null;
-  createdBy?: mongoose.Types.ObjectId | null;
-  attachments?: IAttachment[];
-}
+// IFollowUp moved to global.d.ts
 
-export interface IActivity {
-  type?:
-    | "created"
-    | "status-changed"
-    | "follow-up"
-    | "note-added"
-    | "assigned"
-    | "proposal-sent"
-    | "file-uploaded"
-    | "price-quoted";
-  message?: string;
-  createdBy?: mongoose.Types.ObjectId | null;
-  meta?: any;
-  createdAt?: Date;
-}
+// IActivity moved to global.d.ts
 
-export interface INote {
-  text: string;
-  createdBy?: mongoose.Types.ObjectId | null;
-  visibility?: "internal" | "public";
-  createdAt?: Date;
-  updatedAt?: Date | null;
-}
+// INote moved to global.d.ts
 
-export interface IServiceLead extends Document {
-  title: string;
-  name?: string | null;
-  leadScore?: number;
-  rating?: number;
-  reviewsCount?: number;
-
-  street?: string | null;
-  city?: string | null;
-  state?: string | null;
-  countryCode?: string | null;
-  website?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  categoryName?: string | null;
-  url?: string | null;
-
-  status?: string;
-
-  servicesOffered?: Array<{
-    name?: string;
-    description?: string;
-    price?: number;
-  }>;
-
-  serviceSelected?: string | null;
-
-  followUps?: IFollowUp[];
-
-  followUpCount?: number;
-  maxFollowUpsAllowed?: number;
-
-  nextFollowUpDate?: Date | null;
-  lastFollowUpDate?: Date | null;
-
-  followUpOverdue?: boolean;
-
-  firstContactDue?: Date | null;
-  firstContactAt?: Date | null;
-  firstContactDone?: boolean;
-  firstContactOverdue?: boolean;
-
-  research?: {
-    status?: boolean;
-    notes?: string | null;
-    done?: boolean | null;
-  };
-
-  lostReason?:
-    | "budget-too-low"
-    | "not-interested"
-    | "found-competitor"
-    | "no-response"
-    | "timing-issue"
-    | "wrong-fit"
-    | "other"
-    | null;
-
-  quotedPrice?: number | null;
-  finalPrice?: number | null;
-  currency?: string;
-
-  dealProbability?: number;
-
-  attachments?: IAttachment[];
-
-  reminderDate?: Date | null;
-  callBackDate?: Date | null;
-
-  notes?: INote[];
-
-  assignedTo?: mongoose.Types.ObjectId | null;
-
-  source?:
-    | "apify"
-    | "manual"
-    | "referral"
-    | "import"
-    | "website"
-    | "google-map"
-    | "other";
-
-  activity?: IActivity[];
-  timeline?: string | null;
-  purpose?: string | null;
-
-  tags?: string[];
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+// IServiceLead moved to global.d.ts
 
 const FollowUpSchema = new mongoose.Schema(
   {

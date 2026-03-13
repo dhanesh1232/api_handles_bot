@@ -3,8 +3,8 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { withSDK } from "../../../middleware/withSDK.ts";
-import type { LogActivityInput } from "../../../services/saas/crm/activity.service.ts";
+import { withSDK } from "@/middleware/withSDK";
+// LogActivityInput is now global
 
 const router = Router();
 router.use(withSDK()); // stamps req.sdk once for every route below

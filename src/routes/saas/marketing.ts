@@ -1,8 +1,7 @@
 import express, { type Response } from "express";
-import { getTenantConnection } from "@/lib/connectionManager";
 import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
 import { Client } from "@/model/clients/client";
-import { schemas } from "@/model/saas/tenant.schemas";
+import { getCrmModels } from "@/lib/tenant/get.crm.model";
 import { createEmailService } from "@/services/saas/mail/email.service";
 import { createGoogleMeetService } from "@/services/saas/meet/google.meet.service";
 
@@ -24,8 +23,7 @@ router.get(
           .status(401)
           .json({ success: false, message: "Unauthorized" });
 
-      const conn = await getTenantConnection(clientCode);
-      const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
+      const { Lead } = await getCrmModels(clientCode);
 
       const leads = await Lead.find({}).sort({ createdAt: -1 });
       res.json({ success: true, data: leads });
@@ -52,8 +50,7 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
-      const conn = await getTenantConnection(clientCode);
-      const Lead = conn.models["Lead"] || conn.model("Lead", schemas.leads);
+      const { Lead } = await getCrmModels(clientCode);
 
       const lead = await Lead.findByIdAndUpdate(
         id,

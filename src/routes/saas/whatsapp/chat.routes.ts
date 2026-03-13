@@ -2,13 +2,11 @@ import express, { type Request, type Response } from "express";
 import multer from "multer";
 import { Server } from "socket.io";
 import { dbConnect } from "../../../lib/config.ts";
-import {
-  getTenantConnection,
-  getTenantModel,
-} from "../../../lib/connectionManager.ts";
+import { getCrmModels } from "../../../lib/tenant/get.crm.model.ts";
+
 import { validateClientKey } from "../../../middleware/saasAuth.ts";
 import { ClientSecrets } from "../../../model/clients/secrets.ts";
-import { schemas } from "../../../model/saas/tenant.schemas.ts";
+
 import { optimizeAndUploadMedia } from "../../../services/saas/media/media.service.ts";
 import { createSDK } from "../../../sdk/index.ts";
 
@@ -30,12 +28,8 @@ export const createChatRouter = (io: Server) => {
       try {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
-        const conn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          conn,
-          "Conversation",
-          schemas.conversations,
-        );
+        const { Conversation: ConversationModel } =
+          await getCrmModels(clientCode);
 
         const conversations = await ConversationModel.find({}).sort({
           lastMessageAt: -1,
@@ -61,12 +55,7 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
-        const conn = await getTenantConnection(clientCode);
-        const MessageModel = getTenantModel<IMessage>(
-          conn,
-          "Message",
-          schemas.messages,
-        );
+        const { Message: MessageModel } = await getCrmModels(clientCode);
 
         const messages = await MessageModel.find({ conversationId: id as any })
           .populate("replyTo")
@@ -95,12 +84,8 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
-        const conn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          conn,
-          "Conversation",
-          schemas.conversations,
-        );
+        const { Conversation: ConversationModel } =
+          await getCrmModels(clientCode);
 
         await ConversationModel.updateOne(
           { _id: id as any },
@@ -128,19 +113,13 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { phone, name } = req.body;
 
-        const conn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          conn,
-          "Conversation",
-          schemas.conversations,
-        );
+        const { Conversation: ConversationModel, Lead } =
+          await getCrmModels(clientCode);
 
         let conversation = await ConversationModel.findOne({ phone });
         if (!conversation) {
           // Attempt to find lead for a better name
-          const { getCrmModels } =
-            await import("../../../lib/tenant/get.crm.model.ts");
-          const { Lead } = await getCrmModels(clientCode);
+
           const lead = await Lead.findOne({ phone, clientCode }).lean();
 
           let resolvedName = name;
@@ -191,17 +170,8 @@ export const createChatRouter = (io: Server) => {
         const clientCode = sReq.clientCode!;
         const { id } = req.params;
 
-        const conn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          conn,
-          "Conversation",
-          schemas.conversations,
-        );
-        const MessageModel = getTenantModel<IMessage>(
-          conn,
-          "Message",
-          schemas.messages,
-        );
+        const { Conversation: ConversationModel, Message: MessageModel } =
+          await getCrmModels(clientCode);
 
         await MessageModel.deleteMany({ conversationId: id });
         await ConversationModel.findByIdAndDelete(id);
@@ -236,17 +206,8 @@ export const createChatRouter = (io: Server) => {
             .json({ success: false, message: "Invalid or empty IDs" });
         }
 
-        const conn = await getTenantConnection(clientCode);
-        const ConversationModel = getTenantModel<IConversation>(
-          conn,
-          "Conversation",
-          schemas.conversations,
-        );
-        const MessageModel = getTenantModel<IMessage>(
-          conn,
-          "Message",
-          schemas.messages,
-        );
+        const { Conversation: ConversationModel, Message: MessageModel } =
+          await getCrmModels(clientCode);
 
         await MessageModel.deleteMany({ conversationId: { $in: ids } });
         await ConversationModel.deleteMany({ _id: { $in: ids } });
@@ -349,18 +310,13 @@ export const createChatRouter = (io: Server) => {
         let targetConvId = conversationId;
 
         if (!targetConvId && to) {
-          const tenantConn = await getTenantConnection(clientCode);
-          const ConversationModel = getTenantModel<IConversation>(
-            tenantConn,
-            "Conversation",
-            schemas.conversations,
-          );
+          const { Conversation: ConversationModel, Lead } =
+            await getCrmModels(clientCode);
+
           let conv = await ConversationModel.findOne({ phone: to });
           if (!conv) {
             // Attempt to find lead for name resolution
-            const { getCrmModels } =
-              await import("../../../lib/tenant/get.crm.model.ts");
-            const { Lead } = await getCrmModels(clientCode);
+
             const lead = await Lead.findOne({ phone: to, clientCode }).lean();
 
             let resolvedName = "Customer";
@@ -420,13 +376,7 @@ export const createChatRouter = (io: Server) => {
         const { messageId } = req.params;
         const { isStarred } = req.body;
 
-        const conn = await getTenantConnection(clientCode);
-        const MessageModel = getTenantModel<IMessage>(
-          conn,
-          "Message",
-          schemas.messages,
-        );
-
+        const { Message: MessageModel } = await getCrmModels(clientCode);
         const message = await MessageModel.findById(messageId as string);
         if (!message) {
           return res
@@ -505,17 +455,8 @@ export const createChatRouter = (io: Server) => {
           });
         }
 
-        const conn = await getTenantConnection(clientCode);
-        const BroadcastModel = getTenantModel(
-          conn,
-          "Broadcast",
-          schemas.broadcasts,
-        );
-        const TemplateModel = getTenantModel<ITemplate>(
-          conn,
-          "Template",
-          schemas.templates,
-        );
+        const { Broadcast: BroadcastModel, Template: TemplateModel } =
+          await getCrmModels(clientCode);
 
         let template = await TemplateModel.findOne({
           name: templateName,
@@ -584,12 +525,7 @@ export const createChatRouter = (io: Server) => {
       try {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode!;
-        const conn = await getTenantConnection(clientCode);
-        const BroadcastModel = getTenantModel(
-          conn,
-          "Broadcast",
-          schemas.broadcasts,
-        );
+        const { Broadcast: BroadcastModel } = await getCrmModels(clientCode);
 
         const broadcasts = await BroadcastModel.find({}).sort({
           createdAt: -1,

@@ -1,22 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
-
-export interface ISegment extends Document {
-  clientCode: string;
-  name: string;
-  description?: string;
-  color: string;
-  rules: {
-    field: string;
-    operator: string;
-    value: any;
-  }[];
-  logic: "AND" | "OR";
-  memberCount: number;
-  lastCalculatedAt: Date;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { Schema } from "mongoose";
 
 const segmentSchema = new Schema<ISegment>(
   {

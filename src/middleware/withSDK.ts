@@ -22,7 +22,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Server } from "socket.io";
 import type { Logger } from "pino";
-import { createSDK, type SDK } from "@/sdk/index";
+import { createSDK } from "@/sdk/index";
 
 // ─── Augment Express.Request ──────────────────────────────────────────────────
 // Allows `req.sdk`, `req.log`, and `req.clientCode` to be typed throughout.

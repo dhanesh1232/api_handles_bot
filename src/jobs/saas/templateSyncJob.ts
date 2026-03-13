@@ -1,6 +1,6 @@
 import { dbConnect } from "@lib/config";
 import { jobLogger } from "@lib/logger";
-import { getTenantConnection } from "@lib/connectionManager";
+import { getCrmModels } from "@lib/tenant/get.crm.model";
 import { ClientSecrets } from "@models/clients/secrets";
 import { syncTemplatesFromMeta } from "@services/saas/whatsapp/template.service";
 
@@ -30,7 +30,7 @@ export const templateSyncJob = async () => {
       }
 
       clientLog.info("Syncing templates");
-      const tenantConn = await getTenantConnection(clientCode);
+      const { conn: tenantConn } = await getCrmModels(clientCode);
       const result = await syncTemplatesFromMeta(tenantConn, token, businessId);
 
       clientLog.info(

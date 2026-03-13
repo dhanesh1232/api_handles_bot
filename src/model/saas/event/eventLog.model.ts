@@ -1,24 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface IEventLog extends Document {
-  clientCode: string;
-  trigger: string;
-  phone?: string;
-  email?: string;
-  status: "received" | "processing" | "completed" | "partial" | "failed";
-  rulesMatched: number;
-  jobsCreated: number;
-  meetLink?: string;
-  callbackUrl?: string;
-  callbackStatus: "not_required" | "sent" | "failed";
-  payload?: any;
-  error?: string;
-  idempotencyKey?: string;
-  processedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export const eventLogSchema = new Schema<IEventLog>(
   {
     clientCode: { type: String, required: true, index: true },

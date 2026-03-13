@@ -20,8 +20,6 @@ import {
   logCall,
   togglePin,
   updateNote,
-  type LogActivityInput,
-  type TimelineItem,
 } from "@services/saas/crm/activity.service";
 
 export class ActivitySDK {

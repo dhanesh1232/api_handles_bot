@@ -10,7 +10,6 @@
  *   await lead.move(newLead._id, stageId);
  */
 
-import type { Server } from "socket.io";
 import {
   archiveLead,
   bulkArchive,
@@ -29,8 +28,6 @@ import {
   updateLead,
   updateMetadataRefs,
   updateTags,
-  type CreateLeadInput,
-  type UpdateLeadInput,
 } from "@services/saas/crm/lead.service";
 
 export class LeadSDK {

@@ -14,14 +14,6 @@ import { tenantLogger } from "@lib/logger";
 
 const baseUrl = process.env.BASE_URL || "http://localhost:4000";
 
-export interface GoogleMeetResponse {
-  success: boolean;
-  hangoutLink?: string;
-  eventId?: string;
-  summary?: string;
-  error?: string;
-}
-
 export const createGoogleMeetService = () => {
   /**
    * Internal helper to get GoogleMeetClient for a client

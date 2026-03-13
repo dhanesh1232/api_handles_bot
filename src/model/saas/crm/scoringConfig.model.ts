@@ -1,27 +1,6 @@
-import { Document, Schema } from "mongoose";
+import { Schema } from "mongoose";
 
-export interface IScoringConfig extends Document {
-  clientCode: string;
-  rules: {
-    field: string;
-    operator:
-      | "exists"
-      | "not_exists"
-      | "equals"
-      | "not_equals"
-      | "greater_than"
-      | "less_than"
-      | "contains";
-    value?: any;
-    points: number;
-    label: string;
-  }[];
-  hotThreshold: number;
-  coldThreshold: number;
-  recalculateOnTriggers: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+// IScoringConfig is now defined globally
 
 export const ScoringConfigSchema = new Schema<IScoringConfig>(
   {
