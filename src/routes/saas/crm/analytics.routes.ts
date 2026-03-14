@@ -19,9 +19,12 @@ type Range = AnalyticsRange;
 router.get("/analytics/whatsapp", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as any) ?? "30d";
+    const { from, to } = req.query as any;
     const data = await analyticsService.getWhatsAppAnalytics(
       req.clientCode!,
       range,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -37,7 +40,13 @@ router.get("/analytics/whatsapp", async (req: Request, res: Response) => {
 router.get("/analytics/overview", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
-    const data = await analyticsService.getOverview(req.clientCode!, range);
+    const { from, to } = req.query as any;
+    const data = await analyticsService.getOverview(
+      req.clientCode!,
+      range,
+      from,
+      to,
+    );
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: (err as Error).message });
@@ -94,9 +103,12 @@ router.get("/analytics/forecast", async (req: Request, res: Response) => {
 router.get("/analytics/sources", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
+    const { from, to } = req.query as any;
     const data = await analyticsService.getSourceBreakdown(
       req.clientCode!,
       range,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -112,9 +124,12 @@ router.get("/analytics/sources", async (req: Request, res: Response) => {
 router.get("/analytics/team", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
+    const { from, to } = req.query as any;
     const data = await analyticsService.getTeamLeaderboard(
       req.clientCode!,
       range,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -130,9 +145,12 @@ router.get("/analytics/team", async (req: Request, res: Response) => {
 router.get("/analytics/heatmap", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
+    const { from, to } = req.query as any;
     const data = await analyticsService.getActivityHeatmap(
       req.clientCode!,
       range,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -184,11 +202,13 @@ router.get("/analytics/stage-time", async (req: Request, res: Response) => {
 router.get("/analytics/tiered", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
-    const { pipelineId } = req.query as Record<string, string>;
+    const { from, to, pipelineId } = req.query as any;
     const data = await analyticsService.getTieredReport(
       req.clientCode!,
       range,
       pipelineId,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -203,9 +223,12 @@ router.get("/analytics/tiered", async (req: Request, res: Response) => {
 router.get("/analytics/summary", async (req: Request, res: Response) => {
   try {
     const range = (req.query.range as Range) ?? "30d";
+    const { from, to } = req.query as any;
     const data = await analyticsService.getDashboardSummary(
       req.clientCode!,
       range,
+      from,
+      to,
     );
     res.json({ success: true, data });
   } catch (err: unknown) {

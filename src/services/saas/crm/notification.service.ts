@@ -96,7 +96,7 @@ export const retryNotificationAction = async (
     await ActionExecutor.execute(
       clientCode,
       { type: actionConfig.type, config: actionConfig },
-      { lead: lead.toJSON(), variables: safeVariables },
+      { lead: lead as any, variables: safeVariables },
       (global as any).io,
     );
 

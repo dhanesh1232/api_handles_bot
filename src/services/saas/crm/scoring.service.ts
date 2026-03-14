@@ -97,7 +97,7 @@ export function getScoreBreakdown(lead: any, scoringConfig: any) {
 export async function recalculateLeadScore(clientCode: string, leadId: string) {
   const { ScoringConfig, Lead } = await getCrmModels(clientCode);
 
-  const lead = await Lead.findById(leadId).lean();
+  const lead = await Lead.findById(leadId);
   if (!lead) return null;
 
   const config = await ScoringConfig.findOne({ clientCode }).lean();
@@ -105,8 +105,8 @@ export async function recalculateLeadScore(clientCode: string, leadId: string) {
   let breakdown: any[] = [];
 
   if (config && config.rules && config.rules.length > 0) {
-    newScore = calculateScore(lead.toJSON(), config);
-    breakdown = getScoreBreakdown(lead.toJSON(), config);
+    newScore = calculateScore(lead as any, config);
+    breakdown = getScoreBreakdown(lead as any, config);
 
     if (lead.score && typeof lead.score === "object") {
       lead.score.total = newScore;
@@ -119,7 +119,7 @@ export async function recalculateLeadScore(clientCode: string, leadId: string) {
       void EventBus.emit(clientCode, "lead.score_refreshed", {
         phone: lead.phone,
         email: lead.email,
-        data: lead.toJSON(),
+        data: lead as any,
         variables: { score: String(newScore), trigger: "score_above" },
       });
     }

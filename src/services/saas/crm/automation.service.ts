@@ -26,17 +26,21 @@ export const runAutomations = async (
   const repo = await getAutomationRuleRepo(clientCode);
 
   const ruleFilters: Record<string, any> = {};
-  if (ctx.stageId)
-    ruleFilters["triggerConfig.stageId"] = new mongoose.Types.ObjectId(
-      ctx.stageId,
-    );
-  if (ctx.tagName) ruleFilters["triggerConfig.tagName"] = ctx.tagName;
+  // Filters for stage/tag specific rules
+  ruleFilters["triggerConfig.stageId"] = ctx.stageId
+    ? { $in: [new mongoose.Types.ObjectId(ctx.stageId), null] }
+    : null;
+
+  ruleFilters["triggerConfig.tagName"] = ctx.tagName
+    ? { $in: [ctx.tagName, null] }
+    : null;
   if (ctx.trigger === "score_above" && ctx.score !== undefined)
     ruleFilters["triggerConfig.scoreThreshold"] = { $lte: ctx.score };
   if (ctx.trigger === "score_below" && ctx.score !== undefined)
     ruleFilters["triggerConfig.scoreThreshold"] = { $gte: ctx.score };
 
-  const rules = await repo.findActiveRules(ctx.trigger, ruleFilters);
+  const queryTriggers = [ctx.trigger, ...(ctx.aliases || [])];
+  const rules = await repo.findActiveRules(queryTriggers, ruleFilters);
   if (rules.length === 0) return;
 
   // Credit Tracking: Deduct for an Automation "Burst" Run

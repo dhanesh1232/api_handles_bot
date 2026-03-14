@@ -105,6 +105,20 @@ router.post("/leads/upsert", async (req: any, res: any) => {
           "system_contact_form",
         );
       }
+
+      // Log returning activity directly explicitly passed from frontend API handler
+      if (leadData.activityNote) {
+        const { getCrmModels } = await import("@lib/tenant/crm.models");
+        const { LeadActivity } = await getCrmModels(req.clientCode!);
+        await LeadActivity.create({
+          clientCode: req.clientCode,
+          leadId: lead._id,
+          type: "system",
+          title: leadData.activityNote,
+          metadata: { moduleInfo, trigger },
+          performedBy: "system",
+        });
+      }
     } else {
       const names = (leadData.name || "").trim().split(" ");
       const firstName = names[0] || "Unknown";

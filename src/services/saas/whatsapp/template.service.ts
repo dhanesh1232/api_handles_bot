@@ -18,7 +18,42 @@ const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
  */
 const getDeep = (obj: any, path: string) => {
   if (!obj || !path) return null;
-  const value = _.get(obj, path);
+  let value = _.get(obj, path);
+
+  // Fallback 0: Direct access (for Mongoose virtuals or non-enumerable properties)
+  if (
+    (value === undefined || value === null || value === "") &&
+    obj[path] !== undefined
+  ) {
+    value = obj[path];
+  }
+
+  // Fallback 1: Case-insensitive leaf match or common CRM field mappings
+  if (value === undefined || value === null || value === "") {
+    const parts = path.split(".");
+    const leaf = parts.pop();
+    const parentPath = parts.join(".");
+    const parent = parentPath ? _.get(obj, parentPath) : obj;
+
+    if (parent && typeof parent === "object") {
+      const keys = Object.keys(parent);
+      const lowerLeaf = leaf?.toLowerCase();
+
+      // Look for a key that matches lower-case or a known synonym
+      const foundKey = keys.find((k) => {
+        const lowerK = k.toLowerCase();
+        if (lowerK === lowerLeaf) return true;
+        // Known mappings
+        if (lowerLeaf === "name" && lowerK === "fullname") return true;
+        if (lowerLeaf === "fullname" && lowerK === "name") return true;
+        return false;
+      });
+
+      if (foundKey) {
+        value = (parent as any)[foundKey];
+      }
+    }
+  }
 
   // Enhancement: If we are trying to get a property from an array of objects
   // e.g. path = "orderItems.name" and value is undefined because "name" is inside the array
@@ -486,10 +521,19 @@ export const resolveUnifiedWhatsAppTemplate = async (
         if (context[collName]) continue;
 
         const refKey = getRefId(collName);
-        let targetId: any = eventVariables?.[refKey];
+        const snakeRefKey = refKey.replace(/([A-Z])/g, "_$1").toLowerCase();
+        let targetId: any =
+          eventVariables?.[refKey] || eventVariables?.[snakeRefKey];
 
         if (!targetId && collName === "meetings") {
-          targetId = eventVariables?.meetingId || eventVariables?.eventId;
+          targetId =
+            eventVariables?.meetingId ||
+            eventVariables?.eventId ||
+            eventVariables?.event_id;
+        }
+
+        if (!targetId && collName === "orders") {
+          targetId = eventVariables?.orderId || eventVariables?.order_id;
         }
 
         if (!targetId && lead?.metadata?.refs)
@@ -507,16 +551,26 @@ export const resolveUnifiedWhatsAppTemplate = async (
 
         if (targetId && !fetchedIds.has(targetId.toString())) {
           try {
-            const doc = await tenantDb.collection(collName).findOne({
-              _id: new mongoose.Types.ObjectId(targetId.toString()),
-            });
+            const idStr = targetId.toString();
+            let query: any = null;
+
+            // 1. Try ObjectId match first if valid
+            if (mongoose.Types.ObjectId.isValid(idStr)) {
+              query = { _id: new mongoose.Types.ObjectId(idStr) };
+            } else {
+              // 2. Fallback: try raw string match on _id or custom Id field
+              query = { $or: [{ _id: idStr }, { Id: idStr }] };
+            }
+
+            const doc = await tenantDb.collection(collName).findOne(query);
+
             if (doc) {
               context[collName] = doc;
-              fetchedIds.add(targetId.toString());
+              fetchedIds.add(idStr);
               newlyFound = true;
             }
           } catch (e) {
-            // Skip invalid IDs
+            // Skip invalid IDs or query errors
           }
         }
       }

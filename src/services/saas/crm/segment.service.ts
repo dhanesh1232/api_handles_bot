@@ -42,7 +42,7 @@ export class SegmentService {
       isArchived: false,
     }).lean();
     const matches = allLeads.filter((lead) => {
-      const context = lead.toJSON();
+      const context = lead;
       return ConditionEvaluator.evaluate(segment.logic, segment.rules, context);
     });
 
@@ -74,7 +74,7 @@ export class SegmentService {
     }).lean();
 
     const matches = allLeads.filter((lead) =>
-      ConditionEvaluator.evaluate(segment.logic, segment.rules, lead.toJSON()),
+      ConditionEvaluator.evaluate(segment.logic, segment.rules, lead),
     );
 
     // Manual pagination since we filtered in memory

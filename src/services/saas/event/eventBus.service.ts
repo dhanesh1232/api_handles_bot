@@ -99,6 +99,16 @@ export class EventBus {
 
     try {
       // 4. Resolve Lead (Requirement for runAutomations)
+      const { Pipeline, PipelineStage, CustomEventDef } =
+        await getCrmModels(clientCode);
+
+      // Resolve event definition early for mapping & defaults
+      const eventDef = await CustomEventDef.findOne({
+        clientCode,
+        name: trigger,
+        isActive: true,
+      });
+
       let lead = null;
       if (phone) {
         lead = await Lead.findOne({ clientCode, phone });
@@ -108,18 +118,10 @@ export class EventBus {
 
       if (!lead && opts?.createLeadIfMissing && (phone || payload.email)) {
         const { createLead } = await import("@/services/saas/crm/lead.service");
-        const { Pipeline, PipelineStage, CustomEventDef } =
-          await getCrmModels(clientCode);
 
         let finalPipelineId: string | undefined;
         let finalStageId: string | undefined;
 
-        // Resolve pipeline / stage via Event-based defaults
-        const eventDef = await CustomEventDef.findOne({
-          clientCode,
-          name: trigger,
-          isActive: true,
-        });
         if (eventDef?.pipelineId) {
           finalPipelineId = eventDef.pipelineId;
           finalStageId = eventDef.stageId;
@@ -159,8 +161,8 @@ export class EventBus {
         return;
       }
 
-      // 5. Count matching rules for observability
-      // Mapping for legacy compatibility
+      // 6. Resolve actual trigger to use for rule matching
+      // Mapping for legacy compatibility + new CustomEventDef mapping
       const legacyMap: Record<string, string> = {
         "lead.created": "lead_created",
         "lead.stage_enter": "stage_enter",
@@ -177,17 +179,21 @@ export class EventBus {
         appointment_reminder_15m: "appointment_reminder_15m",
       };
 
-      const triggerEnum = legacyMap[trigger] || trigger;
+      const mappedTrigger = (eventDef as any)?.mapsTo || trigger;
+      const triggerEnum = legacyMap[mappedTrigger] || mappedTrigger;
+
+      // Rules can match the original incoming trigger OR the mapped internal trigger
+      const aliases = trigger !== triggerEnum ? [triggerEnum] : [];
 
       const rulesMatched = await AutomationRule.countDocuments({
         clientCode,
-        trigger: { $in: [trigger, triggerEnum] },
+        trigger: { $in: [trigger, ...aliases] },
         isActive: true,
       });
 
       await EventLog.findByIdAndUpdate(eventLog._id, {
-        status: "processing",
         rulesMatched,
+        status: "processing",
       });
 
       // 6. Execute Automations
@@ -205,9 +211,11 @@ export class EventBus {
       };
 
       await runAutomations(clientCode, {
-        trigger: triggerEnum as any,
+        trigger,
+        aliases,
         lead: lead as any,
         variables: eventVariables,
+        data: payload.data,
         meetingId:
           payload.data?._id?.toString() || payload.variables?.meeting_id,
         stageId:

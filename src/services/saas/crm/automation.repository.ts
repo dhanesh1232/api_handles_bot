@@ -5,9 +5,9 @@ import { getCrmModels } from "@lib/tenant/crm.models";
  * AutomationRuleRepository
  */
 export class AutomationRuleRepository extends BaseRepository<IAutomationRule> {
-  async findActiveRules(trigger: string, extraFilters: any = {}) {
+  async findActiveRules(trigger: string | string[], extraFilters: any = {}) {
     return this.findMany({
-      trigger,
+      trigger: Array.isArray(trigger) ? { $in: trigger } : trigger,
       isActive: true,
       ...extraFilters,
     });

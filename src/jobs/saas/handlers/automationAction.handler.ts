@@ -18,7 +18,7 @@ export class AutomationActionJobHandler extends JobHandler {
         clientCode,
         { type: actionType, config: actionConfig },
         {
-          lead: lead.toJSON(),
+          lead: lead as any,
           variables: ctxVariables,
           meetingId: payload.meetingId,
         },

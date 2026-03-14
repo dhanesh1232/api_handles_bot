@@ -82,7 +82,7 @@ export async function executeStep(
   if (!step) return;
 
   const context = {
-    lead: lead ? lead.toJSON() : {},
+    lead: lead ? lead : {},
     event: enrollment.eventData || {},
     resolved: enrollment.resolvedVariables || {},
   };

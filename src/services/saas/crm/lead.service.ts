@@ -214,7 +214,7 @@ export const getLeadByPhone = async (
   phone: string,
 ): Promise<ILead | null> => {
   const repo = await getLeadRepo(clientCode);
-  return repo.findByPhone(phone);
+  return repo.findByPhone(normalizePhone(phone));
 };
 
 // ─── 4. Get lead by metadata ref ─────────────────────────────────────────────
@@ -361,9 +361,13 @@ export const updateLead = async (
   updates: UpdateLeadInput,
 ): Promise<ILead | null> => {
   const { Lead } = await getCrmModels(clientCode);
+  const cleanUpdates = { ...updates };
+  if (cleanUpdates.phone) {
+    cleanUpdates.phone = normalizePhone(cleanUpdates.phone);
+  }
   const lead = await Lead.findOneAndUpdate(
     { _id: leadId, clientCode },
-    { $set: updates },
+    { $set: cleanUpdates },
     { returnDocument: "after" },
   )
     .populate(PIPELINE_POPULATE)
@@ -641,8 +645,9 @@ export const bulkUpsertLeads = async (
     leads.map(async (input) => {
       try {
         const metadataRefs = buildMetadataRefs(input.metadata?.refs);
+        const normalizedPhone = normalizePhone(input.phone);
         const result = await Lead.findOneAndUpdate(
-          { clientCode, phone: input.phone },
+          { clientCode, phone: normalizedPhone },
           {
             $set: {
               firstName: input.firstName,
@@ -657,7 +662,7 @@ export const bulkUpsertLeads = async (
             },
             $setOnInsert: {
               clientCode,
-              phone: input.phone,
+              phone: normalizedPhone,
               pipelineId: new mongoose.Types.ObjectId(
                 input.pipelineId ?? defaultPipeline._id.toString(),
               ),

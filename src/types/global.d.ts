@@ -393,34 +393,6 @@ declare global {
     createdAt: Date;
   }
 
-  type AutomationTrigger =
-    | "stage_enter"
-    | "stage_exit"
-    | "lead_created"
-    | "deal_won"
-    | "deal_lost"
-    | "score_above"
-    | "score_below"
-    | "no_contact"
-    | "tag_added"
-    | "tag_removed"
-    | "lead.created"
-    | "lead.stage_enter"
-    | "lead.stage_exit"
-    | "lead.deal_won"
-    | "lead.deal_lost"
-    | "lead.tag_added"
-    | "lead.tag_removed"
-    | "lead.score_refreshed"
-    | "appointment_confirmed"
-    | "appointment_cancelled"
-    | "appointment_reminder"
-    | "product_purchased"
-    | "service_enrolled"
-    | "payment_captured"
-    | "meeting_created"
-    | "form_submitted";
-
   type AutomationActionType =
     | "send_whatsapp"
     | "send_email"
@@ -492,7 +464,7 @@ declare global {
   interface IAutomationRule extends mongoose.Document {
     clientCode: string;
     name: string;
-    trigger: AutomationTrigger;
+    trigger: string;
     triggerConfig: {
       stageId?: mongoose.Types.ObjectId; // for stage_enter / stage_exit
       pipelineId?: mongoose.Types.ObjectId;
@@ -517,7 +489,8 @@ declare global {
   }
 
   interface AutomationContext {
-    trigger: IAutomationRule["trigger"];
+    trigger: string;
+    aliases?: string[];
     lead: ILead;
     stageId?: string;
     tagName?: string;
@@ -525,6 +498,8 @@ declare global {
     /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
     variables?: Record<string, string>;
     meetingId?: string;
+    data?: any;
+    event?: any;
   }
 
   interface ITemplateConfigFields {
@@ -629,6 +604,7 @@ declare global {
     payloadSchema?: Record<string, any>;
     isActive: boolean;
     isSystem: boolean;
+    mapsTo?: string;
     pipelineId?: string;
     stageId?: string;
     createdAt: Date;

@@ -8,8 +8,15 @@
 import mongoose from "mongoose";
 import { getCrmModels } from "@lib/tenant/crm.models";
 
-const getDateRange = (range: AnalyticsRange): Date => {
-  const ms = {
+const getQueryDateRange = (range?: AnalyticsRange, from?: any, to?: any) => {
+  if (from || to) {
+    return {
+      since: from ? new Date(from) : new Date(0),
+      until: to ? new Date(to) : new Date(),
+    };
+  }
+
+  const ms: Record<string, number> = {
     "24h": 1,
     "7d": 7,
     "30d": 30,
@@ -17,25 +24,30 @@ const getDateRange = (range: AnalyticsRange): Date => {
     "90d": 90,
     "365d": 365,
   };
-  const days = ms[range] ?? 30;
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const days = ms[range ?? "30d"] ?? 30;
+  return {
+    since: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+    until: new Date(),
+  };
 };
 
 // ─── 0. WhatsApp Specialized Analytics ───────────────────────────────────────
 
 export const getWhatsAppAnalytics = async (
   clientCode: string,
-  range: "24h" | "7d" | "30d" | "60d" = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const { Message, Conversation } = await getCrmModels(clientCode);
-  const since = getDateRange(range);
+  const { since, until } = getQueryDateRange(range, from, to);
 
   const [messageStats, conversationStats] = await Promise.all([
     Message.aggregate([
       {
         $match: {
           direction: "outbound",
-          createdAt: { $gte: since },
+          createdAt: { $gte: since, $lte: until },
           messageType: { $ne: "reaction" },
         },
       },
@@ -48,7 +60,7 @@ export const getWhatsAppAnalytics = async (
     ]),
     Conversation.countDocuments({
       channel: "whatsapp",
-      lastMessageAt: { $gte: since },
+      lastMessageAt: { $gte: since, $lte: until },
     }),
   ]);
 
@@ -83,12 +95,14 @@ export const getWhatsAppAnalytics = async (
 
 export const getOverview = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const { Lead, LeadActivity } = await getCrmModels(clientCode);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const since = getDateRange(range);
+  const { since, until } = getQueryDateRange(range, from, to);
 
   const [totals, periodLeads, wonDeals, activities, leadsToday] =
     await Promise.all([
@@ -118,10 +132,16 @@ export const getOverview = async (
       Lead.countDocuments({
         clientCode,
         isArchived: false,
-        createdAt: { $gte: since },
+        createdAt: { $gte: since, $lte: until },
       }),
       Lead.aggregate([
-        { $match: { clientCode, status: "won", convertedAt: { $gte: since } } },
+        {
+          $match: {
+            clientCode,
+            status: "won",
+            convertedAt: { $gte: since, $lte: until },
+          },
+        },
         {
           $group: {
             _id: null,
@@ -130,7 +150,10 @@ export const getOverview = async (
           },
         },
       ]),
-      LeadActivity.countDocuments({ clientCode, createdAt: { $gte: since } }),
+      LeadActivity.countDocuments({
+        clientCode,
+        createdAt: { $gte: since, $lte: until },
+      }),
       Lead.countDocuments({
         clientCode,
         isArchived: false,
@@ -269,13 +292,21 @@ export const getRevenueForecast = async (
 
 export const getSourceBreakdown = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const { Lead } = await getCrmModels(clientCode);
-  const since = getDateRange(range);
+  const { since, until } = getQueryDateRange(range, from, to);
 
   const agg = await Lead.aggregate([
-    { $match: { clientCode, isArchived: false, createdAt: { $gte: since } } },
+    {
+      $match: {
+        clientCode,
+        isArchived: false,
+        createdAt: { $gte: since, $lte: until },
+      },
+    },
     {
       $group: {
         _id: "$source",
@@ -303,10 +334,12 @@ export const getSourceBreakdown = async (
 
 export const getTeamLeaderboard = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const { Lead, LeadActivity } = await getCrmModels(clientCode);
-  const since = getDateRange(range);
+  const { since, until } = getQueryDateRange(range, from, to);
 
   const [dealStats, activityStats] = await Promise.all([
     Lead.aggregate([
@@ -315,7 +348,7 @@ export const getTeamLeaderboard = async (
           clientCode,
           isArchived: false,
           assignedTo: { $ne: null },
-          updatedAt: { $gte: since },
+          updatedAt: { $gte: since, $lte: until },
         },
       },
       {
@@ -341,7 +374,7 @@ export const getTeamLeaderboard = async (
         $match: {
           clientCode,
           performedBy: { $ne: "system" },
-          createdAt: { $gte: since },
+          createdAt: { $gte: since, $lte: until },
         },
       },
       { $group: { _id: "$performedBy", activityCount: { $sum: 1 } } },
@@ -370,13 +403,15 @@ export const getTeamLeaderboard = async (
 
 export const getActivityHeatmap = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const { LeadActivity } = await getCrmModels(clientCode);
-  const since = getDateRange(range);
+  const { since, until } = getQueryDateRange(range, from, to);
 
   const agg = await LeadActivity.aggregate([
-    { $match: { clientCode, createdAt: { $gte: since } } },
+    { $match: { clientCode, createdAt: { $gte: since, $lte: until } } },
     {
       $group: {
         _id: {
@@ -553,14 +588,16 @@ export const getPredictiveConversionScore = async (
  */
 export const getTieredReport = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
   pipelineId?: string,
+  from?: any,
+  to?: any,
 ) => {
   // 1. Basic Metrics (The Pulse)
-  const overview = await getOverview(clientCode, range);
+  const overview = await getOverview(clientCode, range, from, to);
 
   // 2. Medium Metrics (Growth)
-  const sources = await getSourceBreakdown(clientCode, range);
+  const sources = await getSourceBreakdown(clientCode, range, from, to);
   const funnel = pipelineId
     ? await getFunnelData(clientCode, pipelineId)
     : null;
@@ -573,7 +610,9 @@ export const getTieredReport = async (
     : null;
   const heatmap = await getActivityHeatmap(
     clientCode,
-    range === "365d" ? "90d" : (range as any),
+    range === "365d" ? "90d" : range,
+    from,
+    to,
   );
 
   const insights = [
@@ -617,11 +656,13 @@ export const getTieredReport = async (
  */
 export const getDashboardSummary = async (
   clientCode: string,
-  range: AnalyticsRange = "30d",
+  range?: AnalyticsRange,
+  from?: any,
+  to?: any,
 ) => {
   const [overview, whatsapp] = await Promise.all([
-    getOverview(clientCode, range),
-    getWhatsAppAnalytics(clientCode, range as any),
+    getOverview(clientCode, range, from, to),
+    getWhatsAppAnalytics(clientCode, range, from, to),
   ]);
 
   return {

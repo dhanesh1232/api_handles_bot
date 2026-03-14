@@ -9,6 +9,7 @@ export const CustomEventDefSchema = new Schema<ICustomEventDef>(
     payloadSchema: { type: Schema.Types.Mixed },
     isActive: { type: Boolean, default: true },
     isSystem: { type: Boolean, default: false },
+    mapsTo: { type: String },
     pipelineId: { type: String },
     stageId: { type: String },
   },

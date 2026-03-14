@@ -98,6 +98,16 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
 
     // 2. Find or auto-create Lead
     let lead = await getLeadByPhone(clientCode, phone);
+
+    // Dynamic Trigger Mapping via CustomEventDef
+    const { CustomEventDef } = await getCrmModels(clientCode);
+    const eventDef = await CustomEventDef.findOne({
+      clientCode,
+      name: trigger,
+      isActive: true,
+    });
+    const mappedTrigger = (eventDef as any)?.mapsTo || trigger;
+
     if (!lead && createLeadIfMissing) {
       lead = await createLead(clientCode, {
         firstName: leadData?.firstName || phone,
@@ -105,6 +115,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
         email: email || "",
         phone,
         source: (leadData?.source as LeadSource) || "webhook",
+        // If mapsTo is lead_created, we might want to pass more context
       });
     }
 
@@ -124,7 +135,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
     // 3. Count matching rules
     const rulesMatched = await AutomationRule.countDocuments({
       clientCode,
-      trigger,
+      trigger: { $in: [trigger, mappedTrigger] },
       isActive: true,
     });
 
