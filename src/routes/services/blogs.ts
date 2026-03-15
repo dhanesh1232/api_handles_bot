@@ -5,7 +5,7 @@ import { Blog } from "../../model/services/blog.ts";
 const router = express.Router();
 
 // Get All Blogs
-router.get("/services/blogs", async (req: Request, res: Response) => {
+router.get("/services/blogs", async (_req: Request, res: Response) => {
   await dbConnect("services");
 
   try {

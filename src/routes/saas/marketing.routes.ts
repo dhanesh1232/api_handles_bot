@@ -1,10 +1,10 @@
 import express, { type Response } from "express";
 import { Server } from "socket.io";
+import { getCrmModels } from "@/lib/tenant/crm.models";
+import { type AuthRequest, validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
-import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
 import { Client } from "@/model/clients/client";
 import { createEmailService } from "@/services/saas/mail/email.service";
-import { getCrmModels } from "@/lib/tenant/crm.models";
 import { normalizePhone } from "@/utils/phone";
 
 /**
@@ -16,7 +16,6 @@ import { normalizePhone } from "@/utils/phone";
 export const createMarketingRouter = (io: Server) => {
   const router = express.Router();
   const emailService = createEmailService();
-
 
   // Primary middleware for all marketing routes
   router.use(validateClientKey);

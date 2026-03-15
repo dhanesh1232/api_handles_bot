@@ -1,7 +1,7 @@
-import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
-import { createGoogleMeetService } from "@services/saas/meet/google.meet.service";
 import { onMeetingCreated } from "@services/saas/crm/crmHooks";
+import { createGoogleMeetService } from "@services/saas/meet/google.meet.service";
+import { JobHandler } from "../base.handler";
 
 export class MeetingJobHandler extends JobHandler {
   async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
@@ -16,8 +16,9 @@ export class MeetingJobHandler extends JobHandler {
 
     if (!result.success) {
       const errorMsg = result.error || "Unknown error";
-      const { createNotification } =
-        await import("@services/saas/crm/notification.service");
+      const { createNotification } = await import(
+        "@services/saas/crm/notification.service"
+      );
       await createNotification(clientCode, {
         title: "Meeting Creation Failed",
         message: `Failed to create Google Meet for ${payload.title}: ${errorMsg}`,

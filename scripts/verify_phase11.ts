@@ -1,6 +1,5 @@
 import axios from "axios";
 import * as dotenv from "dotenv";
-import path from "path";
 
 dotenv.config();
 

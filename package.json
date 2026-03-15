@@ -1,6 +1,6 @@
 {
   "name": "@ecod/backend",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "ECOD Backend — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and MongoDB-backed job queuing.",
   "main": "server.ts",
   "type": "module",
@@ -12,8 +12,9 @@
     "start": "node dist/server.js",
     "dev": "nodemon --exec 'tsx server.ts' --ext ts,js,html",
     "type-check": "tsc --noEmit && tsc-alias -f",
-    "lint": "eslint .",
-    "format": "pnpm exec prettier --write .",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
     "build": "tsc && tsc-alias -f",
     "test:worker": "tsx scripts/test-worker.ts",
     "test": "tsx --test src/smoke.test.ts",
@@ -64,6 +65,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.7",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/fluent-ffmpeg": "^2.1.28",
@@ -73,12 +75,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.4",
     "@types/uuid": "^11.0.0",
-    "eslint": "^10.0.2",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
-    "globals": "^17.3.0",
     "nodemon": "^3.1.11",
-    "prettier": "^3.7.4",
     "tsc-alias": "^1.8.16"
   }
 }

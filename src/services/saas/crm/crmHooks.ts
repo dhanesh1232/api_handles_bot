@@ -8,9 +8,9 @@
 import { sendCallbackWithRetry } from "@/lib/callbackSender";
 import { getCrmModels } from "@/lib/tenant/crm.models";
 import { ClientSecrets } from "@/model/clients/secrets";
+import { EventBus } from "../event/eventBus.service.ts";
 import { logActivity } from "./activity.service.ts";
 import { recalculateScore } from "./lead.service.ts";
-import { EventBus } from "../event/eventBus.service.ts";
 
 // ─── WhatsApp outbound ────────────────────────────────────────────────────────
 

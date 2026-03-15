@@ -1,15 +1,7 @@
 import "@lib/env";
+import crypto from "node:crypto";
+import { join } from "node:path";
 import { logger } from "@lib/logger";
-import mongoose from "mongoose";
-
-import cors from "cors";
-import crypto from "crypto";
-import type { NextFunction, Request, Response } from "express";
-import express from "express";
-import helmet from "helmet";
-import http from "http";
-import { join } from "path";
-import { Server, type Socket } from "socket.io";
 import { renderView } from "@lib/renderView";
 import { getDynamicOrigins } from "@models/cors-origins";
 import googleAuthRouter from "@routes/auth/google";
@@ -18,17 +10,24 @@ import { createCrmRouter } from "@routes/saas/crm/crm.router";
 import eventLogRouter from "@routes/saas/eventLog.routes";
 import eventRouter from "@routes/saas/events.routes";
 import healthRouter from "@routes/saas/health.routes";
-import { createImagesRouter } from "@/routes/saas/media.routes";
 import { createMarketingRouter } from "@routes/saas/marketing.routes";
 import { createMeetRouter } from "@routes/saas/meet/meet.routes";
 import { createChatRouter } from "@routes/saas/whatsapp/chat.routes";
 import { createTemplateRouter } from "@routes/saas/whatsapp/templates.routes";
 import { createWebhookRouter } from "@routes/saas/whatsapp/webhook.routes";
 import triggerRouter from "@routes/saas/workflows/trigger.routes";
-import agencyRoutes from "./src/routes/agency/agency.router.ts";
 import blogsRouter from "@routes/services/blogs";
 import clientsRouter from "@routes/services/clients";
 import leadsRouter from "@routes/services/leads";
+import cors from "cors";
+import type { NextFunction, Request, Response } from "express";
+import express from "express";
+import helmet from "helmet";
+import http from "http";
+import mongoose from "mongoose";
+import { Server, type Socket } from "socket.io";
+import { createImagesRouter } from "@/routes/saas/media.routes";
+import agencyRoutes from "./src/routes/agency/agency.router.ts";
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
@@ -75,10 +74,10 @@ const originsUrls = [
 ];
 
 const corsOptions: cors.CorsOptions = {
-  origin: async function (
+  origin: async (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
-  ) {
+  ) => {
     const allowedOrigins = [...originsUrls, ...(await getDynamicOrigins())];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -268,7 +267,7 @@ const crmWorker = startCrmWorker();
  *
  * @param {req.io} - Middleware to attach io to req
  */
-app.use((req: any, res: Response, next: NextFunction) => {
+app.use((req: any, _res: Response, next: NextFunction) => {
   req.io = io;
   next();
 });
@@ -309,7 +308,7 @@ app.get("/", (_req: Request, res: Response) => {
  *
  * @param {req.io} - Middleware to attach io to req
  */
-app.get("/health-check", (req: Request, res: Response) => {
+app.get("/health-check", (_req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
     message: "Server running",

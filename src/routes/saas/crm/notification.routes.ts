@@ -4,9 +4,7 @@
  * Place at: src/routes/saas/crm/notification.routes.ts
  */
 
-import { Router, type Request, type Response } from "express";
-import { getCrmModels } from "@lib/tenant/crm.models";
-import { ActionExecutor } from "@/services/saas/automation/actionExecutor.service";
+import { type Request, type Response, Router } from "express";
 
 const router = Router();
 
@@ -39,7 +37,7 @@ router.patch(
 // ─── Retry Action Required Notification ────────────────────────────────────────
 router.post("/notifications/:id/retry", async (req: Request, res: Response) => {
   try {
-    const result = await req.sdk.notification.retry(req.params.id as string);
+    const _result = await req.sdk.notification.retry(req.params.id as string);
     res.json({ success: true, message: "Action successfully retried" });
   } catch (err: any) {
     res.status(err.message.includes("not found") ? 404 : 400).json({

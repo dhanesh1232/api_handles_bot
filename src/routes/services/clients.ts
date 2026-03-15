@@ -10,17 +10,21 @@ import { ClientSecrets } from "../../model/clients/secrets.ts";
 const router = express.Router();
 
 // 1. GET ALL CLIENTS (Admin / Discovery)
-router.get("/clients", verifyCoreToken, async (req: Request, res: Response) => {
-  await dbConnect("services");
-  try {
-    const clients = await Client.find().sort({ createdAt: -1 });
-    res
-      .status(200)
-      .json({ success: true, count: clients.length, data: clients });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+router.get(
+  "/clients",
+  verifyCoreToken,
+  async (_req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const clients = await Client.find().sort({ createdAt: -1 });
+      res
+        .status(200)
+        .json({ success: true, count: clients.length, data: clients });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
 
 // 1a. GET SINGLE CLIENT
 router.get(
@@ -47,7 +51,7 @@ router.get(
 router.get(
   "/clients/count",
   verifyCoreToken,
-  async (req: Request, res: Response) => {
+  async (_req: Request, res: Response) => {
     await dbConnect("services");
     try {
       const count = await Client.countDocuments();
@@ -246,7 +250,7 @@ router.post(
       }
 
       Object.keys(req.body).forEach((key) => {
-        secrets!.set(key, req.body[key]);
+        secrets?.set(key, req.body[key]);
       });
 
       await secrets.save();
@@ -310,7 +314,7 @@ router.patch(
       if (customSecrets && typeof customSecrets === "object") {
         if (!secrets.customSecrets) secrets.customSecrets = new Map();
         Object.entries(customSecrets).forEach(([k, v]) => {
-          secrets.customSecrets!.set(k, v as string);
+          secrets.customSecrets?.set(k, v as string);
         });
       }
 
@@ -368,7 +372,7 @@ router.post(
       // Update fields
       Object.keys(rest).forEach((key) => {
         // console.log(`Updating ${key}:`, rest[key]);
-        ds!.set(key, rest[key]);
+        ds?.set(key, rest[key]);
       });
 
       if (clientId) ds.clientId = clientId;

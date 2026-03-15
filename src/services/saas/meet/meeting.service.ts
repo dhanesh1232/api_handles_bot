@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import { getClientConfig, getCrmModels } from "@lib/tenant/crm.models";
+import mongoose from "mongoose";
 import { createGoogleMeetService } from "./google.meet.service.ts";
 
 /**

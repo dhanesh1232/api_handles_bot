@@ -14,7 +14,7 @@
 
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { AppError, ValidationError, isAppError } from "@/lib/errors";
+import { isAppError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 export function errorHandler(

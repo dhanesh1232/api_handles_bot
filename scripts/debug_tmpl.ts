@@ -1,12 +1,12 @@
+import * as dotenv from "dotenv";
+import { getCrmModels } from "../src/lib/tenant/crm.models";
 
-import { getCrmModels } from '../src/lib/tenant/crm.models';
-import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function run() {
   const clientCode = "ERIX_CLNT1";
   const { Template } = await getCrmModels(clientCode);
-  
+
   const tmpl = await Template.findOne({ name: "toxin_report_gen_v1" });
   if (!tmpl) {
     console.error("Template not found");
@@ -23,7 +23,7 @@ async function run() {
       originalIndex: 0,
       source: "trigger",
       field: "pdfUrl",
-      required: false
+      required: false,
     },
     {
       position: 2,
@@ -32,24 +32,29 @@ async function run() {
       originalIndex: 1,
       source: "trigger",
       field: "name",
-      required: false
-    }
+      required: false,
+    },
   ];
 
   await Template.updateOne(
     { name: "toxin_report_gen_v1" },
-    { 
-      $set: { 
+    {
+      $set: {
         variableMapping: newMapping,
-        mappingStatus: "complete"
-      } 
-    }
+        mappingStatus: "complete",
+      },
+    },
   );
 
   console.log("Template Mapping Updated successfully using getCrmModels");
-  const updated = await Template.findOne({ name: "toxin_report_gen_v1" }).lean();
-  console.log("New Mapping:", JSON.stringify(updated?.variableMapping, null, 2));
-  
+  const updated = await Template.findOne({
+    name: "toxin_report_gen_v1",
+  }).lean();
+  console.log(
+    "New Mapping:",
+    JSON.stringify(updated?.variableMapping, null, 2),
+  );
+
   process.exit(0);
 }
 run();

@@ -1,6 +1,6 @@
-import { Router } from "express";
-import type { Request, Response } from "express";
 import { EventDefService } from "@services/saas/event/eventDef.service";
+import type { Request, Response } from "express";
+import { Router } from "express";
 
 const eventRouter = Router();
 

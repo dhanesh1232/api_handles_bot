@@ -33,7 +33,7 @@ export async function getDynamicOrigins(): Promise<string[]> {
 
   try {
     // Ensure DB connection (using saas db as specified in config)
-    const db = await dbConnect("services");
+    const _db = await dbConnect("services");
 
     const dbOrigins = await CorsOrigin.find({ isActive: true }).lean();
     const dynamicUrls = dbOrigins.map((o: any) => o.url);

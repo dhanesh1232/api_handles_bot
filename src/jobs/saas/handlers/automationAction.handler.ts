@@ -1,12 +1,12 @@
-import { JobHandler } from "../base.handler";
+import { getCrmModels } from "@lib/tenant/crm.models";
 import type { IJob } from "@models/queue/job.model";
 import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
-import { getCrmModels } from "@lib/tenant/crm.models";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
+import { JobHandler } from "../base.handler";
 
 export class AutomationActionJobHandler extends JobHandler {
-  async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
+  async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { actionType, actionConfig, leadId, ctxVariables } = payload;
     const { Lead, Meeting, Notification } = await getCrmModels(clientCode);
 

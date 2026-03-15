@@ -1753,9 +1753,9 @@
           h = Math.floor((s % 86400) / 3600),
           m = Math.floor((s % 3600) / 60),
           sc = s % 60;
-        if (d > 0) return d + "d " + h + "h " + m + "m";
-        if (h > 0) return h + "h " + m + "m " + sc + "s";
-        return m + "m " + sc + "s";
+        if (d > 0) return `${d}d ${h}h ${m}m`;
+        if (h > 0) return `${h}h ${m}m ${sc}s`;
+        return `${m}m ${sc}s`;
       }
       function updateUptime() {
         const el = document.getElementById("uptime-counter");
@@ -1779,11 +1779,11 @@
             dbEl.style.color = ok ? "var(--green)" : "var(--red)";
           }
           if (mbEl) {
-            mbEl.className = "badge " + (ok ? "ok" : "error");
+            mbEl.className = `badge ${ok ? "ok" : "error"}`;
             mbEl.textContent = d.db;
           }
           const qs = document.getElementById("queue-sub");
-          if (qs) qs.textContent = "queue: " + (d.queueDepth ?? 0) + " jobs";
+          if (qs) qs.textContent = `queue: ${d.queueDepth ?? 0} jobs`;
         } catch {}
       }
       pollHealth();
@@ -2156,11 +2156,11 @@
           inner = "  ".repeat(indent + 1);
         if (obj === null) return '<span class="null">null</span>';
         if (typeof obj === "boolean")
-          return '<span class="bool">' + obj + "</span>";
+          return `<span class="bool">${obj}</span>`;
         if (typeof obj === "number")
-          return '<span class="num">' + obj + "</span>";
+          return `<span class="num">${obj}</span>`;
         if (typeof obj === "string")
-          return '<span class="str">"' + obj + '"</span>';
+          return `<span class="str">"${obj}"</span>`;
         if (Array.isArray(obj)) {
           if (!obj.length) return "[]";
           return (
@@ -2223,7 +2223,7 @@
         activeEp = ENDPOINTS[gi].items[ei];
         const mb = document.getElementById("ep-badge-method");
         mb.textContent = activeEp.method;
-        mb.className = "ep-badge-method ep-method " + activeEp.method;
+        mb.className = `ep-badge-method ep-method ${activeEp.method}`;
         document.getElementById("ep-full-path").textContent =
           BASE + activeEp.path;
         document.getElementById("ep-desc").textContent = activeEp.desc;
@@ -2233,7 +2233,7 @@
       function showContent(tab) {
         activeTab = tab;
         ["response", "headers", "example"].forEach((t) => {
-          document.getElementById("ep-" + t + "-panel").style.display =
+          document.getElementById(`ep-${t}-panel`).style.display =
             t === tab ? "" : "none";
         });
         if (!activeEp) return;
@@ -2257,7 +2257,7 @@
             .join("\n");
         else
           ep2.innerHTML = activeEp.body
-            ? '<span class="cmt">// Request body\n</span>' + j2h(activeEp.body)
+            ? `<span class="cmt">// Request body\n</span>${j2h(activeEp.body)}`
             : '<span class="cmt">// No request body for this endpoint</span>';
       }
 
@@ -2334,7 +2334,7 @@
         ?.addEventListener("click", copyPanel);
       document.getElementById("ep-tabs")?.addEventListener("click", (e) => {
         const tab = e.target.closest(".ep-tab");
-        if (tab && tab.dataset.tab) switchTab(tab.dataset.tab);
+        if (tab?.dataset.tab) switchTab(tab.dataset.tab);
       });
     </script>
   </body>

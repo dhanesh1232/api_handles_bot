@@ -1,7 +1,7 @@
-import type { IJob } from "@models/queue/job.model";
-import Job from "@models/queue/job.model";
 import { dbConnect } from "@lib/config";
 import { logger } from "@lib/logger";
+import type { IJob } from "@models/queue/job.model";
+import Job from "@models/queue/job.model";
 import type { WorkerOptions } from "./types.ts";
 
 /**
@@ -136,7 +136,7 @@ export class ErixWorkers {
       const isExhausted = attempts >= job.maxAttempts;
 
       // Exponential backoff: delay = baseBackoffMs * 2^attempts
-      const backoffMs = this.baseBackoffMs * Math.pow(2, attempts);
+      const backoffMs = this.baseBackoffMs * 2 ** attempts;
       const runAt = new Date(Date.now() + backoffMs);
 
       if (isExhausted) {

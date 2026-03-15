@@ -1,9 +1,9 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { logger } from "@/lib/logger";
 import {
   runAutomations,
   scheduleMeetingReminders,
 } from "@/services/saas/crm/automation.service";
-import { logger } from "@/lib/logger";
 import { normalizePhone } from "@/utils/phone";
 
 export interface EventPayload {

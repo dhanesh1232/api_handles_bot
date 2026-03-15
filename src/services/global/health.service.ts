@@ -1,6 +1,6 @@
 import { dbConnect } from "@lib/config";
-import { Client } from "@models/clients/client";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { Client } from "@models/clients/client";
 
 /**
  * Health Sentinel Service

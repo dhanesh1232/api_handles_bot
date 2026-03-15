@@ -12,10 +12,14 @@ export class ConditionEvaluator {
     if (!conditions || conditions.length === 0) return true;
 
     if (logic === "OR") {
-      return conditions.some((c) => this.evaluateSingle(c, context));
+      return conditions.some((c) =>
+        ConditionEvaluator.evaluateSingle(c, context),
+      );
     }
 
-    return conditions.every((c) => this.evaluateSingle(c, context));
+    return conditions.every((c) =>
+      ConditionEvaluator.evaluateSingle(c, context),
+    );
   }
 
   /**
@@ -40,11 +44,11 @@ export class ConditionEvaluator {
       switch (op) {
         case "eq":
         case "equals":
-          return value == targetValue;
+          return value === targetValue;
 
         case "neq":
         case "not_equals":
-          return value != targetValue;
+          return value !== targetValue;
 
         case "gt":
         case "greater_than":

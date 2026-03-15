@@ -5,8 +5,8 @@
  * All queries run against the client's own tenant DB via getCrmModels().
  */
 
-import mongoose from "mongoose";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import mongoose from "mongoose";
 
 const getQueryDateRange = (range?: AnalyticsRange, from?: any, to?: any) => {
   if (from || to) {

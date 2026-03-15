@@ -1,4 +1,4 @@
-import mongoose, { Model, UpdateQuery, QueryOptions, Types } from "mongoose";
+import { Model, QueryOptions, Types, UpdateQuery } from "mongoose";
 
 /**
  * BaseRepository

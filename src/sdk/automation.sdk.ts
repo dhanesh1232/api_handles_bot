@@ -4,9 +4,9 @@
  * AutomationSDK — Facade for triggering sequences and executing actions.
  */
 
-import { enrollInSequence } from "@services/saas/automation/sequenceEngine.service";
-import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
 import { tenantLogger } from "@lib/logger";
+import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
+import { enrollInSequence } from "@services/saas/automation/sequenceEngine.service";
 
 export class AutomationSDK {
   constructor(private readonly clientCode: string) {}

@@ -1,5 +1,5 @@
+import { requestChild } from "@lib/logger";
 import type { NextFunction, Request, Response } from "express";
-import { logger, requestChild } from "@lib/logger";
 
 export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const start = Date.now();

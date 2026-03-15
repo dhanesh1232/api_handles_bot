@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
+import { Schema } from "mongoose";
 
 export const SequenceEnrollmentSchema = new Schema<ISequenceEnrollment>(
   {

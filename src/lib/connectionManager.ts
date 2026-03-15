@@ -10,10 +10,10 @@
  * callers work without changes.
  */
 
-import mongoose, { type Connection, type Model, type Schema } from "mongoose";
-import { ClientDataSource } from "@models/clients/dataSource";
 import { dbConnect } from "@lib/config";
 import { logger } from "@lib/logger";
+import { ClientDataSource } from "@models/clients/dataSource";
+import mongoose, { type Connection, type Model, type Schema } from "mongoose";
 
 // ─── Class ───────────────────────────────────────────────────────────────────
 

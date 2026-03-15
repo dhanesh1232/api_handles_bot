@@ -1,15 +1,15 @@
+import path from "node:path";
+import { dbConnect } from "@lib/config";
+import { tenantLogger } from "@lib/logger";
+import { MetaWhatsAppClient } from "@lib/meta/whatsapp.client";
+import { getCrmModels } from "@lib/tenant/crm.models";
+import { ClientSecrets } from "@models/clients/secrets";
+import { createNotification } from "@services/saas/crm/notification.service";
+import { normalizePhone } from "@utils/phone";
 import axios from "axios";
 import FormData from "form-data";
-import mongoose, { type Connection, type Model } from "mongoose";
-import path from "path";
+import mongoose from "mongoose";
 import { Server } from "socket.io";
-import { dbConnect } from "@lib/config";
-import { MetaWhatsAppClient } from "@lib/meta/whatsapp.client";
-import { tenantLogger } from "@lib/logger";
-import { ClientSecrets } from "@models/clients/secrets";
-import { normalizePhone } from "@utils/phone";
-import { getCrmModels } from "@lib/tenant/crm.models";
-import { createNotification } from "@services/saas/crm/notification.service";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -70,8 +70,9 @@ export const createWhatsappService = (io: Server | null) => {
       if (!buffer) return null;
 
       // 3. Optimize & Upload
-      const { optimizeAndUploadMedia } =
-        await import("@services/saas/media/media.service");
+      const { optimizeAndUploadMedia } = await import(
+        "@services/saas/media/media.service"
+      );
       const result = await optimizeAndUploadMedia(
         buffer,
         resolved.mimeType,
@@ -188,7 +189,7 @@ export const createWhatsappService = (io: Server | null) => {
       }
 
       let mediaUrl: string | null = null;
-      let messageType = messagePayload.type || "text";
+      const messageType = messagePayload.type || "text";
       let finalMsgBody = msgBody;
 
       if (messageType === "interactive") {
@@ -419,12 +420,12 @@ export const createWhatsappService = (io: Server | null) => {
           : errors
         : {};
 
-      let errorCode = errorData.code;
+      const errorCode = errorData.code;
       const errorMessage =
         errorData.message || (typeof errors === "string" ? errors : "");
 
       // Attempt to detect 24h window from message if code is missing
-      let isWindowClosed =
+      const isWindowClosed =
         errorCode === 131047 ||
         errorMessage.includes("24 hours") ||
         errorMessage.includes("131047");
@@ -521,12 +522,13 @@ export const createWhatsappService = (io: Server | null) => {
 
         // 🎉 Also update Meeting reminders if linked
         if (message.metadata?.meetingId && message.metadata?.actionId) {
-          const { getCrmModels } =
-            await import("../../../lib/tenant/crm.models");
+          const { getCrmModels } = await import(
+            "../../../lib/tenant/crm.models"
+          );
           const { Meeting } = await getCrmModels(clientCode);
           // Only update if current status in meeting is lower priority
           const meeting = await Meeting.findById(message.metadata.meetingId);
-          if (meeting && meeting.reminders) {
+          if (meeting?.reminders) {
             const reminderIndex = meeting.reminders.findIndex(
               (r: any) => r.actionId === message.metadata?.actionId,
             );
@@ -636,7 +638,7 @@ export const createWhatsappService = (io: Server | null) => {
     let replyToWhatsappId: string | null = null;
     if (replyToId) {
       const parentMsg = await Message.findById(replyToId);
-      if (parentMsg && parentMsg.whatsappMessageId) {
+      if (parentMsg?.whatsappMessageId) {
         replyToWhatsappId = parentMsg.whatsappMessageId;
       }
     }
@@ -646,7 +648,7 @@ export const createWhatsappService = (io: Server | null) => {
     let resolvedText = text;
 
     // Logic for Template / Media / Text
-    let templateData: IMessageTemplateData | undefined = undefined;
+    let templateData: IMessageTemplateData | undefined;
     if (templateName) {
       finalMessageType = "template";
       let tmpl = null;
@@ -654,8 +656,9 @@ export const createWhatsappService = (io: Server | null) => {
       // Unified resolution attempt if it's a template
       if (metadata || !variables || variables.length === 0) {
         try {
-          const { resolveUnifiedWhatsAppTemplate } =
-            await import("./template.service");
+          const { resolveUnifiedWhatsAppTemplate } = await import(
+            "./template.service"
+          );
           const { getCrmModels } = await import("@lib/tenant/crm.models");
           const { Lead } = await getCrmModels(clientCode);
 
@@ -823,7 +826,7 @@ export const createWhatsappService = (io: Server | null) => {
           components: [],
         };
 
-        if (tmpl && tmpl.components) {
+        if (tmpl?.components) {
           tenantLogger(clientCode).debug(
             { templateName },
             "Using cached template components",
@@ -842,13 +845,15 @@ export const createWhatsappService = (io: Server | null) => {
             );
 
             if (mapping) {
-              const val = variables[mapping.position - 1] ?? mapping.fallback ?? "[N/A]";
+              const val =
+                variables[mapping.position - 1] ?? mapping.fallback ?? "[N/A]";
               return val;
             }
 
             // Fallback for older templates or if mapping is missing one field
             // If origIdx is 0 (virtual), we try variables[0] directly as a common convention
-            const val = variables[origIdx === 0 ? 0 : origIdx - 1] ??
+            const val =
+              variables[origIdx === 0 ? 0 : origIdx - 1] ??
               exampleVal ??
               "[N/A]";
             return val;
@@ -863,16 +868,16 @@ export const createWhatsappService = (io: Server | null) => {
                 const headerUrl = getVarValue("HEADER", 0);
                 tenantLogger(clientCode).debug(
                   { templateName, headerUrl, format: comp.format },
-                  "[WhatsApp] Resolved HEADER URL"
+                  "[WhatsApp] Resolved HEADER URL",
                 );
                 if (headerUrl && headerUrl !== "[N/A]") {
-
                   const headerDoc: any = { link: headerUrl };
                   if (comp.format === "DOCUMENT") {
                     try {
                       const pathname = new URL(headerUrl).pathname;
-                      headerDoc.filename = path.basename(pathname) || "Document.pdf";
-                    } catch (e) {
+                      headerDoc.filename =
+                        path.basename(pathname) || "Document.pdf";
+                    } catch (_e) {
                       headerDoc.filename = "Document.pdf";
                     }
                   }
@@ -939,13 +944,13 @@ export const createWhatsappService = (io: Server | null) => {
             } else if (comp.type === "BUTTONS") {
               comp.buttons.forEach((btn: any, btnIdx: number) => {
                 const isUrl = btn.type === "URL";
-                const isQuickReply = btn.type === "QUICK_REPLY";
+                const _isQuickReply = btn.type === "QUICK_REPLY";
 
                 const btnVars =
                   (isUrl ? btn.url : btn.text)?.match(/{{[0-9]+}}/g) || [];
                 if (btnVars.length > 0) {
                   const btnParams: any[] = [];
-                  let skipButton = false;
+                  const skipButton = false;
 
                   for (const placeholder of btnVars) {
                     const index = parseInt(
@@ -958,7 +963,7 @@ export const createWhatsappService = (io: Server | null) => {
                       btnIdx,
                       btn.example?.[0],
                     );
-                    let strVal = String(val ?? "").trim();
+                    const strVal = String(val ?? "").trim();
 
                     // Meta rejects BUTTON components with empty string parameters (HTTP 400).
                     // If a button parameter is missing, abort sending and throw a descriptive error
@@ -1009,7 +1014,7 @@ export const createWhatsappService = (io: Server | null) => {
           try {
             const pathname = new URL(mediaUrl).pathname;
             mediaPayload.filename = path.basename(pathname) || "Document.pdf";
-          } catch (e) {
+          } catch (_e) {
             mediaPayload.filename = "Document.pdf";
           }
         }
@@ -1035,10 +1040,9 @@ export const createWhatsappService = (io: Server | null) => {
         );
       }
 
-
       tenantLogger(clientCode).info(
         { recipient: to, payload },
-        "[WhatsApp] Outbound payload trace"
+        "[WhatsApp] Outbound payload trace",
       );
 
       const response = await axios.post(
@@ -1062,7 +1066,7 @@ export const createWhatsappService = (io: Server | null) => {
       const freshMessage = await Message.findById(message._id);
       if (freshMessage) {
         const currentP = STATUS_PRIORITY[freshMessage.status] || 0;
-        const sentP = STATUS_PRIORITY["sent"];
+        const sentP = STATUS_PRIORITY.sent;
 
         freshMessage.whatsappMessageId = incomingId;
         if (sentP > currentP) {

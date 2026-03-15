@@ -1,7 +1,6 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
 import { Blueprint } from "@models/global/blueprint.model";
 import { AuditService } from "./audit.service";
-import mongoose from "mongoose";
 
 /**
  * Orchestrator Service

@@ -1,6 +1,6 @@
 import express, { type Response } from "express";
 import multer from "multer";
-import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
+import { type AuthRequest, validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
 
 const upload = multer({
@@ -65,7 +65,7 @@ export const createImagesRouter = (_io: any) => {
         });
       } catch (error: any) {
         req.log.error({ err: error.message }, "Upload error");
-        res.status(500).json({ error: "Upload failed: " + error.message });
+        res.status(500).json({ error: `Upload failed: ${error.message}` });
       }
     },
   );

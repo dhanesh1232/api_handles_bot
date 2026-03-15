@@ -4,7 +4,7 @@
  * Place at: src/routes/saas/crm/analytics.routes.ts
  */
 
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import * as analyticsService from "@/services/saas/crm/analytics.service";
 
 const router = Router();

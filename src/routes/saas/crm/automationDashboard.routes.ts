@@ -4,8 +4,8 @@
  * Place at: src/routes/saas/crm/automationDashboard.routes.ts
  */
 
-import { Router, type Request, type Response } from "express";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { type Request, type Response, Router } from "express";
 
 const router = Router();
 
@@ -96,8 +96,9 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { EventLog } = await getCrmModels(req.clientCode!);
-      const { EventBus } =
-        await import("@/services/saas/event/eventBus.service");
+      const { EventBus } = await import(
+        "@/services/saas/event/eventBus.service"
+      );
 
       const log = await EventLog.findOne({
         _id: req.params.id,

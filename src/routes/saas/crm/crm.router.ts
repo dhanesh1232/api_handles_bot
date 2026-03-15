@@ -10,14 +10,14 @@ import { withSDK } from "@/middleware/withSDK";
 import activityRouter from "./activity.routes.ts";
 import analyticsRouter from "./analytics.routes.ts";
 import automationRouter from "./automation.routes.ts";
+import automationDashboardRouter from "./automationDashboard.routes.ts";
+import customEventRouter from "./customEvent.routes.ts";
 import leadRoutes from "./lead.routes.ts";
 import notificationRoutes from "./notification.routes.ts";
 import paymentRouter from "./payment.routes.ts";
 import pipelineRoutes from "./pipeline.routes.ts";
 import scoringRouter from "./scoring.routes.ts";
 import sequenceRouter from "./sequence.routes.ts";
-import customEventRouter from "./customEvent.routes.ts";
-import automationDashboardRouter from "./automationDashboard.routes.ts";
 
 export function createCrmRouter(io: Server) {
   const router = Router();

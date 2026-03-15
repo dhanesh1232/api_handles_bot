@@ -3,9 +3,9 @@
  */
 
 import { dbConnect } from "@lib/config";
-import { ClientSecrets } from "@models/clients/secrets";
-import { getClientConfig } from "@lib/tenant/crm.models";
 import { GoogleMeetClient } from "@lib/meet/google.meet.client";
+import { getClientConfig } from "@lib/tenant/crm.models";
+import { ClientSecrets } from "@models/clients/secrets";
 
 export class MeetSDK {
   private readonly baseUrl = process.env.BASE_URL || "http://localhost:4000";

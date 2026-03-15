@@ -12,14 +12,14 @@
  *   DELETE /:jobId        — Hard-delete a job record
  */
 
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import { ForbiddenError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 const router = Router();
 
 // ─── Core API key guard (queue admin only) ────────────────────────────────────
-router.use((req: Request, res: Response, next) => {
+router.use((req: Request, _res: Response, next) => {
   const key = req.headers["x-core-api-key"];
   if (!key || key !== process.env.CORE_API_KEY) {
     next(new ForbiddenError("Invalid core API key"));

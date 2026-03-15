@@ -15,7 +15,7 @@ const API_KEY =
 const VERIFY_TOKEN =
   process.env.TEST_VERIFY_TOKEN ||
   "fd07bb9723b02f6060e44f2599a99b02d02402a206b505c41ff0631f3478b333";
-const ADMIN_TOKEN = process.env.CORE_ADMIN_TOKEN || "test-admin-token";
+const _ADMIN_TOKEN = process.env.CORE_ADMIN_TOKEN || "test-admin-token";
 
 async function runSmokeTests() {
   console.log("🚀 Starting ECOD Smoke Tests...");

@@ -1,5 +1,5 @@
-import type { IJob } from "@models/queue/job.model";
 import { logger } from "@lib/logger";
+import type { IJob } from "@models/queue/job.model";
 
 export abstract class JobHandler {
   protected readonly log = logger.child({ module: this.constructor.name });

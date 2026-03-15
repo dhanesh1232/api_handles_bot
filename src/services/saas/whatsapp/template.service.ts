@@ -1,15 +1,16 @@
+import { getTenantModels } from "@lib/tenant/crm.models";
 import axios from "axios";
 import _ from "lodash";
 import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { TemplateNotFoundError, TemplateSyncFailedError } from "@/lib/errors";
-import { SchemaScanner } from "@/lib/tenant/schemaScanner";
 import {
   CURATED_FIELDS,
   CURATED_TRIGGER_FIELDS,
 } from "@/lib/tenant/schema.constants";
+import { SchemaScanner } from "@/lib/tenant/schemaScanner";
 import { ClientServiceConfig } from "@/model/clients/config";
-import { getTenantModels } from "@lib/tenant/crm.models";
+
 const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
 /**
@@ -139,7 +140,7 @@ const smartStringify = (value: any): string => {
   // Last resort
   try {
     return JSON.stringify(value);
-  } catch (e) {
+  } catch (_e) {
     return "[Complex Data]";
   }
 };
@@ -210,7 +211,7 @@ export const extractEnrichedFields = (components: any[]) => {
 
   const buttonsArr: any[] = [];
   const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
-  if (buttonsComp && buttonsComp.buttons) {
+  if (buttonsComp?.buttons) {
     buttonsComp.buttons.forEach((btn: any, idx: number) => {
       buttonsArr.push({
         type: btn.type,
@@ -272,7 +273,7 @@ export const extractEmailEnrichedFields = (components: any[]) => {
       // For recursive blocks like columns
       const extractProps = (props: any) => {
         if (!props) return;
-        Object.entries(props).forEach(([key, val]) => {
+        Object.entries(props).forEach(([_key, val]) => {
           if (typeof val === "string") {
             extractFromText(val, block.type || "BLOCK", blockIdx);
           } else if (
@@ -483,7 +484,9 @@ export const resolveUnifiedWhatsAppTemplate = async (
   template: ITemplate;
 }> => {
   const { Template } = getTenantModels(tenantDb);
-  const template = await (Template as any).findOne({ name: templateName }).lean();
+  const template = await (Template as any)
+    .findOne({ name: templateName })
+    .lean();
   if (!template) throw new TemplateNotFoundError(templateName);
 
   // 1. Initial Context
@@ -578,7 +581,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
               fetchedIds.add(idStr);
               newlyFound = true;
             }
-          } catch (e) {
+          } catch (_e) {
             // Skip invalid IDs or query errors
           }
         }
@@ -618,24 +621,46 @@ export const resolveUnifiedWhatsAppTemplate = async (
           // Try exact key, then snake_case conversion of camelCase
           const snakeKey = field.replace(/([A-Z])/g, "_$1").toLowerCase();
           // Also try camelCase conversion of snake_case just in case
-          const camelKey = field.replace(/_([a-z])/g, (g:any) => g[1].toUpperCase());
-          
-          value = eventVariables[field] ?? eventVariables[snakeKey] ?? eventVariables[camelKey] ?? null;
-          
+          const camelKey = field.replace(/_([a-z])/g, (g: any) =>
+            g[1].toUpperCase(),
+          );
+
+          value =
+            eventVariables[field] ??
+            eventVariables[snakeKey] ??
+            eventVariables[camelKey] ??
+            null;
+
           if (value !== null && value !== undefined) {
             console.log(
               `[TemplateResolver] Resolved "${mapping.field}" from eventVariables using key: ${
-                eventVariables[field] !== undefined ? field : (eventVariables[snakeKey] !== undefined ? snakeKey : camelKey)
+                eventVariables[field] !== undefined
+                  ? field
+                  : eventVariables[snakeKey] !== undefined
+                    ? snakeKey
+                    : camelKey
               }`,
             );
           } else {
-             // Second attempt check for very common crm fields if they are in event vars
-             if (field === 'name') value = eventVariables.name || eventVariables.fullName || eventVariables.full_name;
-             if (field === 'pdfUrl' || field === 'pdf_url') value = eventVariables.pdfUrl || eventVariables.pdf_url || eventVariables.url || eventVariables.reportUrl || eventVariables.report_url;
+            // Second attempt check for very common crm fields if they are in event vars
+            if (field === "name")
+              value =
+                eventVariables.name ||
+                eventVariables.fullName ||
+                eventVariables.full_name;
+            if (field === "pdfUrl" || field === "pdf_url")
+              value =
+                eventVariables.pdfUrl ||
+                eventVariables.pdf_url ||
+                eventVariables.url ||
+                eventVariables.reportUrl ||
+                eventVariables.report_url;
 
-             if (value) {
-                console.log(`[TemplateResolver] Heuristic match for "${field}" in eventVariables.`);
-             }
+            if (value) {
+              console.log(
+                `[TemplateResolver] Heuristic match for "${field}" in eventVariables.`,
+              );
+            }
           }
         }
         break;
@@ -716,7 +741,9 @@ export const resolveUnifiedWhatsAppTemplate = async (
       mapping.required &&
       (finalValue === null || finalValue === undefined || finalValue === "")
     ) {
-      console.log(`[TemplateResolver] Missing required variable {{${mapping.position}}}`);
+      console.log(
+        `[TemplateResolver] Missing required variable {{${mapping.position}}}`,
+      );
       return {
         resolvedVariables: [],
         languageCode: template.language || "en_US",
@@ -732,7 +759,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
     }
 
     // Strictness check (Smart Stringify)
-    let strVal = smartStringify(finalValue);
+    const strVal = smartStringify(finalValue);
 
     if (strVal.includes("{{") || strVal.includes("vars.")) {
       // If it's still a raw placeholder and required, we might want to fail, but let's be lenient if fallback exists
@@ -749,7 +776,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
       ),
   );
 
-  console.log(`[TemplateResolver] Resolution finished for ${templateName}. isReady: ${missing.length === 0}. Missing positions:`, missing);
+  console.log(
+    `[TemplateResolver] Resolution finished for ${templateName}. isReady: ${missing.length === 0}. Missing positions:`,
+    missing,
+  );
 
   return {
     resolvedVariables,
@@ -830,7 +860,7 @@ export const resolveUnifiedEmailTemplate = async (
       const props = block.props || {};
 
       // Replace variables in props
-      const resolvedProps: any = JSON.parse(JSON.stringify(props));
+      const _resolvedProps: any = JSON.parse(JSON.stringify(props));
       const resolveText = (text: string) => {
         if (!text) return "";
         let t = text;
@@ -1085,7 +1115,7 @@ const applyTransform = (value: any, transform?: string): any => {
         .replace(/\b\w/g, (c) => c.toUpperCase());
     case "date": {
       const d = value instanceof Date ? value : new Date(value);
-      if (!isNaN(d.getTime())) {
+      if (!Number.isNaN(d.getTime())) {
         return d.toLocaleDateString("en-IN", {
           day: "2-digit",
           month: "2-digit",
@@ -1096,7 +1126,7 @@ const applyTransform = (value: any, transform?: string): any => {
     }
     case "currency": {
       const num = Number(value);
-      if (!isNaN(num)) {
+      if (!Number.isNaN(num)) {
         return new Intl.NumberFormat("en-IN", {
           style: "currency",
           currency: "INR",
@@ -1106,7 +1136,7 @@ const applyTransform = (value: any, transform?: string): any => {
     }
     case "number": {
       const n = Number(value);
-      return isNaN(n) ? value : n;
+      return Number.isNaN(n) ? value : n;
     }
     default:
       return value;
@@ -1143,13 +1173,14 @@ const evaluateFormula = (formula: string, context: any): string => {
             (acc, arg) => acc + (getDeep(context, arg) || arg),
             String(data),
           );
-      case "truncate":
+      case "truncate": {
         const limit = parseInt(args[1], 10) || 20;
         return String(data).substring(0, limit);
+      }
       default:
         return String(data);
     }
-  } catch (e) {
+  } catch (_e) {
     return "";
   }
 };
@@ -1237,8 +1268,8 @@ export const createTemplate = async (
  */
 export const updateTemplate = async (
   tenantDb: Connection,
-  whatsappToken: string | null,
-  businessAccountId: string | null,
+  _whatsappToken: string | null,
+  _businessAccountId: string | null,
   templateId: string,
   templateData: any,
 ) => {

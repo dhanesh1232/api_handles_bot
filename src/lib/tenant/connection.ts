@@ -1,8 +1,8 @@
-import dotenv from "dotenv";
-import mongoose, { type Connection } from "mongoose";
-import { ClientDataSource } from "@models/clients/dataSource";
 import { dbConnect } from "@lib/config";
 import { logger } from "@lib/logger";
+import { ClientDataSource } from "@models/clients/dataSource";
+import dotenv from "dotenv";
+import mongoose, { type Connection } from "mongoose";
 
 dotenv.config({ path: "./.env" });
 
@@ -21,7 +21,7 @@ async function tenantDBConnect(URI: string): Promise<Connection> {
   }
 
   logger.debug(
-    { uri: URI.slice(0, 30) + "..." },
+    { uri: `${URI.slice(0, 30)}...` },
     "Creating new tenant DB connection",
   );
   const conn = mongoose.createConnection(URI, {
@@ -36,11 +36,11 @@ async function tenantDBConnect(URI: string): Promise<Connection> {
   await conn.asPromise();
 
   conn.on("connected", () => {
-    logger.info({ uri: URI.slice(0, 30) + "..." }, "Tenant DB connected");
+    logger.info({ uri: `${URI.slice(0, 30)}...` }, "Tenant DB connected");
   });
 
   conn.on("error", (err) => {
-    logger.error({ err, uri: URI.slice(0, 30) + "..." }, "Tenant DB error");
+    logger.error({ err, uri: `${URI.slice(0, 30)}...` }, "Tenant DB error");
   });
 
   connectionMap.set(URI, conn);

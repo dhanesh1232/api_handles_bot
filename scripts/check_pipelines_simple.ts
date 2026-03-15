@@ -1,9 +1,9 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import * as dotenv from "dotenv";
+import mongoose from "mongoose";
 import { dbConnect } from "../src/lib/config.ts";
 import { getCrmModels } from "../src/lib/tenant/get.crm.model.ts";
-import * as dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-import mongoose from "mongoose";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

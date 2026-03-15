@@ -1,6 +1,6 @@
-import { JobHandler } from "../base.handler";
-import type { IJob } from "@models/queue/job.model";
 import { sendCallbackWithRetry } from "@lib/callbackSender";
+import type { IJob } from "@models/queue/job.model";
+import { JobHandler } from "../base.handler";
 
 export class WebhookNotifyJobHandler extends JobHandler {
   async handle(clientCode: string, payload: any, job: IJob): Promise<void> {

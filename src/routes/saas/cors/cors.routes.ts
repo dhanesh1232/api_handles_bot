@@ -13,7 +13,7 @@ router.use(verifyCoreToken);
  * GET /api/saas/cors
  * List all CORS origins registered in the database.
  */
-router.get("/", async (req, res) => {
+router.get("/", async (_req, res) => {
   try {
     await dbConnect("saas");
     const origins = await CorsOrigin.find().sort({ createdAt: -1 });

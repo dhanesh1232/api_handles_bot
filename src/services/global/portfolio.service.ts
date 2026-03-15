@@ -1,7 +1,6 @@
 import { dbConnect } from "@lib/config";
-import { Client } from "@models/clients/client";
 import { getCrmModels } from "@lib/tenant/crm.models";
-import mongoose from "mongoose";
+import { Client } from "@models/clients/client";
 
 /**
  * Portfolio Service

@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import mongoose from "mongoose";
 import { dbConnect } from "../../lib/config.ts";
 import { renderView } from "../../lib/renderView.ts";

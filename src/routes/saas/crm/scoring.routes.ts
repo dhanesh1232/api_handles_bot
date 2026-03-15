@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import * as scoringService from "../../../services/saas/crm/scoring.service.ts";
 
 const router = Router();

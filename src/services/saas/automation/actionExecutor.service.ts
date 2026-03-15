@@ -1,5 +1,5 @@
-import { logger } from "@/lib/logger";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { logger } from "@/lib/logger";
 
 export class ActionExecutor {
   /**
@@ -22,21 +22,26 @@ export class ActionExecutor {
     try {
       switch (type) {
         case "send_whatsapp":
-          return await this.sendWhatsApp(clientCode, config, context, io);
+          return await ActionExecutor.sendWhatsApp(
+            clientCode,
+            config,
+            context,
+            io,
+          );
 
         case "send_email":
-          return await this.sendEmail(clientCode, config, context);
+          return await ActionExecutor.sendEmail(clientCode, config, context);
 
         case "generate_meet":
         case "create_meeting":
-          return await this.generateMeet(clientCode, config, context);
+          return await ActionExecutor.generateMeet(clientCode, config, context);
 
         case "update_lead":
-          return await this.updateLead(clientCode, config, context);
+          return await ActionExecutor.updateLead(clientCode, config, context);
 
         case "add_tag":
         case "tag_lead":
-          return await this.updateTags(
+          return await ActionExecutor.updateTags(
             clientCode,
             context.lead._id,
             [config.tag || config.tagName],
@@ -44,7 +49,7 @@ export class ActionExecutor {
           );
 
         case "remove_tag":
-          return await this.updateTags(
+          return await ActionExecutor.updateTags(
             clientCode,
             context.lead._id,
             [],
@@ -53,7 +58,7 @@ export class ActionExecutor {
 
         case "move_stage":
         case "move_pipeline_stage":
-          return await this.moveLead(
+          return await ActionExecutor.moveLead(
             clientCode,
             context.lead._id,
             config.stageId,
@@ -62,10 +67,14 @@ export class ActionExecutor {
         case "callback_client":
         case "webhook_notify":
         case "http_webhook":
-          return await this.executeWebhook(clientCode, config, context);
+          return await ActionExecutor.executeWebhook(
+            clientCode,
+            config,
+            context,
+          );
 
         case "generate_ai_summary":
-          return await this.generateAiSummary(clientCode, context);
+          return await ActionExecutor.generateAiSummary(clientCode, context);
 
         default:
           throw new Error(`Unsupported action type: ${type}`);
@@ -85,10 +94,12 @@ export class ActionExecutor {
     context: any,
     io?: any,
   ) {
-    const { resolveUnifiedWhatsAppTemplate } =
-      await import("../whatsapp/template.service.ts");
-    const { createWhatsappService } =
-      await import("../whatsapp/whatsapp.service.ts");
+    const { resolveUnifiedWhatsAppTemplate } = await import(
+      "../whatsapp/template.service.ts"
+    );
+    const { createWhatsappService } = await import(
+      "../whatsapp/whatsapp.service.ts"
+    );
     const { Conversation, conn: tenantConn } = await getCrmModels(clientCode);
 
     const lead = context.lead;
@@ -134,8 +145,11 @@ export class ActionExecutor {
     const { createEmailService } = await import("../mail/email.service.ts");
     const svc = createEmailService();
 
-    const subject = this.resolveTemplate(config.subject || "", context);
-    const html = this.resolveTemplate(
+    const subject = ActionExecutor.resolveTemplate(
+      config.subject || "",
+      context,
+    );
+    const html = ActionExecutor.resolveTemplate(
       config.htmlBody || config.body || "",
       context,
     );
@@ -152,11 +166,15 @@ export class ActionExecutor {
     config: any,
     context: any,
   ) {
-    const { createGoogleMeetService } =
-      await import("../meet/google.meet.service.ts");
+    const { createGoogleMeetService } = await import(
+      "../meet/google.meet.service.ts"
+    );
     const svc = createGoogleMeetService();
 
-    const summary = this.resolveTemplate(config.summary || "Meeting", context);
+    const summary = ActionExecutor.resolveTemplate(
+      config.summary || "Meeting",
+      context,
+    );
     const res = await svc.createMeeting(clientCode, {
       summary,
       attendees: context.lead.email ? [context.lead.email] : [],
@@ -174,7 +192,7 @@ export class ActionExecutor {
     const { Lead } = await getCrmModels(clientCode);
     const fields =
       typeof config.fields === "string"
-        ? JSON.parse(this.resolveTemplate(config.fields, context))
+        ? JSON.parse(ActionExecutor.resolveTemplate(config.fields, context))
         : config.fields || {};
 
     return await Lead.findByIdAndUpdate(
@@ -204,15 +222,15 @@ export class ActionExecutor {
   }
 
   private static async executeWebhook(
-    clientCode: string,
+    _clientCode: string,
     config: any,
     context: any,
   ) {
-    const url = this.resolveTemplate(config.url || "", context);
+    const url = ActionExecutor.resolveTemplate(config.url || "", context);
     const method = config.method || "POST";
     const body =
       typeof config.payload === "string"
-        ? JSON.parse(this.resolveTemplate(config.payload, context))
+        ? JSON.parse(ActionExecutor.resolveTemplate(config.payload, context))
         : config.payload || {};
 
     const response = await fetch(url, {

@@ -1,15 +1,14 @@
-
-import { extractEnrichedFields } from '../src/services/saas/whatsapp/template.service.ts';
+import { extractEnrichedFields } from "../src/services/saas/whatsapp/template.service.ts";
 
 const mockComponents = [
   {
-    type: 'HEADER',
-    format: 'IMAGE'
+    type: "HEADER",
+    format: "IMAGE",
   },
   {
-    type: 'BODY',
-    text: 'Hello {{1}}, how are you?'
-  }
+    type: "BODY",
+    text: "Hello {{1}}, how are you?",
+  },
 ];
 
 const result = extractEnrichedFields(mockComponents);

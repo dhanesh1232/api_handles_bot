@@ -1,6 +1,6 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
-import { tenantLogger } from "@/lib/logger";
 import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
+import { tenantLogger } from "@/lib/logger";
 
 /**
  * Creates a new notification record.

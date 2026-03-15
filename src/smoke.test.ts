@@ -1,10 +1,10 @@
 import "dotenv/config";
-import mongoose from "mongoose";
 import assert from "node:assert";
 import { after, describe, test } from "node:test";
+import mongoose from "mongoose";
 import { dbConnect } from "./lib/config.ts";
-import { ClientDataSource } from "./model/clients/dataSource.ts";
 import { tenantModelConfig } from "./lib/tenant/crm.models.ts"; // Note: .js for node execution
+import { ClientDataSource } from "./model/clients/dataSource.ts";
 
 describe("Backend System Validation (Smoke Tests)", () => {
   after(async () => {

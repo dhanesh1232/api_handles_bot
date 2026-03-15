@@ -1,4 +1,4 @@
-import { cache, CacheKey, type CacheOptions } from "@lib/cache";
+import { type CacheOptions, cache } from "@lib/cache";
 
 export class CacheSDK {
   constructor(private readonly clientCode: string) {}

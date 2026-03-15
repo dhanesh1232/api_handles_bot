@@ -1,13 +1,13 @@
-import { JobHandler } from "../base.handler";
-import type { IJob } from "@models/queue/job.model";
-import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
 import { getCrmModels } from "@lib/tenant/crm.models";
-import { normalizePhone } from "@utils/phone";
+import type { IJob } from "@models/queue/job.model";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
+import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
+import { normalizePhone } from "@utils/phone";
+import { JobHandler } from "../base.handler";
 
 export class ReminderJobHandler extends JobHandler {
-  async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
+  async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     // Note: globalIo is typically injected via worker registration
     const io = (global as any).io;
     const svc = createWhatsappService(io);
@@ -29,8 +29,9 @@ export class ReminderJobHandler extends JobHandler {
     let templateLanguage = payload.language || "en_US";
 
     try {
-      const { resolveUnifiedWhatsAppTemplate } =
-        await import("@services/saas/whatsapp/template.service");
+      const { resolveUnifiedWhatsAppTemplate } = await import(
+        "@services/saas/whatsapp/template.service"
+      );
       const { Lead } = await getCrmModels(clientCode);
 
       const lead = payload.leadId

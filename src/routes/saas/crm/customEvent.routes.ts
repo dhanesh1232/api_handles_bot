@@ -4,8 +4,8 @@
  * Place at: src/routes/saas/crm/customEvent.routes.ts
  */
 
-import { Router, type Request, type Response } from "express";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { type Request, type Response, Router } from "express";
 import { EventBus } from "@/services/saas/event/eventBus.service";
 
 const router = Router();

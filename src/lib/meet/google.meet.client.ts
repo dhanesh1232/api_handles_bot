@@ -4,8 +4,8 @@
  * GoogleMeetClient — Unified wrapper for Google Calendar API.
  */
 
-import { google, type Auth } from "googleapis";
 import { logger } from "@lib/logger";
+import { type Auth, google } from "googleapis";
 
 export class GoogleMeetClient {
   private readonly auth: Auth.OAuth2Client;

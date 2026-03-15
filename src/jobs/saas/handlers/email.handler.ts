@@ -1,6 +1,6 @@
-import { JobHandler } from "../base.handler";
 import type { IJob } from "@models/queue/job.model";
 import { createEmailService } from "@services/saas/mail/email.service";
+import { JobHandler } from "../base.handler";
 
 export class EmailJobHandler extends JobHandler {
   async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
@@ -26,8 +26,9 @@ export class EmailJobHandler extends JobHandler {
         { clientCode, recipient: payload.to || "bulk", err: err.message },
         "Email send failed",
       );
-      const { createNotification } =
-        await import("@services/saas/crm/notification.service");
+      const { createNotification } = await import(
+        "@services/saas/crm/notification.service"
+      );
       await createNotification(clientCode, {
         title: "Email Delivery Failed",
         message: `Failed to send email "${payload.subject}" to ${payload.to || "recipients"}: ${err.message}`,

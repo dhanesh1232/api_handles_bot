@@ -5,9 +5,8 @@ import { dbConnect } from "@/lib/config";
 import { getCrmModels } from "@/lib/tenant/crm.models";
 
 import { validateClientKey } from "@/middleware/saasAuth";
-import { ClientSecrets } from "@/model/clients/secrets";
-
 import { withSDK } from "@/middleware/withSDK";
+import { ClientSecrets } from "@/model/clients/secrets";
 import { optimizeAndUploadMedia } from "@/services/saas/media/media.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -415,7 +414,7 @@ export const createChatRouter = (io: Server) => {
     async (req: Request, res: Response) => {
       try {
         const sReq = req as SaasRequest;
-        const clientCode = sReq.clientCode!;
+        const _clientCode = sReq.clientCode!;
         const { messageId } = req.params;
         const { reaction } = req.body;
 

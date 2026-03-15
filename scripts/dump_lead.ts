@@ -4,8 +4,9 @@
  * Run from: /home/dhanesh/ecodrix/ECOD/backend
  *   pnpm tsx scripts/dump_lead.ts
  */
-import { getCrmModels } from "../src/lib/tenant/crm.models";
+
 import mongoose from "mongoose";
+import { getCrmModels } from "../src/lib/tenant/crm.models";
 
 const CLIENT_CODE = "ERIX_CLNT1";
 // The lead ID from the automation failure logs
@@ -17,11 +18,27 @@ async function run() {
   if (lead) {
     console.log("Phone:", lead.phone);
     console.log("Name:", lead.firstName, lead.lastName);
-    console.log("Full lead:", JSON.stringify({ _id: lead._id, phone: lead.phone, firstName: lead.firstName, lastName: lead.lastName, email: lead.email }, null, 2));
+    console.log(
+      "Full lead:",
+      JSON.stringify(
+        {
+          _id: lead._id,
+          phone: lead.phone,
+          firstName: lead.firstName,
+          lastName: lead.lastName,
+          email: lead.email,
+        },
+        null,
+        2,
+      ),
+    );
   } else {
     console.log("Lead NOT found with ID:", LEAD_ID);
   }
   process.exit(0);
 }
 
-run().catch((e) => { console.error(e); process.exit(1); });
+run().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

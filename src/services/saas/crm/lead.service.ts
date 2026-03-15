@@ -146,7 +146,7 @@ export const createLead = async (
       }).lean();
       if (p) pipelineId = p._id.toString();
     }
-    stageId = defaultStage!._id.toString();
+    stageId = defaultStage?._id.toString();
   }
 
   const metadataRefs = buildMetadataRefs(input.metadata?.refs);

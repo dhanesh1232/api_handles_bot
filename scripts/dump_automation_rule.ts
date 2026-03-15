@@ -11,7 +11,9 @@ const CLIENT_CODE = "ERIX_CLNT1";
 async function run() {
   const { AutomationRule, Template } = await getCrmModels(CLIENT_CODE);
 
-  const rule = await AutomationRule.findOne({ name: "Report Welcome message" }).lean();
+  const rule = await AutomationRule.findOne({
+    name: "Report Welcome message",
+  }).lean();
   if (rule) {
     console.log("\n=== AUTOMATION RULE ===");
     console.log("Trigger:", rule.trigger);
@@ -30,4 +32,7 @@ async function run() {
   process.exit(0);
 }
 
-run().catch((e) => { console.error(e); process.exit(1); });
+run().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

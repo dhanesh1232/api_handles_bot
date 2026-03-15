@@ -77,7 +77,7 @@ async function verify() {
     );
     console.log("Resolved Variables:", resolved);
 
-    if (resolved[0] == "799") {
+    if (resolved[0] === "799") {
       console.log(
         '🚀 SUCCESS: The system successfully fetched from "orders" using "orderId"!',
       );

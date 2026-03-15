@@ -5,7 +5,7 @@
  * Mount at /api/saas/meet in server.ts
  */
 
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import { Server } from "socket.io";
 import { withSDK } from "@/middleware/withSDK";
 import * as meetingService from "../../../services/saas/meet/meeting.service.ts";

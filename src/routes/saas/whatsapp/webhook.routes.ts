@@ -84,7 +84,7 @@ export const createWebhookRouter = async (io: Server) => {
                   }
 
                   const clientCode = secrets.clientCode;
-                  const contacts = value.contacts;
+                  const _contacts = value.contacts;
 
                   // 1. Handle Messages
                   if (value.messages && value.messages.length > 0) {

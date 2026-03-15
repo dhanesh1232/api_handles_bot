@@ -50,4 +50,5 @@ Thumbs.db
 package-lock.json
 yarn.lock
 *.bash
-*.sh
+*.shpublic/
+*.log

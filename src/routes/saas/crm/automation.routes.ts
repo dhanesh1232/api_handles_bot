@@ -4,8 +4,8 @@
  * Place at: src/routes/saas/crm/automation.routes.ts
  */
 
-import { Router, type Request, type Response } from "express";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { type Request, type Response, Router } from "express";
 import * as automationService from "@/services/saas/crm/automation.service";
 
 const router = Router();

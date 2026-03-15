@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 
 const ALGORITHM = "aes-256-cbc";
 const ENCRYPTION_KEY =
@@ -25,7 +25,7 @@ class CryptoClient {
     const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
     let encrypted = cipher.update(text);
     encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
+    return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
   }
 
   /**
@@ -46,7 +46,7 @@ class CryptoClient {
       let decrypted = decipher.update(encryptedText);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
       return decrypted.toString();
-    } catch (err) {
+    } catch (_err) {
       return null;
     }
   }

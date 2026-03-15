@@ -116,7 +116,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     // 4. Fetch Client Name for Personalization
     const client = await Client.findOne({ clientCode }, "name business");
     const businessName = client?.name || "Your Business";
-    const website = client?.business?.website;
+    const _website = client?.business?.website;
 
     // 5. Success Response
     const html = renderView("auth/google-success.html", {

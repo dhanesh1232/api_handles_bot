@@ -1,6 +1,6 @@
-import Job from "@models/queue/job.model";
 import { dbConnect } from "@lib/config";
 import { logger } from "@lib/logger";
+import Job from "@models/queue/job.model";
 import type { AddJobOptions } from "./types.ts";
 
 /**

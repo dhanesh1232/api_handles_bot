@@ -2,8 +2,7 @@
  * lead.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
  */
 
-import { Router, type Request, type Response } from "express";
-import { withSDK } from "@/middleware/withSDK";
+import { type Request, type Response, Router } from "express";
 
 const router = Router();
 // router.use(withSDK()); // stamps req.sdk once for every route below — MOVED TO PARENT crm.router.ts
@@ -96,7 +95,7 @@ router.post("/leads/upsert", async (req: any, res: any) => {
         );
       }
       if (Object.keys(refs).length > 0) {
-        lead = await req.sdk.lead.updateRefs(lead!._id.toString(), refs);
+        lead = await req.sdk.lead.updateRefs(lead?._id.toString(), refs);
       }
       if (lead && leadData.message) {
         await req.sdk.activity.createNote(
@@ -148,8 +147,9 @@ router.post("/leads/upsert", async (req: any, res: any) => {
     }
 
     if (lead && trigger) {
-      const { runAutomations } =
-        await import("@/services/saas/crm/automation.service");
+      const { runAutomations } = await import(
+        "@/services/saas/crm/automation.service"
+      );
       void runAutomations(req.clientCode!, {
         trigger: trigger as any,
         lead: lead as any,
@@ -158,7 +158,7 @@ router.post("/leads/upsert", async (req: any, res: any) => {
           ...(leadData || {}),
           phone: lead.phone,
           name: lead.firstName,
-          fullName: lead.firstName + (lead.lastName ? " " + lead.lastName : ""),
+          fullName: lead.firstName + (lead.lastName ? ` ${lead.lastName}` : ""),
         },
       });
     }

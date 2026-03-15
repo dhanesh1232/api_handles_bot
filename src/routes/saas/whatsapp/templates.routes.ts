@@ -1,6 +1,6 @@
+import { getCrmModels } from "@lib/tenant/crm.models";
 import express, { type Request, type Response } from "express";
 import { Server } from "socket.io";
-import { getCrmModels } from "@lib/tenant/crm.models";
 import { validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
 import { ClientSecrets } from "@/model/clients/secrets";
@@ -72,7 +72,7 @@ export const createTemplateRouter = (io: Server) => {
   router.get(
     "/mapping/config",
     validateClientKey,
-    async (req: Request, res: Response) => {
+    async (_req: Request, res: Response) => {
       try {
         const config = getCuratedMappingConfig();
         res.json({ success: true, data: config });

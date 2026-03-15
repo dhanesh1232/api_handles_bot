@@ -42,7 +42,7 @@ router.post("/add-lead", async (req: Request, res: Response) => {
 
     // Check for existing lead (same phone or business name)
     const existingLead = await Lead.findOne({
-      $or: [{ phone }, { title: new RegExp("^" + title + "$", "i") }],
+      $or: [{ phone }, { title: new RegExp(`^${title}$`, "i") }],
     });
 
     if (existingLead) {

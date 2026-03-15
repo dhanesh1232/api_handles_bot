@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { normalizePhone } from "@/utils/phone";
 import { sendCallbackWithRetry } from "@/lib/callbackSender";
 import { getCrmModels } from "@/lib/tenant/crm.models";
 import { createLead, getLeadByPhone } from "@/services/saas/crm/lead.service";
 import { EventBus } from "@/services/saas/event/eventBus.service";
+import { normalizePhone } from "@/utils/phone";
 
 const triggerRouter = Router();
 
@@ -164,7 +164,7 @@ triggerRouter.post("/trigger", async (req: any, res: any) => {
 
     // 5. Build unified event variables context
     //    Merges: explicit vars + flattened data object + system fields
-    const eventVariables: Record<string, string> = {
+    const _eventVariables: Record<string, string> = {
       ...(variables || {}),
       phone,
       email: email ?? "",

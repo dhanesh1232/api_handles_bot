@@ -16,8 +16,8 @@
  * to create one from a ClientSecrets document.
  */
 
-import axios, { type AxiosInstance } from "axios";
 import { logger } from "@lib/logger";
+import axios, { type AxiosInstance } from "axios";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 

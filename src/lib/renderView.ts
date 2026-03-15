@@ -5,8 +5,8 @@
  * • Replaces __TOKEN__ placeholders with caller-supplied values.
  * • Safe for production: no eval, no loops on the FS per request.
  */
-import { readFileSync } from "fs";
-import { join } from "path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // Always locate views relative to the project root (where server.ts/package.json live)
 // This works in both dev (tsx) and prod (node dist/server.js)

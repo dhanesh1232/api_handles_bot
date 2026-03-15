@@ -1,5 +1,5 @@
-import { crmQueue } from "@/jobs/saas/crmWorker";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { crmQueue } from "@/jobs/saas/crmWorker";
 import { EventBus } from "../event/eventBus.service.ts";
 
 export function calculateScore(lead: any, scoringConfig: any): number {
@@ -22,10 +22,10 @@ export function calculateScore(lead: any, scoringConfig: any): number {
         isMatch = fieldValue === undefined || fieldValue === null;
         break;
       case "equals":
-        isMatch = fieldValue == rule.value;
+        isMatch = fieldValue === rule.value;
         break;
       case "not_equals":
-        isMatch = fieldValue != rule.value;
+        isMatch = fieldValue !== rule.value;
         break;
       case "greater_than":
         isMatch = Number(fieldValue) > Number(rule.value);
@@ -66,10 +66,10 @@ export function getScoreBreakdown(lead: any, scoringConfig: any) {
         isMatch = fieldValue === undefined || fieldValue === null;
         break;
       case "equals":
-        isMatch = fieldValue == rule.value;
+        isMatch = fieldValue === rule.value;
         break;
       case "not_equals":
-        isMatch = fieldValue != rule.value;
+        isMatch = fieldValue !== rule.value;
         break;
       case "greater_than":
         isMatch = Number(fieldValue) > Number(rule.value);
@@ -104,7 +104,7 @@ export async function recalculateLeadScore(clientCode: string, leadId: string) {
   let newScore = 0;
   let breakdown: any[] = [];
 
-  if (config && config.rules && config.rules.length > 0) {
+  if (config?.rules && config.rules.length > 0) {
     newScore = calculateScore(lead as any, config);
     breakdown = getScoreBreakdown(lead as any, config);
 

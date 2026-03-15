@@ -1,4 +1,6 @@
+import { getTenantConnection } from "@lib/connectionManager";
 import mongoose, { type Connection, type Schema } from "mongoose";
+import { Client } from "@/model/clients/client";
 import AutomationRuleSchema from "@/model/saas/crm/automationRule.model";
 import LeadSchema from "@/model/saas/crm/lead.model";
 import LeadActivitySchema from "@/model/saas/crm/leadActivity.model";
@@ -7,23 +9,24 @@ import NotificationSchema from "@/model/saas/crm/notification.model";
 import PipelineSchema from "@/model/saas/crm/pipeline.model";
 import PipelineStageSchema from "@/model/saas/crm/pipelineStage.model";
 import { ScoringConfigSchema } from "@/model/saas/crm/scoringConfig.model";
+import SegmentSchema from "@/model/saas/crm/segment.model";
 import { SequenceEnrollmentSchema } from "@/model/saas/crm/sequenceEnrollment.model";
+import { callbackLogSchema } from "@/model/saas/event/callbackLog.model";
+import CustomEventDefSchema from "@/model/saas/event/customEventDef.model";
+import { eventLogSchema } from "@/model/saas/event/eventLog.model";
 import { MeetingSchema } from "@/model/saas/meet/meeting.model";
 import BroadcastSchema from "@/model/saas/whatsapp/broadcast.model";
 import ConversationSchema from "@/model/saas/whatsapp/conversation.model";
 import MessageSchema from "@/model/saas/whatsapp/message.model";
 import TemplateSchema from "@/model/saas/whatsapp/template.model";
-import CustomEventDefSchema from "@/model/saas/event/customEventDef.model";
-import SegmentSchema from "@/model/saas/crm/segment.model";
-import { eventLogSchema } from "@/model/saas/event/eventLog.model";
-import { callbackLogSchema } from "@/model/saas/event/callbackLog.model";
-import { getTenantConnection } from "@lib/connectionManager";
-import { Client } from "@/model/clients/client";
 
 export {
   AutomationRuleSchema,
   BroadcastSchema,
   ConversationSchema,
+  CustomEventDefSchema,
+  callbackLogSchema,
+  eventLogSchema,
   LeadActivitySchema,
   LeadNoteSchema,
   LeadSchema,
@@ -33,12 +36,9 @@ export {
   PipelineSchema,
   PipelineStageSchema,
   ScoringConfigSchema,
+  SegmentSchema,
   SequenceEnrollmentSchema,
   TemplateSchema,
-  CustomEventDefSchema,
-  SegmentSchema,
-  eventLogSchema,
-  callbackLogSchema,
 };
 
 /**

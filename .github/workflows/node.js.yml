@@ -29,8 +29,5 @@ jobs:
       - name: Type Check & Build (TSC)
         run: pnpm run build
 
-      - name: Check Formatting (Prettier)
-        run: pnpm exec prettier --check .
-
-      - name: Run Linter (ESLint)
+      - name: Run Biome (Lint & Format Check)
         run: pnpm run lint

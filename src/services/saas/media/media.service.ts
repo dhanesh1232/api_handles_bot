@@ -5,18 +5,18 @@
  * and delegates storage operations to the StorageClient.
  */
 
-import ffmpegPath from "ffmpeg-static";
-import ffmpeg from "fluent-ffmpeg";
-import fs from "fs";
-import path from "path";
-import sharp from "sharp";
+import fs from "node:fs";
+import path from "node:path";
 import { logger } from "@lib/logger";
 import {
-  StorageClient,
   type ListResult,
+  StorageClient,
   type UploadResult,
 } from "@lib/storage/r2.client";
 import type { IClientSecrets } from "@models/clients/secrets";
+import ffmpegPath from "ffmpeg-static";
+import ffmpeg from "fluent-ffmpeg";
+import sharp from "sharp";
 
 // ─── FFmpeg Setup ─────────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ export const compressMedia = async (
     fs.writeFileSync(inputPath, buffer);
 
     await new Promise<void>((resolve, reject) => {
-      let command = ffmpeg(inputPath);
+      const command = ffmpeg(inputPath);
 
       if (mimeType.startsWith("video/")) {
         command
@@ -194,7 +194,7 @@ export const uploadBufferToR2 = async (
 
   if (await storage.exists(r2Key)) {
     logger.debug({ filename }, "File already exists in R2, skipping upload");
-    return storage["getPublicUrl"](r2Key); // Internal access for exact legacy behavior
+    return storage.getPublicUrl(r2Key); // Internal access for exact legacy behavior
   }
 
   const result = await storage.upload(r2Key, buffer, mimeType);

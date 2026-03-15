@@ -1,9 +1,9 @@
-import { JobHandler } from "../base.handler";
-import { getSegmentService } from "@/services/saas/crm/segment.service";
 import type { IJob } from "@models/queue/job.model";
+import { getSegmentService } from "@/services/saas/crm/segment.service";
+import { JobHandler } from "../base.handler";
 
 export class SegmentRefreshJobHandler extends JobHandler {
-  async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
+  async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { segmentId } = payload;
     const segmentService = await getSegmentService(clientCode);
 

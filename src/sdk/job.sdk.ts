@@ -1,4 +1,3 @@
-import type { ErixJobs } from "@lib/erixJobs/index";
 import { crmQueue } from "@jobs/saas/crmWorker";
 
 export type CrmJobType =

@@ -1,12 +1,12 @@
-import express, { type Request, type Response } from "express";
-import { verifyCoreToken } from "../../middleware/auth";
+import { dbConnect } from "@lib/config";
 import { Blueprint } from "@models/global/blueprint.model";
+import { Staff } from "@models/global/staff.model";
+import { HealthService } from "@services/global/health.service";
 import { OrchestratorService } from "@services/global/orchestrator.service";
 import { PortfolioService } from "@services/global/portfolio.service";
-import { HealthService } from "@services/global/health.service";
 import { UsageService } from "@services/global/usage.service";
-import { Staff } from "@models/global/staff.model";
-import { dbConnect } from "@lib/config";
+import express, { type Request, type Response } from "express";
+import { verifyCoreToken } from "../../middleware/auth";
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ const router = express.Router();
 router.get(
   "/blueprints",
   verifyCoreToken,
-  async (req: Request, res: Response) => {
+  async (_req: Request, res: Response) => {
     try {
       await dbConnect("services");
       const blueprints = await Blueprint.find().sort({ createdAt: -1 });

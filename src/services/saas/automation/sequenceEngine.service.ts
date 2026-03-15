@@ -1,8 +1,7 @@
-import { crmQueue } from "@/jobs/saas/crmWorker";
 import { getCrmModels } from "@lib/tenant/crm.models";
-
-import { ConditionEvaluator } from "./conditionEvaluator.service.ts";
+import { crmQueue } from "@/jobs/saas/crmWorker";
 import { ActionExecutor } from "./actionExecutor.service.ts";
+import { ConditionEvaluator } from "./conditionEvaluator.service.ts";
 
 export async function enrollInSequence(
   clientCode: string,
@@ -181,7 +180,7 @@ async function advanceToNextStep(
   enrollment: any,
   stepNumber: number,
   clientCode: string,
-  SequenceEnrollment: any,
+  _SequenceEnrollment: any,
   AutomationRule: any,
 ) {
   const nextStepNum = stepNumber + 1;

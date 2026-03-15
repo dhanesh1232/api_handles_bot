@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import { BaseSDK } from "./base.sdk";
 import { getCrmModels } from "@/lib/tenant/crm.models";
+import { BaseSDK } from "./base.sdk";
 
 export interface TimelineEvent {
   id: string;
@@ -106,7 +106,7 @@ export class HistorySDK extends BaseSDK {
   }
 }
 
-let historySDKs: Record<string, HistorySDK> = {};
+const historySDKs: Record<string, HistorySDK> = {};
 
 export const getHistorySDK = (clientCode: string) => {
   if (!historySDKs[clientCode]) {

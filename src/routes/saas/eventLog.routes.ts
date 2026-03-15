@@ -1,5 +1,5 @@
-import { Router, type Request, type Response } from "express";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { type Request, type Response, Router } from "express";
 
 const router = Router();
 

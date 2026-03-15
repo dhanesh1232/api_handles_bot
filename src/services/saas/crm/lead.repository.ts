@@ -1,5 +1,4 @@
 import { BaseRepository } from "../../../lib/tenant/base.repository";
-import type { Model } from "mongoose";
 
 /**
  * LeadRepository
@@ -7,10 +6,6 @@ import type { Model } from "mongoose";
  * Tenant-scoped repository for Lead operations.
  */
 export class LeadRepository extends BaseRepository<ILead> {
-  constructor(model: Model<ILead>, clientCode: string) {
-    super(model, clientCode);
-  }
-
   /**
    * Custom query to find a lead by normalized phone.
    */

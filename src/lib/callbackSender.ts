@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { dbConnect } from "./config.ts";
 
 export interface CallbackPayload {
@@ -73,14 +73,12 @@ class CallbackClient {
           });
           return { success: true, attempts, status: lastStatus };
         }
-      } catch (err: any) {
+      } catch (_err: any) {
         // Silently retry
       }
 
       if (attempts < maxRetries) {
-        await new Promise((r) =>
-          setTimeout(r, 2000 * Math.pow(2, attempts - 1)),
-        );
+        await new Promise((r) => setTimeout(r, 2000 * 2 ** (attempts - 1)));
       }
     }
 
@@ -110,7 +108,7 @@ class CallbackClient {
         clientCode,
         lastAttemptAt: new Date(),
       });
-    } catch (err: any) {
+    } catch (_err: any) {
       // console.error is redundant if logger is available, but maintaining established pattern
     }
   }

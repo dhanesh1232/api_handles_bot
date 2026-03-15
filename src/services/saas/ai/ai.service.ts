@@ -1,5 +1,5 @@
-import { OpenAI } from "openai";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import { OpenAI } from "openai";
 import { logger } from "@/lib/logger";
 
 const openai = new OpenAI({

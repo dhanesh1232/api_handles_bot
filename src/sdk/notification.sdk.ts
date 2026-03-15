@@ -5,13 +5,13 @@
  * Supports failure highlights, dismissal, and automated retries.
  */
 
+import { tenantLogger } from "@lib/logger";
 import {
   createNotification,
   dismissNotification,
   getUnreadNotifications,
   retryNotificationAction,
 } from "@services/saas/crm/notification.service";
-import { tenantLogger } from "@lib/logger";
 
 export class NotificationSDK {
   constructor(private readonly clientCode: string) {}

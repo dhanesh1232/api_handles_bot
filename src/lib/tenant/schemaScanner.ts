@@ -1,6 +1,6 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,14 +26,14 @@ export class SchemaScanner {
    * Extracts fields from a model file within internal backend directories.
    */
   public static async getFieldsForCollection(
-    clientCode: string,
+    _clientCode: string,
     collectionName: string,
   ): Promise<FieldDefinition[]> {
     const searchDirs = [];
     if (fs.existsSync(CRM_MODELS_BASE)) searchDirs.push(CRM_MODELS_BASE);
     if (fs.existsSync(MEET_MODELS_BASE)) searchDirs.push(MEET_MODELS_BASE);
 
-    const normTarget = this.normalizeName(collectionName);
+    const normTarget = SchemaScanner.normalizeName(collectionName);
     const fields: FieldDefinition[] = [];
 
     const MONGOOSE_RESERVED = [
@@ -76,7 +76,7 @@ export class SchemaScanner {
         const files = fs.readdirSync(modelsDir);
 
         const targetFile = files.find((f) => {
-          const base = this.normalizeName(
+          const base = SchemaScanner.normalizeName(
             f.replace(/\.model\.ts$/, "").replace(/\.ts$/, ""),
           );
           return (

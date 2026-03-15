@@ -1,4 +1,4 @@
-import mongoose, { type Document } from "mongoose";
+import mongoose from "mongoose";
 
 const VariableMappingSchema = new mongoose.Schema(
   {

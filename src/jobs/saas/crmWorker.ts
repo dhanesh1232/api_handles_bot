@@ -14,9 +14,10 @@
  *   crm.score_refresh      — background lead score recalculation
  *   crm.webhook_notify     — fire an HTTP callback to client's server
  */
-import { logger } from "@lib/logger";
+
 import { ErixJobs } from "@lib/erixJobs/index";
 import { ErixWorkers } from "@lib/erixJobs/worker";
+import { logger } from "@lib/logger";
 import type { IJob } from "@models/queue/job.model";
 import { JobRegistry } from "./jobRegistry";
 
@@ -24,9 +25,9 @@ import { JobRegistry } from "./jobRegistry";
 export const crmQueue = ErixJobs.getQueue("crm");
 
 // ─── Socket.io ref ───────────────────────────────────────────────────────────
-let globalIo: any = null;
+let _globalIo: any = null;
 export const registerCrmIo = (io: any): void => {
-  globalIo = io;
+  _globalIo = io;
   (global as any).io = io; // Ensure global availability for handlers
 };
 

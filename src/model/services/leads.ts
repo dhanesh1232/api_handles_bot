@@ -1,4 +1,4 @@
-import mongoose, { type Document, type Model } from "mongoose";
+import mongoose, { type Model } from "mongoose";
 
 const statuses = [
   "new",

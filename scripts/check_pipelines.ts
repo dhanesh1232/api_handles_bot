@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
-import { getCrmModels } from "../src/lib/tenant/get.crm.model";
 import * as dotenv from "dotenv";
 import { dbConnect } from "../src/lib/config";
+import { getCrmModels } from "../src/lib/tenant/get.crm.model";
+
 dotenv.config();
 
 async function checkPipelines() {

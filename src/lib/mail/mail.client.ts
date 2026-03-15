@@ -5,8 +5,8 @@
  * Each instance is bound to a specific client's SMTP credentials.
  */
 
-import nodemailer, { type Transporter } from "nodemailer";
 import { logger } from "@lib/logger";
+import nodemailer, { type Transporter } from "nodemailer";
 
 export class MailClient {
   private readonly transporter: Transporter;

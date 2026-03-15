@@ -1,5 +1,5 @@
-import { getCrmModels } from "../src/lib/tenant/get.crm.model.ts";
 import { dbConnect } from "../src/lib/config.ts";
+import { getCrmModels } from "../src/lib/tenant/get.crm.model.ts";
 
 async function main() {
   await dbConnect("services");

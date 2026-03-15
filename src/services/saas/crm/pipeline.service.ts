@@ -6,8 +6,8 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import mongoose from "mongoose";
 import { getCrmModels } from "@lib/tenant/crm.models";
+import mongoose from "mongoose";
 import { getPipelineRepo, getPipelineStageRepo } from "./pipeline.repository";
 
 // ─── Default stage templates ───────────────────────────────────────────────────
@@ -505,7 +505,7 @@ export const updateStage = async (
  */
 export const reorderStages = async (
   clientCode: string,
-  pipelineId: string,
+  _pipelineId: string,
   newOrder: UpdateStageOrderInput[],
 ): Promise<void> => {
   const sRepo = await getPipelineStageRepo(clientCode);

@@ -5,12 +5,12 @@
  * All DB ops go to the client's own tenant DB via getCrmModels().
  */
 
-import mongoose from "mongoose";
 import { getCrmModels } from "@lib/tenant/crm.models";
-import { getAutomationRuleRepo } from "./automation.repository";
+import mongoose from "mongoose";
 import { createSDK } from "@/sdk/index";
-import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
 import { ActionExecutor } from "../automation/actionExecutor.service";
+import { ConditionEvaluator } from "../automation/conditionEvaluator.service";
+import { getAutomationRuleRepo } from "./automation.repository";
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 /**
@@ -60,8 +60,9 @@ export const runAutomations = async (
   await Promise.allSettled(
     rules.map(async (rule) => {
       if (rule.isSequence && rule.steps && rule.steps.length > 0) {
-        const { enrollInSequence } =
-          await import("../automation/sequenceEngine.service.ts");
+        const { enrollInSequence } = await import(
+          "../automation/sequenceEngine.service.ts"
+        );
         await enrollInSequence(
           clientCode,
           (rule as any)._id.toString(),
@@ -278,7 +279,7 @@ const enqueueDelayedAction = async (
   const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
 
   // Merge context into actionConfig
-  const actionConfig: Record<string, unknown> = {
+  const _actionConfig: Record<string, unknown> = {
     ...(action.config as Record<string, unknown>),
     phone: (action.config as any).phone ?? lead.phone,
     email: (action.config as any).email ?? lead.email ?? "",
@@ -321,7 +322,7 @@ const enqueueDelayedAction = async (
 
     if (eventTimeStr) {
       const eventTime = new Date(eventTimeStr);
-      if (!isNaN(eventTime.getTime())) {
+      if (!Number.isNaN(eventTime.getTime())) {
         let fireTime: Date;
         const offsetMs = (action.delayMinutes || 0) * 60 * 1000;
 
@@ -421,7 +422,7 @@ async function validateActionBeforeEnqueue(
   clientCode: string,
   action: IAutomationAction,
   lead: ILead,
-  ruleId: string,
+  _ruleId: string,
   variables?: Record<string, string>,
 ): Promise<{ isValid: boolean; resolvedConfig?: any }> {
   const { Notification } = await getCrmModels(clientCode);
@@ -453,7 +454,7 @@ async function validateActionBeforeEnqueue(
     (action.type === "send_email" && (action.config as any).templateName)
   ) {
     const cfg = action.config as any;
-    if (cfg && cfg.templateName) {
+    if (cfg?.templateName) {
       const { resolveUnifiedWhatsAppTemplate, resolveUnifiedEmailTemplate } =
         await import("../whatsapp/template.service.ts");
       const { conn: tenantConn } = await getCrmModels(clientCode);

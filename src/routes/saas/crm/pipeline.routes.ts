@@ -2,7 +2,7 @@
  * pipeline.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
  */
 
-import { Router, type Request, type Response } from "express";
+import { type Request, type Response, Router } from "express";
 import { withSDK } from "@/middleware/withSDK";
 
 const router = Router();

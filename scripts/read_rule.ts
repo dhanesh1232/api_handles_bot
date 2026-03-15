@@ -1,6 +1,6 @@
+import * as dotenv from "dotenv";
+import { getCrmModels } from "../src/lib/tenant/crm.models";
 
-import { getCrmModels } from '../src/lib/tenant/crm.models';
-import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function run() {

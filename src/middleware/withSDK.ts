@@ -20,8 +20,8 @@
  */
 
 import type { NextFunction, Request, Response } from "express";
-import type { Server } from "socket.io";
 import type { Logger } from "pino";
+import type { Server } from "socket.io";
 import { createSDK } from "@/sdk/index";
 import { AuditService } from "@/services/global/audit.service";
 

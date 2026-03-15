@@ -1,6 +1,6 @@
-import { ClientSecrets } from "@models/clients/secrets";
-import { MailClient } from "@lib/mail/mail.client";
 import { tenantLogger } from "@lib/logger";
+import { MailClient } from "@lib/mail/mail.client";
+import { ClientSecrets } from "@models/clients/secrets";
 
 /**
  * Email Marketing & Transactional Service

@@ -1,7 +1,7 @@
-import { ClientSecrets } from "@models/clients/secrets";
+import { tenantLogger } from "@lib/logger";
 import { GoogleMeetClient } from "@lib/meet/google.meet.client";
 import { getClientConfig } from "@lib/tenant/crm.models";
-import { tenantLogger } from "@lib/logger";
+import { ClientSecrets } from "@models/clients/secrets";
 
 /**
  * Google Meet Integration Service
