@@ -595,20 +595,9 @@ export const resolveUnifiedWhatsAppTemplate = async (
     (a, b) => a.position - b.position,
   );
 
-  try {
-    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Event vars keys: ${Object.keys(context.event).join(",")}\n`);
-    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Mapping count: ${sortedMappings.length}\n`);
-  } catch (e) {}
-
   for (const mapping of sortedMappings) {
     let value: any = null;
     const mappingType = (mapping as any).type || mapping.source;
-
-
-    try {
-      fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Working on pos ${mapping.position}, source ${mappingType}, field ${mapping.field}, component ${mapping.componentType}, origIdx ${mapping.originalIndex}\n`);
-    } catch (e) {}
-
 
     switch (mappingType) {
       case "crm":
@@ -629,7 +618,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
           // Try exact key, then snake_case conversion of camelCase
           const snakeKey = field.replace(/([A-Z])/g, "_$1").toLowerCase();
           // Also try camelCase conversion of snake_case just in case
-          const camelKey = field.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+          const camelKey = field.replace(/_([a-z])/g, (g:any) => g[1].toUpperCase());
           
           value = eventVariables[field] ?? eventVariables[snakeKey] ?? eventVariables[camelKey] ?? null;
           
@@ -728,9 +717,6 @@ export const resolveUnifiedWhatsAppTemplate = async (
       (finalValue === null || finalValue === undefined || finalValue === "")
     ) {
       console.log(`[TemplateResolver] Missing required variable {{${mapping.position}}}`);
-      try {
-        fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: FAILED required check for pos ${mapping.position}. finalValue was empty.\n`);
-      } catch (e) {}
       return {
         resolvedVariables: [],
         languageCode: template.language || "en_US",
@@ -764,11 +750,6 @@ export const resolveUnifiedWhatsAppTemplate = async (
   );
 
   console.log(`[TemplateResolver] Resolution finished for ${templateName}. isReady: ${missing.length === 0}. Missing positions:`, missing);
-  try {
-    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] Resolution for ${templateName}: isReady=${missing.length === 0}, Missing=[${missing.join(",")}], MappingPositions=[${template.variableMapping.map((m:any) => m.position).join(",")}], VarPositions=[${template.variablePositions.join(",")}]\n`);
-  } catch (e) {
-     console.error("Failed to write log file:", e.message);
-  }
 
   return {
     resolvedVariables,
