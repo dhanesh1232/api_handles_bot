@@ -2,7 +2,6 @@ import axios from "axios";
 import _ from "lodash";
 import mongoose, { type Connection } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
-import { getTenantModel } from "@/lib/connectionManager";
 import { TemplateNotFoundError, TemplateSyncFailedError } from "@/lib/errors";
 import { SchemaScanner } from "@/lib/tenant/schemaScanner";
 import {
@@ -184,7 +183,17 @@ export const extractEnrichedFields = (components: any[]) => {
   if (headerComp) {
     headerType = headerComp.format || "TEXT";
     headerText = headerComp.text || "";
-    if (headerText) extractFromText(headerText, "HEADER");
+    if (headerText) {
+      extractFromText(headerText, "HEADER");
+    } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerType)) {
+      // Add a virtual variable for media headers if no text is present
+      variables.push({
+        position: nextPos++,
+        label: `${headerType} Header URL`,
+        componentType: "HEADER",
+        originalIndex: 0,
+      });
+    }
   }
 
   const bodyComp = components.find((c: any) => c.type === "BODY");
@@ -474,7 +483,7 @@ export const resolveUnifiedWhatsAppTemplate = async (
   template: ITemplate;
 }> => {
   const { Template } = getTenantModels(tenantDb);
-  const template = await Template.findOne({ name: templateName });
+  const template = await (Template as any).findOne({ name: templateName }).lean();
   if (!template) throw new TemplateNotFoundError(templateName);
 
   // 1. Initial Context
@@ -586,9 +595,20 @@ export const resolveUnifiedWhatsAppTemplate = async (
     (a, b) => a.position - b.position,
   );
 
+  try {
+    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Event vars keys: ${Object.keys(context.event).join(",")}\n`);
+    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Mapping count: ${sortedMappings.length}\n`);
+  } catch (e) {}
+
   for (const mapping of sortedMappings) {
     let value: any = null;
     const mappingType = (mapping as any).type || mapping.source;
+
+
+    try {
+      fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: Working on pos ${mapping.position}, source ${mappingType}, field ${mapping.field}, component ${mapping.componentType}, origIdx ${mapping.originalIndex}\n`);
+    } catch (e) {}
+
 
     switch (mappingType) {
       case "crm":
@@ -608,11 +628,25 @@ export const resolveUnifiedWhatsAppTemplate = async (
           const field = mapping.field;
           // Try exact key, then snake_case conversion of camelCase
           const snakeKey = field.replace(/([A-Z])/g, "_$1").toLowerCase();
-          value = eventVariables[field] ?? eventVariables[snakeKey] ?? null;
+          // Also try camelCase conversion of snake_case just in case
+          const camelKey = field.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+          
+          value = eventVariables[field] ?? eventVariables[snakeKey] ?? eventVariables[camelKey] ?? null;
+          
           if (value !== null && value !== undefined) {
             console.log(
-              `[TemplateResolver] CRM field "${field}" was empty; resolved from eventVariables key "${snakeKey || field}".`,
+              `[TemplateResolver] Resolved "${mapping.field}" from eventVariables using key: ${
+                eventVariables[field] !== undefined ? field : (eventVariables[snakeKey] !== undefined ? snakeKey : camelKey)
+              }`,
             );
+          } else {
+             // Second attempt check for very common crm fields if they are in event vars
+             if (field === 'name') value = eventVariables.name || eventVariables.fullName || eventVariables.full_name;
+             if (field === 'pdfUrl' || field === 'pdf_url') value = eventVariables.pdfUrl || eventVariables.pdf_url || eventVariables.url || eventVariables.reportUrl || eventVariables.report_url;
+
+             if (value) {
+                console.log(`[TemplateResolver] Heuristic match for "${field}" in eventVariables.`);
+             }
           }
         }
         break;
@@ -693,6 +727,10 @@ export const resolveUnifiedWhatsAppTemplate = async (
       mapping.required &&
       (finalValue === null || finalValue === undefined || finalValue === "")
     ) {
+      console.log(`[TemplateResolver] Missing required variable {{${mapping.position}}}`);
+      try {
+        fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] DEBUG: FAILED required check for pos ${mapping.position}. finalValue was empty.\n`);
+      } catch (e) {}
       return {
         resolvedVariables: [],
         languageCode: template.language || "en_US",
@@ -724,6 +762,13 @@ export const resolveUnifiedWhatsAppTemplate = async (
         (m: IVariableMapping) => m.position === pos,
       ),
   );
+
+  console.log(`[TemplateResolver] Resolution finished for ${templateName}. isReady: ${missing.length === 0}. Missing positions:`, missing);
+  try {
+    fs.appendFileSync("/home/dhanesh/ecodrix/ECOD/backend/debug_resolver.log", `[${new Date().toISOString()}] Resolution for ${templateName}: isReady=${missing.length === 0}, Missing=[${missing.join(",")}], MappingPositions=[${template.variableMapping.map((m:any) => m.position).join(",")}], VarPositions=[${template.variablePositions.join(",")}]\n`);
+  } catch (e) {
+     console.error("Failed to write log file:", e.message);
+  }
 
   return {
     resolvedVariables,

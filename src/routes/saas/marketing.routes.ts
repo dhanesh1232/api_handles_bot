@@ -4,6 +4,8 @@ import { withSDK } from "@/middleware/withSDK";
 import { validateClientKey, type AuthRequest } from "@/middleware/saasAuth";
 import { Client } from "@/model/clients/client";
 import { createEmailService } from "@/services/saas/mail/email.service";
+import { getCrmModels } from "@/lib/tenant/crm.models";
+import { normalizePhone } from "@/utils/phone";
 
 /**
  * createMarketingRouter
@@ -14,6 +16,7 @@ import { createEmailService } from "@/services/saas/mail/email.service";
 export const createMarketingRouter = (io: Server) => {
   const router = express.Router();
   const emailService = createEmailService();
+
 
   // Primary middleware for all marketing routes
   router.use(validateClientKey);
@@ -132,6 +135,117 @@ export const createMarketingRouter = (io: Server) => {
       res.status(500).json({ success: false, message: error.message });
     }
   });
+
+  /**
+   * 3. WhatsApp - Direct Template Send
+   *
+   * Sends a WhatsApp template message directly to a phone number.
+   * Resolves template variable mapping from the tenant's db, then sends.
+   * No automation queue — fires immediately.
+   *
+   * Body:
+   *   phone        string — E.164 format (e.g. 919876543210)
+   *   templateName string — exact template name in tenant db
+   *   variables    Record<string, string> — flat KV of event/context data
+   *                used to resolve the mapped variables (e.g. { pdfUrl, name })
+   */
+  router.post(
+    "/whatsapp/send-template",
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const clientCode = req.clientCode!;
+        const {
+          phone: rawPhone,
+          templateName,
+          languageCode = "en",
+          variables = {},
+          resolvedVariables: providedResolvedVariables,
+        } = req.body;
+
+        if (!rawPhone || !templateName) {
+          return res.status(400).json({
+            success: false,
+            message: "phone and templateName are required",
+          });
+        }
+
+        const phone = normalizePhone(rawPhone);
+        if (!phone || phone.length < 10) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid phone number",
+          });
+        }
+
+        const { Conversation, conn: tenantConn } =
+          await getCrmModels(clientCode);
+
+        let finalResolvedVariables = providedResolvedVariables;
+        let finalLanguageCode = languageCode;
+
+        // Only resolve if not already provided
+        if (!finalResolvedVariables) {
+          const { resolveUnifiedWhatsAppTemplate } = await import(
+            "../../services/saas/whatsapp/template.service"
+          );
+          const resolution = await resolveUnifiedWhatsAppTemplate(
+            tenantConn,
+            templateName,
+            {}, // No lead context needed
+            variables,
+          );
+
+          if (!resolution.isReady) {
+            return res.status(422).json({
+              success: false,
+              message: "Template variables could not be resolved",
+              details: resolution.contextSnapshot,
+            });
+          }
+          finalResolvedVariables = resolution.resolvedVariables;
+          finalLanguageCode = resolution.languageCode || languageCode;
+        }
+
+        // Find or create conversation
+        let conv = await Conversation.findOne({ phone }).lean();
+        if (!conv) {
+          const newConv = await Conversation.create({
+            phone,
+            userName: variables.name || phone,
+            status: "open",
+            channel: "whatsapp",
+          });
+          conv = newConv.toObject();
+        }
+
+        // Send directly
+        const { createWhatsappService } = await import(
+          "../../services/saas/whatsapp/whatsapp.service"
+        );
+        const svc = createWhatsappService(io);
+        const message = await svc.sendOutboundMessage(
+          clientCode,
+          conv._id.toString(),
+          undefined, // text
+          undefined, // mediaUrl
+          undefined, // mediaType
+          "system", // userId
+          templateName,
+          finalLanguageCode,
+          finalResolvedVariables,
+        );
+
+        return res.json({
+          success: true,
+          messageId: message._id,
+          templateName,
+          resolvedVariables: finalResolvedVariables,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ success: false, message: error.message });
+      }
+    },
+  );
 
   return router;
 };

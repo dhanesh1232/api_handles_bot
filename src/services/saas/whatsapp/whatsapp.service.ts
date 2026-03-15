@@ -842,22 +842,56 @@ export const createWhatsappService = (io: Server | null) => {
             );
 
             if (mapping) {
-              return variables[mapping.position - 1] ?? exampleVal ?? "[N/A]";
+              const val = variables[mapping.position - 1] ?? mapping.fallback ?? "[N/A]";
+              return val;
             }
 
             // Fallback for older templates or if mapping is missing one field
-            return variables[origIdx - 1] ?? exampleVal ?? "[N/A]";
+            // If origIdx is 0 (virtual), we try variables[0] directly as a common convention
+            const val = variables[origIdx === 0 ? 0 : origIdx - 1] ??
+              exampleVal ??
+              "[N/A]";
+            return val;
           };
 
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
               const headerParams: any[] = [];
               if (["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)) {
-                if (mediaId) {
+                // Check if there's a mapped variable for the header (e.g. position 1 or originalIndex 0)
+
+                const headerUrl = getVarValue("HEADER", 0);
+                tenantLogger(clientCode).debug(
+                  { templateName, headerUrl, format: comp.format },
+                  "[WhatsApp] Resolved HEADER URL"
+                );
+                if (headerUrl && headerUrl !== "[N/A]") {
+
+                  const headerDoc: any = { link: headerUrl };
+                  if (comp.format === "DOCUMENT") {
+                    try {
+                      const pathname = new URL(headerUrl).pathname;
+                      headerDoc.filename = path.basename(pathname) || "Document.pdf";
+                    } catch (e) {
+                      headerDoc.filename = "Document.pdf";
+                    }
+                  }
                   headerParams.push({
-                    type: comp.format,
+                    type: comp.format.toLowerCase(),
+                    [comp.format.toLowerCase()]: headerDoc,
+                  });
+                } else if (mediaId) {
+                  headerParams.push({
+                    type: comp.format.toLowerCase(),
                     [comp.format.toLowerCase()]: { id: mediaId },
                   });
+                } else {
+                  // If we have a media header but no URL, Meta WILL reject it if we don't provide a link/id.
+                  // We use a placeholder or at least log why it might fail.
+                  tenantLogger(clientCode).warn(
+                    { templateName },
+                    "[WhatsApp] Media header defined but no URL or ID found. Meta API may reject this payload.",
+                  );
                 }
               }
               const headerVars = comp.text?.match(/{{[0-9]+}}/g) || [];
@@ -876,7 +910,7 @@ export const createWhatsappService = (io: Server | null) => {
               }
               if (headerParams.length > 0) {
                 payload.template.components.push({
-                  type: "HEADER",
+                  type: "header",
                   parameters: headerParams,
                 });
               }
@@ -898,7 +932,7 @@ export const createWhatsappService = (io: Server | null) => {
               }
               if (bodyParams.length > 0) {
                 payload.template.components.push({
-                  type: "BODY",
+                  type: "body",
                   parameters: bodyParams,
                 });
               }
@@ -942,7 +976,7 @@ export const createWhatsappService = (io: Server | null) => {
 
                   if (!skipButton && btnParams.length > 0) {
                     payload.template.components.push({
-                      type: "BUTTON",
+                      type: "button",
                       sub_type: isUrl ? "url" : "quick_reply",
                       index: String(btnIdx),
                       parameters: btnParams,
@@ -955,7 +989,7 @@ export const createWhatsappService = (io: Server | null) => {
         } else {
           if (variables.length > 0) {
             payload.template.components.push({
-              type: "BODY",
+              type: "body",
               parameters: variables.map((v) => ({
                 type: "text",
                 text: String(v),
@@ -967,10 +1001,19 @@ export const createWhatsappService = (io: Server | null) => {
         payload.text = { body: resolvedText || text };
       } else {
         if (!mediaId) throw new Error("Failed to upload media to WhatsApp");
-        payload[finalMessageType] = {
+        const mediaPayload: any = {
           id: mediaId,
           caption: resolvedText || text,
         };
+        if (finalMessageType === "document" && mediaUrl) {
+          try {
+            const pathname = new URL(mediaUrl).pathname;
+            mediaPayload.filename = path.basename(pathname) || "Document.pdf";
+          } catch (e) {
+            mediaPayload.filename = "Document.pdf";
+          }
+        }
+        payload[finalMessageType] = mediaPayload;
       }
 
       // 3. Send
@@ -992,9 +1035,16 @@ export const createWhatsappService = (io: Server | null) => {
         );
       }
 
+
+      tenantLogger(clientCode).info(
+        { recipient: to, payload },
+        "[WhatsApp] Outbound payload trace"
+      );
+
       const response = await axios.post(
         `${WHATSAPP_API_URL}/${phoneId}/messages`,
         payload,
+
         {
           headers: {
             Authorization: `Bearer ${token}`,
