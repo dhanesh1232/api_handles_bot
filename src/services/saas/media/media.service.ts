@@ -194,7 +194,7 @@ export const uploadBufferToR2 = async (
 
   if (await storage.exists(r2Key)) {
     logger.debug({ filename }, "File already exists in R2, skipping upload");
-    return storage.getPublicUrl(r2Key); // Internal access for exact legacy behavior
+    return await storage.getUrl(r2Key); // Now supports both public/signed
   }
 
   const result = await storage.upload(r2Key, buffer, mimeType);

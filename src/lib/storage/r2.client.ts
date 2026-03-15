@@ -12,8 +12,10 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
+  GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@lib/logger";
 
 export interface StorageOptions {
@@ -104,7 +106,7 @@ export class StorageClient {
       );
 
       return {
-        url: this.getPublicUrl(key),
+        url: await this.getUrl(key),
         key,
         size: body.length,
       };
@@ -129,12 +131,14 @@ export class StorageClient {
         }),
       );
 
-      return (response.Contents || []).map((item) => ({
-        key: item.Key || "",
-        url: this.getPublicUrl(item.Key || ""),
-        size: item.Size || 0,
-        lastModified: item.LastModified,
-      }));
+      return Promise.all(
+        (response.Contents || []).map(async (item) => ({
+          key: item.Key || "",
+          url: await this.getUrl(item.Key || ""),
+          size: item.Size || 0,
+          lastModified: item.LastModified,
+        })),
+      );
     } catch (err) {
       this.log.error(
         { err, prefix, bucket: this.bucket },
@@ -183,13 +187,46 @@ export class StorageClient {
   }
 
   /**
+   * Generates a URL for the given key.
+   * If a custom public domain is configured, it returns a public URL.
+   * Otherwise, it generates a pre-signed URL for private access.
+   */
+  public async getUrl(
+    key: string,
+    forcePrivate = false,
+    expires = 3600,
+  ): Promise<string> {
+    if (this.publicDomain && !forcePrivate) {
+      return this.getPublicUrl(key);
+    }
+    return this.getSignedUrl(key, expires);
+  }
+
+  /**
+   * Generates a pre-signed URL for private access.
+   */
+  public async getSignedUrl(
+    key: string,
+    expires: number = 3600,
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+    return getSignedUrl(this.client, command, { expiresIn: expires });
+  }
+
+  /**
    * Generate the public-facing URL for a key.
    */
-  private getPublicUrl(key: string): string {
+  public getPublicUrl(key: string): string {
     if (this.publicDomain) {
       return `${this.publicDomain.replace(/\/$/, "")}/${key}`;
     }
     // Fallback to S3-style subdomain URL if no public domain is set
-    return `${this.endpoint.replace("https://", `https://${this.bucket}.`)}/${key}`;
+    return `${this.endpoint.replace(
+      "https://",
+      `https://${this.bucket}.`,
+    )}/${key}`;
   }
 }
