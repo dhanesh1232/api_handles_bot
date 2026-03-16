@@ -188,8 +188,11 @@ export const createWhatsappService = (io: Server | null) => {
         return;
       }
 
-      let mediaUrl: string | null = null;
-      const rawType = String(messagePayload.type || "text").trim().toLowerCase();
+      let isMedia = false;
+      let mediaUrl: string | undefined;
+      const rawType = String(messagePayload.type || "text")
+        .trim()
+        .toLowerCase();
       const messageType = rawType;
       let finalMsgBody = msgBody;
 
@@ -221,38 +224,32 @@ export const createWhatsappService = (io: Server | null) => {
           })
           .join("\n");
       } else if (messageType === "sticker") {
-        mediaUrl = await processIncomingMedia(
-          messagePayload.sticker?.id,
-          secrets,
-        );
+        isMedia = true;
+        mediaUrl = "processing";
         finalMsgBody = "Sticker";
       } else if (messageType === "image") {
-        mediaUrl = await processIncomingMedia(
-          messagePayload.image?.id,
-          secrets,
-        );
+        isMedia = true;
+        mediaUrl = "processing";
         finalMsgBody = messagePayload.image?.caption || "";
       } else if (messageType === "document") {
-        mediaUrl = await processIncomingMedia(
-          messagePayload.document?.id,
-          secrets,
-          messagePayload.document?.filename,
-        );
+        isMedia = true;
+        mediaUrl = "processing";
         finalMsgBody =
           messagePayload.document?.caption ||
           messagePayload.document?.filename ||
           "Document";
       } else if (messageType === "video") {
-        mediaUrl = await processIncomingMedia(
-          messagePayload.video?.id,
-          secrets,
-        );
+        isMedia = true;
+        mediaUrl = "processing";
         finalMsgBody = messagePayload.video?.caption || "";
       } else if (messageType === "audio") {
-        mediaUrl = await processIncomingMedia(
-          messagePayload.audio?.id,
-          secrets,
-        );
+        isMedia = true;
+        mediaUrl = "processing";
+        finalMsgBody = "Audio Message";
+      } else if (messageType === "voice") {
+        isMedia = true;
+        mediaUrl = "processing";
+        finalMsgBody = "Voice Message";
       } else if (messageType === "reaction") {
         // Handle Incoming Reaction
         const reactedToId = messagePayload.reaction?.message_id;
@@ -326,7 +323,7 @@ export const createWhatsappService = (io: Server | null) => {
         const newMessage = await Message.create({
           conversationId: conversation._id,
           direction: "inbound",
-          messageType,
+          messageType: messageType as any,
           text: finalMsgBody,
           mediaUrl: mediaUrl || undefined,
           whatsappMessageId: messagePayload.id,
@@ -344,7 +341,7 @@ export const createWhatsappService = (io: Server | null) => {
               lastMessage: finalMsgBody,
               lastMessageAt: new Date(),
               lastMessageSender: "user",
-              lastMessageType: messageType,
+              lastMessageType: messageType as any,
               lastUserMessageAt: new Date(),
               lastMessageId: newMessage._id,
               lastMessageStatus: "delivered",
@@ -365,7 +362,7 @@ export const createWhatsappService = (io: Server | null) => {
           conversation.lastMessage = finalMsgBody;
           conversation.lastMessageAt = new Date();
           conversation.lastMessageSender = "user";
-          conversation.lastMessageType = messageType;
+          conversation.lastMessageType = messageType as any;
           conversation.lastUserMessageAt = new Date();
           conversation.lastMessageId =
             newMessage._id as mongoose.Types.ObjectId;
@@ -391,6 +388,22 @@ export const createWhatsappService = (io: Server | null) => {
         // 6. Emit to EventBus for Automations
         try {
           const { EventBus } = await import("../event/eventBus.service.ts");
+
+          // Compute rich inbound context
+          const totalInboundCount = await Message.countDocuments({
+            conversationId: conversation._id,
+            direction: "inbound",
+          });
+          const isFirstEverInbound = totalInboundCount === 1;
+
+          // Days since last contact (using lead object from earlier which has pre-update state)
+          const lastContacted = lead?.lastContactedAt;
+          const daysSinceLast = lastContacted
+            ? Math.floor(
+                (Date.now() - new Date(lastContacted).getTime()) / 86400000,
+              )
+            : 999; // 999 indicates never contacted before
+
           await EventBus.emit(
             clientCode,
             "whatsapp.incoming",
@@ -398,13 +411,18 @@ export const createWhatsappService = (io: Server | null) => {
               phone,
               variables: {
                 message: finalMsgBody,
+                message_type: messageType,
                 sender_name: bestName,
                 conversation_id: conversation._id.toString(),
+                is_first_message: String(isFirstEverInbound),
+                days_since_last_message: String(daysSinceLast),
+                total_message_count: String(totalInboundCount),
+                phone,
               },
               data: {
                 messageType,
                 whatsappMessageId: messagePayload.id,
-                isFirstMessage: conversation.unreadCount === 1,
+                isFirstMessage: isFirstEverInbound,
               },
             },
             {
@@ -417,6 +435,49 @@ export const createWhatsappService = (io: Server | null) => {
             { err: eventErr },
             "[WhatsAppService] Failed to emit whatsapp.incoming",
           );
+        }
+        // 7. Background Media Processing (Real-world Standard: Instant Response)
+        if (isMedia) {
+          (async () => {
+            try {
+              let processedUrl: string | null = null;
+              const metaId =
+                messagePayload[messageType]?.id || messagePayload.sticker?.id;
+              const fileName = messagePayload.document?.filename;
+
+              if (metaId) {
+                processedUrl = await processIncomingMedia(
+                  metaId,
+                  secrets,
+                  fileName,
+                );
+              }
+
+              if (processedUrl) {
+                // Update DB
+                await Message.updateOne(
+                  { _id: newMessage._id },
+                  { $set: { mediaUrl: processedUrl } },
+                );
+
+                // Update Lead/Conv last message media if needed (optional)
+
+                // Emit Socket Update
+                if (io) {
+                  io.to(clientCode).emit("message_updated", {
+                    conversationId: conversation._id,
+                    messageId: newMessage._id,
+                    updates: { mediaUrl: processedUrl },
+                  });
+                }
+              }
+            } catch (mediaErr: any) {
+              log.error(
+                { err: mediaErr },
+                "Background media processing failed",
+              );
+            }
+          })();
         }
       } catch (saveError) {
         tenantLogger(clientCode).error(

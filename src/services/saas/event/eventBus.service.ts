@@ -37,6 +37,25 @@ export class EventBus {
   ) {
     const { EventLog, Lead, AutomationRule } = await getCrmModels(clientCode);
 
+    // Helper to categorize sources
+    const getNormalizedSource = (
+      triggerName: string,
+      configSource?: string,
+    ) => {
+      if (configSource) return configSource;
+      if (
+        triggerName.startsWith("whatsapp") ||
+        triggerName.includes("whatsapp")
+      )
+        return "whatsapp";
+      if (triggerName.startsWith("payment") || triggerName.includes("checkout"))
+        return "webhook";
+      if (triggerName.startsWith("website") || triggerName.includes("website"))
+        return "website";
+      if (triggerName.startsWith("lead.")) return "manual";
+      return "webhook"; // Default for external integrations
+    };
+
     // 1. Idempotency Check
     if (opts?.idempotencyKey) {
       const existing = await EventLog.findOne({
@@ -137,6 +156,7 @@ export class EventBus {
             source: (opts.leadData?.source as LeadSource) || "webhook",
             pipelineId: finalPipelineId,
             stageId: finalStageId,
+            metadata: { extra: { source_event: trigger } },
           });
           logger.info(
             `[EventBus] Auto-created lead for ${phone || payload.email}`,
@@ -210,12 +230,18 @@ export class EventBus {
           : {}),
       };
 
+      // Resolve final source: Variables (Explicit) > EventDef (Config) > Trigger (Fallback)
+      const rawSource =
+        eventVariables.source_event || eventDef?.defaultSource || trigger;
+      const normalizedSource = getNormalizedSource(trigger, rawSource);
+
       await runAutomations(clientCode, {
         trigger,
         aliases,
         lead: lead as any,
         variables: eventVariables,
         data: payload.data,
+        source: normalizedSource,
         meetingId:
           payload.data?._id?.toString() || payload.variables?.meeting_id,
         stageId:

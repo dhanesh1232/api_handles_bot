@@ -83,6 +83,31 @@ export class ConditionEvaluator {
             .toLowerCase()
             .includes(String(targetValue || "").toLowerCase());
 
+        case "starts_with":
+          return String(value || "")
+            .toLowerCase()
+            .startsWith(String(targetValue || "").toLowerCase());
+
+        case "ends_with":
+          return String(value || "")
+            .toLowerCase()
+            .endsWith(String(targetValue || "").toLowerCase());
+
+        case "regex":
+          try {
+            return new RegExp(String(targetValue), "i").test(
+              String(value || ""),
+            );
+          } catch (e) {
+            return false;
+          }
+
+        case "days_since_gte":
+          return Number(value || 0) >= Number(targetValue || 0);
+
+        case "days_since_lte":
+          return Number(value || 0) <= Number(targetValue || 0);
+
         case "exists":
           return value !== undefined && value !== null && value !== "";
 

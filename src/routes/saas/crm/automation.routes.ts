@@ -136,6 +136,25 @@ router.delete("/automations/:ruleId", async (req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/crm/automations/bulk
+ * Body: { ids: string[] }
+ */
+router.post("/automations/bulk-delete", async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "ids array is required" });
+    }
+    await automationService.deleteRules(req.clientCode!, ids);
+    res.json({ success: true, message: `${ids.length} rules deleted` });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: (err as Error).message });
+  }
+});
+
+/**
  * POST /api/crm/automations/:ruleId/test
  * Dry-run a rule against a specific lead. Does NOT execute actions.
  * Body: { leadId }

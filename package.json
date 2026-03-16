@@ -1,7 +1,7 @@
 {
   "name": "@ecodrix/backend",
-  "version": "1.7.3",
-  "description": "ECOD Backend — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and MongoDB-backed job queuing.",
+  "version": "1.7.4",
+  "description": "ECODrIx Backend — Multi-tenant SaaS backend for WhatsApp automation, CRM, Google Meet, email marketing, and ERIX-Own job queuing system.",
   "main": "server.ts",
   "type": "module",
   "engines": {

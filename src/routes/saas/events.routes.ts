@@ -30,7 +30,8 @@ eventRouter.post("/assign", async (req: any, res: any) => {
   if (!clientCode)
     return res.status(401).json({ success: false, message: "Unauthorized" });
 
-  const { name, displayName, description, pipelineId, stageId } = req.body;
+  const { name, displayName, description, pipelineId, stageId, defaultSource } =
+    req.body;
   if (!name || !displayName) {
     return res
       .status(400)
@@ -44,6 +45,7 @@ eventRouter.post("/assign", async (req: any, res: any) => {
       description,
       pipelineId,
       stageId,
+      defaultSource,
     });
     res.json({ success: true, data: event });
   } catch (error: any) {
@@ -55,20 +57,44 @@ eventRouter.post("/assign", async (req: any, res: any) => {
  * POST /api/saas/events/unassign
  * Deactivate a custom event assignment
  */
-eventRouter.post("/unassign", async (req: any, res: any) => {
+eventRouter.post("/unassign", async (req: Request, res: Response) => {
   const clientCode = req.clientCode;
   if (!clientCode)
     return res.status(401).json({ success: false, message: "Unauthorized" });
 
   const { name } = req.body;
-  if (!name)
+  if (!name) {
     return res
       .status(400)
-      .json({ success: false, message: "event name is required" });
+      .json({ success: false, message: "name is required" });
+  }
 
   try {
-    const result = await EventDefService.unassignEvent(clientCode, name);
-    res.json({ success: true, data: result });
+    const event = await EventDefService.unassignEvent(clientCode, name);
+    res.json({ success: true, data: event });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * POST /api/saas/events/unassign/bulk
+ */
+eventRouter.post("/unassign/bulk", async (req: Request, res: Response) => {
+  const clientCode = req.clientCode;
+  if (!clientCode)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  const { names } = req.body;
+  if (!names || !Array.isArray(names)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "names array is required" });
+  }
+
+  try {
+    await EventDefService.unassignEvents(clientCode, names);
+    res.json({ success: true, message: `${names.length} events unassigned` });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

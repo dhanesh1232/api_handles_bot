@@ -62,6 +62,25 @@ export const dismissNotification = async (clientCode: string, id: string) => {
 };
 
 /**
+ * Marks all unread notifications as dismissed for a tenant.
+ */
+export const dismissAllNotifications = async (clientCode: string) => {
+  const { Notification } = await getCrmModels(clientCode);
+  await Notification.updateMany(
+    { clientCode, status: "unread" },
+    { $set: { status: "dismissed" } },
+  );
+
+  // Emit real-time bulk dismissal event
+  const io = (global as any).io;
+  if (io) {
+    io.to(clientCode).emit("notification:dismissed_all");
+  }
+
+  return { success: true };
+};
+
+/**
  * Retries the action associated with a notification.
  */
 export const retryNotificationAction = async (

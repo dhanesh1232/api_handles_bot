@@ -8,6 +8,7 @@
 import { tenantLogger } from "@lib/logger";
 import {
   createNotification,
+  dismissAllNotifications,
   dismissNotification,
   getUnreadNotifications,
   retryNotificationAction,
@@ -48,6 +49,14 @@ export class NotificationSDK {
       "Dismissing notification",
     );
     return dismissNotification(this.clientCode, id);
+  }
+
+  /**
+   * Dismiss all unread notifications for the tenant.
+   */
+  async dismissAll() {
+    tenantLogger(this.clientCode).info("Dismissing all notifications");
+    return dismissAllNotifications(this.clientCode);
   }
 
   /**

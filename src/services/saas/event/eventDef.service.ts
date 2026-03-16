@@ -63,6 +63,7 @@ export const EventDefService = {
         isSystem: false,
         pipelineId: ev.pipelineId,
         stageId: ev.stageId,
+        defaultSource: ev.defaultSource,
       })),
     ];
   },
@@ -78,6 +79,7 @@ export const EventDefService = {
       description?: string;
       pipelineId?: string;
       stageId?: string;
+      defaultSource?: string;
     },
   ) {
     const { CustomEventDef } = await getCrmModels(clientCode);
@@ -103,6 +105,14 @@ export const EventDefService = {
       { clientCode, name: eventName },
       { isActive: false },
       { new: true },
+    );
+  },
+
+  async unassignEvents(clientCode: string, eventNames: string[]) {
+    const { CustomEventDef } = await getCrmModels(clientCode);
+    return CustomEventDef.updateMany(
+      { clientCode, name: { $in: eventNames } },
+      { isActive: false },
     );
   },
 };

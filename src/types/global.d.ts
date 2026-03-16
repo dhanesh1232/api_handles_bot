@@ -491,6 +491,8 @@ declare global {
       scoreThreshold?: number; // for score_above / score_below
       tagName?: string; // for tag_added / tag_removed
       inactiveDays?: number; // for no_contact
+      includeSources?: string[];
+      excludeSources?: string[];
     };
     condition?: IAutomationCondition; // legacy
     conditions: IAutomationCondition[]; // new
@@ -515,6 +517,7 @@ declare global {
     stageId?: string;
     tagName?: string;
     score?: number;
+    source?: string;
     /** Extra key-value pairs from external events (e.g. { name: "Ravi", time: "3pm" }) */
     variables?: Record<string, string>;
     meetingId?: string;
@@ -627,6 +630,7 @@ declare global {
     mapsTo?: string;
     pipelineId?: string;
     stageId?: string;
+    defaultSource?: string;
     createdAt: Date;
     updatedAt: Date;
   }

@@ -43,6 +43,36 @@ export const runAutomations = async (
   const rules = await repo.findActiveRules(queryTriggers, ruleFilters);
   if (rules.length === 0) return;
 
+  // Industrial Filtering: Source Exclusion/Inclusion
+  const filteredRules = rules.filter((rule) => {
+    const { includeSources, excludeSources } = rule.triggerConfig || {};
+    const source = ctx.source || ctx.variables?.source_event;
+
+    if (includeSources?.length && source && !includeSources.includes(source)) {
+      return false;
+    }
+    // Dynamic Source Isolation Policy:
+    // 1. If explicit filters exist (include/exclude), strictly follow them.
+    if (includeSources?.length) {
+      if (!source || !includeSources.includes(source)) return false;
+    }
+    if (excludeSources?.length) {
+      if (source && excludeSources.includes(source)) return false;
+    }
+
+    // 2. If NO filters exist (Generic Rule), apply Default Isolation.
+    // Generic rules ONLY run for Manual/CRM activities to prevent hijacking of specialized sources.
+    const isGenericRule = !includeSources?.length && !excludeSources?.length;
+    if (isGenericRule) {
+      const isManualActivity = !source || ["manual", "crm"].includes(source);
+      if (!isManualActivity) return false;
+    }
+
+    return true;
+  });
+
+  if (filteredRules.length === 0) return;
+
   // Credit Tracking: Deduct for an Automation "Burst" Run
   const { UsageService } = await import("@services/global/usage.service");
   const hasCredits = await UsageService.consume(
@@ -58,7 +88,7 @@ export const runAutomations = async (
   }
 
   await Promise.allSettled(
-    rules.map(async (rule) => {
+    filteredRules.map(async (rule) => {
       if (rule.isSequence && rule.steps && rule.steps.length > 0) {
         const { enrollInSequence } = await import(
           "../automation/sequenceEngine.service.ts"
@@ -586,6 +616,14 @@ export const deleteRule = async (
 ): Promise<void> => {
   const { AutomationRule } = await getCrmModels(clientCode);
   await AutomationRule.deleteOne({ _id: ruleId, clientCode });
+};
+
+export const deleteRules = async (
+  clientCode: string,
+  ruleIds: string[],
+): Promise<void> => {
+  const { AutomationRule } = await getCrmModels(clientCode);
+  await AutomationRule.deleteMany({ _id: { $in: ruleIds }, clientCode });
 };
 
 export const toggleRule = async (

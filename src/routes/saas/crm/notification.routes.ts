@@ -34,6 +34,19 @@ router.patch(
   },
 );
 
+// ─── Clear all notifications ────────────────────────────────────────────────
+router.delete(
+  "/notifications/clear-all",
+  async (req: Request, res: Response) => {
+    try {
+      await req.sdk.notification.dismissAll();
+      res.json({ success: true, message: "All notifications cleared" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
 // ─── Retry Action Required Notification ────────────────────────────────────────
 router.post("/notifications/:id/retry", async (req: Request, res: Response) => {
   try {

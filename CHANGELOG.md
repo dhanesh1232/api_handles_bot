@@ -7,6 +7,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.7.4] — 2026-03-16
+
+### Added
+
+- **Bulk Management APIs**: Added robust support for bulk deletion of automation rules and unassignment of custom event definitions to improve management efficiency.
+
+### Changed
+
+- **Infrastructure Rebranding**: Updated system descriptions to highlight the proprietary **ERIX-Own job queuing system**.
+- **Service Refactoring**: Extensive code quality improvements, standardized import structures, and optimized dynamic imports across core services (WhatsApp, Automation, EventBus).
+- **Response Consistency**: Unified response formats for bulk operations to ensure seamless frontend integration.
+
+### Fixed
+
+- **Type Integrity**: Corrected various linting issues, improved regex evaluation safety, and optimized variable declarations for better runtime stability.
+
 ## [1.7.0] — 2026-03-13
 
 ### Changed

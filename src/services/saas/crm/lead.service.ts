@@ -191,6 +191,10 @@ export const createLead = async (
   void fireEvent(clientCode, "lead.created", {
     phone: freshLead.phone,
     email: freshLead.email,
+    variables: {
+      source_event:
+        input.metadata?.extra?.source_event || input.source || "manual",
+    },
     data: freshLead,
   });
 

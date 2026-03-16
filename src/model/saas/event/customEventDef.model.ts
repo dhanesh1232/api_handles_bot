@@ -12,6 +12,7 @@ export const CustomEventDefSchema = new Schema<ICustomEventDef>(
     mapsTo: { type: String },
     pipelineId: { type: String },
     stageId: { type: String },
+    defaultSource: { type: String },
   },
   { timestamps: true },
 );
