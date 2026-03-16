@@ -90,8 +90,10 @@ export const createWebhookRouter = async (io: Server) => {
                   if (value.messages && value.messages.length > 0) {
                     for (const message of value.messages) {
                       const from = message.from;
-                      let msgBody = "Media";
-                      if (message.type === "text") msgBody = message.text.body;
+                      const mType = String(message.type || "text")
+                        .trim()
+                        .toLowerCase();
+                      if (mType === "text") msgBody = message.text?.body || "";
                       else if (message.type === "image")
                         msgBody = message.image?.caption || "Image";
                       else if (message.type === "document")

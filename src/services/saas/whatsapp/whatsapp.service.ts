@@ -189,10 +189,16 @@ export const createWhatsappService = (io: Server | null) => {
       }
 
       let mediaUrl: string | null = null;
-      const messageType = messagePayload.type || "text";
+      const rawType = String(messagePayload.type || "text").trim().toLowerCase();
+      const messageType = rawType;
       let finalMsgBody = msgBody;
 
-      if (messageType === "interactive") {
+      // Handle standard and system types
+      if (messageType === "text") {
+        // text is naturally handled by the msgBody passed from the route
+      } else if (messageType === "system") {
+        finalMsgBody = messagePayload.system?.body || "System Update";
+      } else if (messageType === "interactive") {
         const iType = messagePayload.interactive?.type;
         if (iType === "button_reply") {
           finalMsgBody = messagePayload.interactive.button_reply?.title;
@@ -292,12 +298,8 @@ export const createWhatsappService = (io: Server | null) => {
           }
         }
         return;
-      } else if (messageType === "system") {
-        finalMsgBody = messagePayload.system?.body || "System Update";
-      } else if (messageType === "text") {
-        console.log("text", messagePayload.text?.body);
-        finalMsgBody = messagePayload.text?.body || "Text Message";
       } else {
+        // Fallback for unknown or unsupported message types
         finalMsgBody = `[Unsupported message: ${messageType}]`;
       }
 
