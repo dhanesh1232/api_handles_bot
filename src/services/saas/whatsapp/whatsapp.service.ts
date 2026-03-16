@@ -212,7 +212,7 @@ export const createWhatsappService = (io: Server | null) => {
         finalMsgBody = messagePayload.button?.text;
       } else if (messageType === "location") {
         const loc = messagePayload.location;
-        finalMsgBody = `📍 Location: ${loc.name || loc.address || "Pinned Location"}\nhttps://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
+        finalMsgBody = `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
       } else if (messageType === "contacts") {
         const contactsArr = messagePayload.contacts || [];
         finalMsgBody = contactsArr
@@ -333,19 +333,20 @@ export const createWhatsappService = (io: Server | null) => {
         });
         log.info({ messageId: newMessage._id }, "Inbound message saved");
 
-        // 4. Update Conversation
+        const updateFields: any = {
+          lastMessage: messageType === "location" ? "Location" : finalMsgBody,
+          lastMessageAt: new Date(),
+          lastMessageSender: "user",
+          lastMessageType: messageType as any,
+          lastUserMessageAt: new Date(),
+          lastMessageId: newMessage._id,
+          lastMessageStatus: "delivered",
+        };
+
         await Conversation.updateOne(
           { _id: conversation._id },
           {
-            $set: {
-              lastMessage: finalMsgBody,
-              lastMessageAt: new Date(),
-              lastMessageSender: "user",
-              lastMessageType: messageType as any,
-              lastUserMessageAt: new Date(),
-              lastMessageId: newMessage._id,
-              lastMessageStatus: "delivered",
-            },
+            $set: updateFields,
             $inc: { unreadCount: 1 },
           },
         );
@@ -356,10 +357,10 @@ export const createWhatsappService = (io: Server | null) => {
           );
         }
 
-        // 5. Emit Socket
         if (io) {
           // Update in-memory object for emit
-          conversation.lastMessage = finalMsgBody;
+          conversation.lastMessage =
+            messageType === "location" ? "Location" : finalMsgBody;
           conversation.lastMessageAt = new Date();
           conversation.lastMessageSender = "user";
           conversation.lastMessageType = messageType as any;
