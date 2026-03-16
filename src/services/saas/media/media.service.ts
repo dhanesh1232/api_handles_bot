@@ -129,16 +129,26 @@ export const optimizeAndUploadMedia = async (
 
   // 2. Optimize Video/Audio
   if (mimeType.startsWith("video/") || mimeType.startsWith("audio/")) {
-    const isSmallAudio = mimeType.startsWith("audio/") && buffer.length < 512 * 1024; // < 512KB
-    
+    const isSmallAudio =
+      mimeType.startsWith("audio/") && buffer.length < 512 * 1024; // < 512KB
+
     if (isSmallAudio) {
-      logger.info({ mediaId, size: buffer.length }, "Skipping audio compression (file is small)");
+      logger.info(
+        { mediaId, size: buffer.length },
+        "Skipping audio compression (file is small)",
+      );
     } else {
       const startComp = Date.now();
       const compressed = await compressMedia(buffer, mimeType, mediaId);
       logger.info(
-        { duration: Date.now() - startComp, mediaId, mimeType, before: fileBuffer.length, after: compressed.length },
-        "Media compression finished"
+        {
+          duration: Date.now() - startComp,
+          mediaId,
+          mimeType,
+          before: fileBuffer.length,
+          after: compressed.length,
+        },
+        "Media compression finished",
       );
       if (compressed !== buffer) {
         buffer = compressed;
