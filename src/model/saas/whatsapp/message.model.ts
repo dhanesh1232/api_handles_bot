@@ -29,6 +29,7 @@ export const MessageSchema = new mongoose.Schema<IMessage>(
         "contacts",
         "sticker",
         "reaction",
+        "system",
       ],
       default: "text",
     },

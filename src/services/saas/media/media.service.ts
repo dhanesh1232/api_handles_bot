@@ -44,7 +44,12 @@ export const compressMedia = async (
 
   const ext = mimeType.split("/")[1] || "bin";
   const inputPath = path.join(tempDir, `${id}_in.${ext}`);
-  const outputPath = path.join(tempDir, `${id}_out.${ext}`);
+
+  let outputExt = ext;
+  if (mimeType.startsWith("video/")) outputExt = "mp4";
+  else if (mimeType.startsWith("audio/")) outputExt = "ogg";
+
+  const outputPath = path.join(tempDir, `${id}_out.${outputExt}`);
 
   try {
     fs.writeFileSync(inputPath, buffer);
@@ -66,7 +71,7 @@ export const compressMedia = async (
           .on("error", reject);
       } else if (mimeType.startsWith("audio/")) {
         command
-          .outputOptions(["-c:a libmp3lame", "-b:a 64k"])
+          .outputOptions(["-c:a libopus", "-b:a 64k", "-ac 1"])
           .save(outputPath)
           .on("end", () => resolve())
           .on("error", reject);
@@ -128,7 +133,7 @@ export const optimizeAndUploadMedia = async (
     if (compressed !== buffer) {
       buffer = compressed;
       if (mimeType.startsWith("video/")) mimeType = "video/mp4";
-      if (mimeType.startsWith("audio/")) mimeType = "audio/mpeg";
+      if (mimeType.startsWith("audio/")) mimeType = "audio/ogg";
     }
   }
 

@@ -292,8 +292,12 @@ export const createWhatsappService = (io: Server | null) => {
           }
         }
         return;
+      } else if (messageType === "system") {
+        finalMsgBody = messagePayload.system?.body || "System Update";
+      } else if (messageType === "text") {
+        console.log("text", messagePayload.text?.body);
+        finalMsgBody = messagePayload.text?.body || "Text Message";
       } else {
-        // Fallback for unknown or unsupported message types
         finalMsgBody = `[Unsupported message: ${messageType}]`;
       }
 
@@ -1111,8 +1115,18 @@ export const createWhatsappService = (io: Server | null) => {
         if (!mediaId) throw new Error("Failed to upload media to WhatsApp");
         const mediaPayload: any = {
           id: mediaId,
-          caption: resolvedText || text,
         };
+
+        // Meta API: Audio and Stickers do not support captions
+        if (!["audio", "sticker"].includes(finalMessageType)) {
+          mediaPayload.caption = resolvedText || text;
+        }
+
+        // Send audio as a voice message if it's type audio
+        if (finalMessageType === "audio") {
+          mediaPayload.voice = true;
+        }
+
         if (finalMessageType === "document") {
           if (mediaUrl) {
             try {
