@@ -11,7 +11,7 @@ import FormData from "form-data";
 import mongoose from "mongoose";
 import { Server } from "socket.io";
 
-const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
+const WHATSAPP_API_URL = "https://graph.facebook.com/v24.0";
 
 const STATUS_PRIORITY: Record<string, number> = {
   read: 10,
@@ -199,6 +199,27 @@ export const createWhatsappService = (io: Server | null) => {
         } else if (iType === "list_reply") {
           finalMsgBody = messagePayload.interactive.list_reply?.title;
         }
+      } else if (messageType === "button") {
+        finalMsgBody = messagePayload.button?.text;
+      } else if (messageType === "location") {
+        const loc = messagePayload.location;
+        finalMsgBody = `📍 Location: ${loc.name || loc.address || "Pinned Location"}\nhttps://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
+      } else if (messageType === "contacts") {
+        const contactsArr = messagePayload.contacts || [];
+        finalMsgBody = contactsArr
+          .map((c: any) => {
+            const name =
+              c.name?.formatted_name || c.name?.first_name || "Contact";
+            const phone = c.phones?.[0]?.phone || "No phone";
+            return `👤 Contact: ${name} (${phone})`;
+          })
+          .join("\n");
+      } else if (messageType === "sticker") {
+        mediaUrl = await processIncomingMedia(
+          messagePayload.sticker?.id,
+          secrets,
+        );
+        finalMsgBody = "Sticker";
       } else if (messageType === "image") {
         mediaUrl = await processIncomingMedia(
           messagePayload.image?.id,
@@ -271,6 +292,9 @@ export const createWhatsappService = (io: Server | null) => {
           }
         }
         return;
+      } else {
+        // Fallback for unknown or unsupported message types
+        finalMsgBody = `[Unsupported message: ${messageType}]`;
       }
 
       // 2.5 Find Replied Message if any
@@ -497,7 +521,21 @@ export const createWhatsappService = (io: Server | null) => {
       const { Message, Conversation } = await getContext(clientCode);
       const { id, status, errors } = statusPayload;
 
-      const message = await Message.findOne({ whatsappMessageId: id });
+      let message = await Message.findOne({ whatsappMessageId: id });
+
+      // FIX: Race condition where webhook arrives before persistence
+      if (!message) {
+        tenantLogger(clientCode).debug(
+          { whatsappMessageId: id },
+          "Message not found in status update, retrying...",
+        );
+        for (let i = 0; i < 3; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+          message = await Message.findOne({ whatsappMessageId: id });
+          if (message) break;
+        }
+      }
+
       if (!message) return;
 
       const currentPriority = STATUS_PRIORITY[message.status] || 0;
@@ -626,6 +664,7 @@ export const createWhatsappService = (io: Server | null) => {
     variables: string[] = [],
     replyToId: string | null = null,
     metadata?: Record<string, any>,
+    filename?: string,
   ) => {
     const { secrets, Conversation, Message, Template, tenantConn } =
       await getContext(clientCode);
@@ -697,11 +736,18 @@ export const createWhatsappService = (io: Server | null) => {
 
       if (tmpl) {
         let content = tmpl.bodyText;
-        if (variables && variables.length > 0) {
-          variables.forEach((val, idx) => {
-            const regex = new RegExp(`\\{\\{${idx + 1}\\}\\}`, "g");
-            content = content.replace(regex, val || "");
-          });
+        const bodyVars = content.match(/{{[0-9]+}}/g) || [];
+        for (const placeholder of bodyVars) {
+          const index = parseInt(placeholder.replace(/{{|}}/g, ""), 10);
+          const mapping = tmpl.variableMapping.find(
+            (m: any) => m.componentType === "BODY" && m.originalIndex === index,
+          );
+          if (mapping) {
+            const val =
+              variables[mapping.position - 1] ?? mapping.fallback ?? "";
+            const regex = new RegExp(`\\{\\{${index}\\}\\}`, "g");
+            content = content.replace(regex, String(val));
+          }
         }
         resolvedText = content;
         templateData = {
@@ -711,6 +757,7 @@ export const createWhatsappService = (io: Server | null) => {
           buttons: tmpl.buttons,
           variables: variables,
           headerType: tmpl.headerType,
+          headerFilename: filename,
         };
       } else {
         resolvedText = text || `Template: ${templateName}`;
@@ -729,6 +776,7 @@ export const createWhatsappService = (io: Server | null) => {
       mediaType,
       caption: resolvedText,
       templateData,
+      filename,
       metadata,
       status: "queued",
       statusHistory: [{ status: "queued", timestamp: new Date() }],
@@ -826,45 +874,42 @@ export const createWhatsappService = (io: Server | null) => {
           components: [],
         };
 
-        if (tmpl?.components) {
+        const getVarValue = (
+          compType: string,
+          origIdx: number,
+          btnIdx?: number,
+          exampleVal?: string,
+        ) => {
+          const mapping = tmpl?.variableMapping?.find(
+            (m: any) =>
+              m.componentType === compType &&
+              m.originalIndex === origIdx &&
+              (btnIdx === undefined || m.componentIndex === btnIdx),
+          );
+
+          if (mapping) {
+            const val =
+              variables[mapping.position - 1] ?? mapping.fallback ?? "[N/A]";
+            return val;
+          }
+
+          // Fallback for older templates or if mapping is missing one field
+          // If origIdx is 0 (virtual), we try variables[0] directly as a common convention
+          const val =
+            variables[origIdx === 0 ? 0 : origIdx - 1] ?? exampleVal ?? "[N/A]";
+          return val;
+        };
+
+        if (tmpl?.components && tmpl.components.length > 0) {
           tenantLogger(clientCode).debug(
             { templateName },
-            "Using cached template components",
+            "Using cached template components structure",
           );
-          const getVarValue = (
-            compType: string,
-            origIdx: number,
-            btnIdx?: number,
-            exampleVal?: string,
-          ) => {
-            const mapping = tmpl.variableMapping.find(
-              (m: any) =>
-                m.componentType === compType &&
-                m.originalIndex === origIdx &&
-                (btnIdx === undefined || m.componentIndex === btnIdx),
-            );
-
-            if (mapping) {
-              const val =
-                variables[mapping.position - 1] ?? mapping.fallback ?? "[N/A]";
-              return val;
-            }
-
-            // Fallback for older templates or if mapping is missing one field
-            // If origIdx is 0 (virtual), we try variables[0] directly as a common convention
-            const val =
-              variables[origIdx === 0 ? 0 : origIdx - 1] ??
-              exampleVal ??
-              "[N/A]";
-            return val;
-          };
 
           for (const comp of tmpl.components) {
             if (comp.type === "HEADER") {
               const headerParams: any[] = [];
               if (["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)) {
-                // Check if there's a mapped variable for the header (e.g. position 1 or originalIndex 0)
-
                 const headerUrl = getVarValue("HEADER", 0);
                 tenantLogger(clientCode).debug(
                   { templateName, headerUrl, format: comp.format },
@@ -876,9 +921,9 @@ export const createWhatsappService = (io: Server | null) => {
                     try {
                       const pathname = new URL(headerUrl).pathname;
                       headerDoc.filename =
-                        path.basename(pathname) || "Document.pdf";
+                        filename || path.basename(pathname) || "Document.pdf";
                     } catch (_e) {
-                      headerDoc.filename = "Document.pdf";
+                      headerDoc.filename = filename || "Document.pdf";
                     }
                   }
                   headerParams.push({
@@ -886,13 +931,15 @@ export const createWhatsappService = (io: Server | null) => {
                     [comp.format.toLowerCase()]: headerDoc,
                   });
                 } else if (mediaId) {
+                  const headerDoc: any = { id: mediaId };
+                  if (comp.format === "DOCUMENT") {
+                    headerDoc.filename = filename || "Document.pdf";
+                  }
                   headerParams.push({
                     type: comp.format.toLowerCase(),
-                    [comp.format.toLowerCase()]: { id: mediaId },
+                    [comp.format.toLowerCase()]: headerDoc,
                   });
                 } else {
-                  // If we have a media header but no URL, Meta WILL reject it if we don't provide a link/id.
-                  // We use a placeholder or at least log why it might fail.
                   tenantLogger(clientCode).warn(
                     { templateName },
                     "[WhatsApp] Media header defined but no URL or ID found. Meta API may reject this payload.",
@@ -944,14 +991,10 @@ export const createWhatsappService = (io: Server | null) => {
             } else if (comp.type === "BUTTONS") {
               comp.buttons.forEach((btn: any, btnIdx: number) => {
                 const isUrl = btn.type === "URL";
-                const _isQuickReply = btn.type === "QUICK_REPLY";
-
                 const btnVars =
                   (isUrl ? btn.url : btn.text)?.match(/{{[0-9]+}}/g) || [];
                 if (btnVars.length > 0) {
                   const btnParams: any[] = [];
-                  const skipButton = false;
-
                   for (const placeholder of btnVars) {
                     const index = parseInt(
                       placeholder.replace(/{{|}}/g, ""),
@@ -964,22 +1007,14 @@ export const createWhatsappService = (io: Server | null) => {
                       btn.example?.[0],
                     );
                     const strVal = String(val ?? "").trim();
-
-                    // Meta rejects BUTTON components with empty string parameters (HTTP 400).
-                    // If a button parameter is missing, abort sending and throw a descriptive error
-                    // so the caller (e.g., crmWorker) can notify the user that a link wasn't generated.
                     if (!strVal || strVal === "[N/A]") {
                       throw new Error(
-                        `Required button parameter {{${index}}} resolved to an empty value. ` +
-                          `This usually happens if a meeting link wasn't generated (e.g., Google Meet integration is disconnected or failed). ` +
-                          `Please check the lead's data and ensure your integrations are working before sending the template.`,
+                        `Required button parameter {{${index}}} resolved to an empty value.`,
                       );
                     }
-
                     btnParams.push({ type: "text", text: strVal });
                   }
-
-                  if (!skipButton && btnParams.length > 0) {
+                  if (btnParams.length > 0) {
                     payload.template.components.push({
                       type: "button",
                       sub_type: isUrl ? "url" : "quick_reply",
@@ -991,7 +1026,75 @@ export const createWhatsappService = (io: Server | null) => {
               });
             }
           }
+        } else if (tmpl) {
+          // Robust Fallback: Distribute variables according to mapping even if comp structure is missing from DB
+          tenantLogger(clientCode).warn(
+            { templateName },
+            "Template components missing from DB. Attempting robust mapping-aware reconstruction.",
+          );
+
+          // 1. Header Fallback
+          const headerType = tmpl.headerType;
+          if (
+            headerType &&
+            ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerType)
+          ) {
+            const val = getVarValue("HEADER", 0);
+            if (val && val !== "[N/A]") {
+              const format = headerType.toLowerCase();
+              const headerDoc: any = { link: val };
+              if (headerType === "DOCUMENT") {
+                try {
+                  const pathname = new URL(val).pathname;
+                  headerDoc.filename =
+                    filename || path.basename(pathname) || "Document.pdf";
+                } catch (_e) {
+                  headerDoc.filename = filename || "Document.pdf";
+                }
+              }
+              payload.template.components.push({
+                type: "header",
+                parameters: [{ type: format, [format]: headerDoc }],
+              });
+            } else if (mediaId) {
+              const format = headerType.toLowerCase();
+              const headerDoc: any = { id: mediaId };
+              if (headerType === "DOCUMENT") {
+                headerDoc.filename = filename || "Document.pdf";
+              }
+              payload.template.components.push({
+                type: "header",
+                parameters: [{ type: format, [format]: headerDoc }],
+              });
+            }
+          }
+
+          // 2. Body Fallback
+          const bodyMappings = tmpl.variableMapping
+            .filter((m: any) => m.componentType === "BODY")
+            .sort((a, b) => (a.originalIndex || 0) - (b.originalIndex || 0));
+
+          if (bodyMappings.length > 0) {
+            const bodyParams = bodyMappings.map((m: any) => ({
+              type: "text",
+              text: String(variables[m.position - 1] ?? m.fallback ?? "[N/A]"),
+            }));
+            payload.template.components.push({
+              type: "body",
+              parameters: bodyParams,
+            });
+          } else if (variables.length > 0) {
+            // Last resort: map all variables to body if no mapping exists
+            payload.template.components.push({
+              type: "body",
+              parameters: variables.map((v) => ({
+                type: "text",
+                text: String(v),
+              })),
+            });
+          }
         } else {
+          // No template object at all - very rare naive fallback
           if (variables.length > 0) {
             payload.template.components.push({
               type: "body",
@@ -1010,12 +1113,15 @@ export const createWhatsappService = (io: Server | null) => {
           id: mediaId,
           caption: resolvedText || text,
         };
-        if (finalMessageType === "document" && mediaUrl) {
-          try {
-            const pathname = new URL(mediaUrl).pathname;
-            mediaPayload.filename = path.basename(pathname) || "Document.pdf";
-          } catch (_e) {
-            mediaPayload.filename = "Document.pdf";
+        if (finalMessageType === "document") {
+          if (mediaUrl) {
+            try {
+              const pathname = new URL(mediaUrl).pathname;
+              mediaPayload.filename =
+                filename || path.basename(pathname) || "Document.pdf";
+            } catch (_e) {
+              mediaPayload.filename = filename || "Document.pdf";
+            }
           }
         }
         payload[finalMessageType] = mediaPayload;
@@ -1065,20 +1171,18 @@ export const createWhatsappService = (io: Server | null) => {
       const incomingId = response.data.messages[0].id;
       const freshMessage = await Message.findById(message._id);
       if (freshMessage) {
-        const currentP = STATUS_PRIORITY[freshMessage.status] || 0;
-        const sentP = STATUS_PRIORITY.sent;
-
         freshMessage.whatsappMessageId = incomingId;
-        if (sentP > currentP) {
-          freshMessage.status = "sent";
-          freshMessage.statusHistory.push({
-            status: "sent",
-            timestamp: new Date(),
-          });
-        }
+        freshMessage.status = "sent";
+        freshMessage.statusHistory.push({
+          status: "sent",
+          timestamp: new Date(),
+        });
         await freshMessage.save();
+
+        // Update the local message object for consistent socket emission
         message.whatsappMessageId = freshMessage.whatsappMessageId;
         message.status = freshMessage.status;
+        message.statusHistory = freshMessage.statusHistory;
       }
 
       // 5. Update Conversation

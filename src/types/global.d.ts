@@ -17,7 +17,13 @@ declare global {
       | "document"
       | "template"
       | "video"
-      | "audio";
+      | "audio"
+      | "button"
+      | "interactive"
+      | "location"
+      | "contacts"
+      | "sticker"
+      | "reaction";
     lastMessageAt?: Date;
     unreadCount: number;
     status: "open" | "closed";
@@ -38,6 +44,7 @@ declare global {
     footer?: string;
     buttons?: any;
     variables?: string[];
+    headerFilename?: string;
   }
 
   interface IMessageStatusHistory {
@@ -48,10 +55,23 @@ declare global {
   interface IMessage extends mongoose.Document {
     conversationId: mongoose.Types.ObjectId;
     direction: "inbound" | "outbound";
-    messageType: "text" | "image" | "document" | "template" | "video" | "audio";
+    messageType:
+      | "text"
+      | "image"
+      | "document"
+      | "template"
+      | "video"
+      | "audio"
+      | "button"
+      | "interactive"
+      | "location"
+      | "contacts"
+      | "sticker"
+      | "reaction";
     text?: string;
     mediaUrl?: string;
     mediaType?: string;
+    filename?: string;
     caption?: string;
     whatsappMessageId?: string;
     sentBy: string; // 'admin', user_id, or system

@@ -86,6 +86,18 @@ export class WhatsAppBroadcastJobHandler extends JobHandler {
           failedCount: updatedBroadcast.failedCount,
           status: updatedBroadcast.status,
         });
+
+        if (
+          updatedBroadcast.status === "completed" ||
+          updatedBroadcast.status === "partially_failed"
+        ) {
+          io.to(clientCode).emit("broadcast_completed", {
+            broadcastId,
+            status: updatedBroadcast.status,
+            sentCount: updatedBroadcast.sentCount,
+            failedCount: updatedBroadcast.failedCount,
+          });
+        }
       }
     }
   }

@@ -21,7 +21,7 @@ import axios, { type AxiosInstance } from "axios";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://graph.facebook.com/v21.0";
+const BASE_URL = "https://graph.facebook.com/v24.0";
 
 // ─── Client Class ──────────────────────────────────────────────────────────────
 export class MetaWhatsAppClient {

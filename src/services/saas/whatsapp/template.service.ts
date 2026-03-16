@@ -11,7 +11,7 @@ import {
 import { SchemaScanner } from "@/lib/tenant/schemaScanner";
 import { ClientServiceConfig } from "@/model/clients/config";
 
-const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
+const WHATSAPP_API_URL = "https://graph.facebook.com/v24.0";
 
 /**
  * Helper to get deep property from object using dot notation

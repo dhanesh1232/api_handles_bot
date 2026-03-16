@@ -16,7 +16,20 @@ export const MessageSchema = new mongoose.Schema<IMessage>(
     },
     messageType: {
       type: String,
-      enum: ["text", "image", "document", "template", "video", "audio"],
+      enum: [
+        "text",
+        "image",
+        "document",
+        "template",
+        "video",
+        "audio",
+        "button",
+        "interactive",
+        "location",
+        "contacts",
+        "sticker",
+        "reaction",
+      ],
       default: "text",
     },
     text: {

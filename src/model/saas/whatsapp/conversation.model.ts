@@ -38,7 +38,20 @@ export const ConversationSchema = new mongoose.Schema<IConversation>(
     },
     lastMessageType: {
       type: String,
-      enum: ["text", "image", "document", "template", "video", "audio"],
+      enum: [
+        "text",
+        "image",
+        "document",
+        "template",
+        "video",
+        "audio",
+        "button",
+        "interactive",
+        "location",
+        "contacts",
+        "sticker",
+        "reaction",
+      ],
       default: "text",
     },
     lastMessageAt: {

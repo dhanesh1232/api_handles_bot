@@ -73,6 +73,7 @@ export class WhatsAppSDK {
     userId = "admin",
     replyToId: string | null = null,
     metadata?: Record<string, any>,
+    filename?: string,
   ) {
     return this.svc.sendOutboundMessage(
       this.clientCode,
@@ -86,6 +87,7 @@ export class WhatsAppSDK {
       [], // variables
       replyToId,
       metadata,
+      filename,
     );
   }
 
@@ -108,19 +110,23 @@ export class WhatsAppSDK {
     variables: string[] = [],
     userId = "system",
     metadata?: Record<string, any>,
+    mediaUrl?: string,
+    mediaType?: string,
+    filename?: string,
   ) {
     return this.svc.sendOutboundMessage(
       this.clientCode,
       conversationId,
       undefined, // text
-      undefined, // mediaUrl
-      undefined, // mediaType
+      mediaUrl,
+      mediaType,
       userId,
       templateName,
       language,
       variables,
       null, // replyToId
       metadata,
+      filename,
     );
   }
 

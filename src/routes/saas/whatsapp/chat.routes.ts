@@ -58,13 +58,29 @@ export const createChatRouter = (io: Server) => {
 
         const { Message: MessageModel } = await getCrmModels(clientCode);
 
-        const messages = await MessageModel.find({ conversationId: id as any })
-          .populate("replyTo")
-          .sort({
-            createdAt: 1,
-          });
+        const { limit = "50", before } = req.query;
+        const msgLimit = parseInt(limit as string, 10);
 
-        res.json({ success: true, data: messages });
+        const query: any = { conversationId: id as any };
+        if (before) {
+          query.createdAt = { $lt: new Date(before as string) };
+        }
+
+        const messages = await MessageModel.find(query)
+          .populate("replyTo")
+          .sort({ createdAt: -1 })
+          .limit(msgLimit + 1)
+          .lean();
+
+        const hasMore = messages.length > msgLimit;
+        const finalMessages = hasMore ? messages.slice(0, msgLimit) : messages;
+
+        // Return reversed for chronological display
+        res.json({
+          success: true,
+          data: finalMessages.reverse(),
+          hasMore,
+        });
       } catch (err: any) {
         console.error("Error fetching messages:", err);
         res.status(500).json({
@@ -288,7 +304,6 @@ export const createChatRouter = (io: Server) => {
         const sReq = req as SaasRequest;
         const clientCode = sReq.clientCode || req.body.clientCode;
         const {
-          conversationId,
           to,
           text,
           mediaUrl,
@@ -296,19 +311,22 @@ export const createChatRouter = (io: Server) => {
           templateName,
           templateLanguage = "en_US",
           variables = [],
-          userId = "admin",
           replyToId = null,
-          context = null,
+          metadata = null,
+          conversationId: providedConversationId,
+          filename = null,
         } = req.body;
+        const userId = "admin"; // Default user ID for dashboard messages
+        const context = null; // Default context for dashboard messages
 
-        if (!conversationId && !to) {
+        if (!providedConversationId && !to) {
           return res.status(400).json({
             success: false,
             message: "Missing conversationId or to phone number",
           });
         }
 
-        let targetConvId = conversationId;
+        let targetConvId = providedConversationId;
 
         if (!targetConvId && to) {
           const { Conversation: ConversationModel, Lead } =
@@ -338,24 +356,31 @@ export const createChatRouter = (io: Server) => {
           targetConvId = conv._id;
         }
 
-        const message = templateName
-          ? await req.sdk.whatsapp.sendTemplate(
-              targetConvId,
-              templateName,
-              templateLanguage,
-              variables,
-              userId,
-              context ?? undefined,
-            )
-          : await req.sdk.whatsapp.send(
-              targetConvId,
-              text,
-              mediaUrl,
-              mediaType,
-              userId,
-              replyToId,
-              context,
-            );
+        let message;
+        if (templateName) {
+          message = await req.sdk.whatsapp.sendTemplate(
+            targetConvId,
+            templateName,
+            templateLanguage,
+            variables,
+            userId,
+            metadata ?? context ?? undefined,
+            mediaUrl,
+            mediaType,
+            filename,
+          );
+        } else {
+          message = await req.sdk.whatsapp.send(
+            targetConvId,
+            text,
+            mediaUrl,
+            mediaType,
+            userId,
+            replyToId,
+            metadata ?? context,
+            filename,
+          );
+        }
 
         res.json({ success: true, data: { message } });
       } catch (err: any) {

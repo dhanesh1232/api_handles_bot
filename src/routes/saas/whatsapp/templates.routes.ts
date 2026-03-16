@@ -257,10 +257,19 @@ export const createTemplateRouter = (io: Server) => {
         const template = await Template.findOne({ name: templateName });
 
         let previewText = template?.bodyText || "";
-        resolvedVariables.forEach((val, idx) => {
-          const regex = new RegExp(`\\{\\{${idx + 1}\\}\\}`, "g");
-          previewText = previewText.replace(regex, val);
-        });
+        const bodyVars = previewText.match(/{{[0-9]+}}/g) || [];
+        for (const placeholder of bodyVars) {
+          const index = parseInt(placeholder.replace(/{{|}}/g, ""), 10);
+          const mapping = (template?.variableMapping as any[])?.find(
+            (m: any) => m.componentType === "BODY" && m.originalIndex === index,
+          );
+          if (mapping) {
+            const val =
+              resolvedVariables[mapping.position - 1] ?? mapping.fallback ?? "";
+            const regex = new RegExp(`\\{\\{${index}\\}\\}`, "g");
+            previewText = previewText.replace(regex, String(val));
+          }
+        }
 
         res.json({ success: true, data: { resolvedVariables, previewText } });
       } catch (error: any) {

@@ -21,7 +21,7 @@ export async function sendWhatsAppMessage(
   message: string,
 ): Promise<WhatsAppResponse> {
   try {
-    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+    const url = `https://graph.facebook.com/v24.0/${phoneId}/messages`;
 
     const response = await axios.post(
       url,
@@ -68,7 +68,7 @@ export async function sendWhatsAppTemplate(
   components: any[] = [],
 ): Promise<WhatsAppResponse> {
   try {
-    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+    const url = `https://graph.facebook.com/v24.0/${phoneId}/messages`;
     const response = await axios.post(
       url,
       {
