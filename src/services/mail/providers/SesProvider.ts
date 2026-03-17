@@ -59,7 +59,6 @@ export async function sendViaSES(options: {
         },
       },
       ConfigurationSetName: undefined, // Could be used for tracking
-      EmailAttributes: undefined,
       ListManagementOptions: undefined,
     });
 

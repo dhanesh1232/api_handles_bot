@@ -209,6 +209,7 @@ class MailClient {
           result = {
             success: false,
             error: `Unsupported provider: ${provider}`,
+            provider,
           };
       }
 

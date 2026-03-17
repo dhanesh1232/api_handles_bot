@@ -183,7 +183,7 @@ class EmailConfigService {
       type: string;
       name: string;
       value: string;
-      description: string;
+      description?: string;
     }>;
     message: string;
   }> {
@@ -253,7 +253,7 @@ class EmailConfigService {
 
     secrets.emailFromName = config.fromName;
     secrets.sesFromEmail = config.fromEmail;
-    secrets.sesReplyTo = config.replyTo || null;
+    secrets.sesReplyTo = config.replyTo || undefined;
     secrets.emailProvider = "ses"; // Step 3: Now active
 
     await secrets.save();

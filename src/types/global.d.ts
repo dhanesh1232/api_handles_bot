@@ -757,7 +757,7 @@ declare global {
   interface SendMailInput {
     to: string;
     subject: string;
-    html?: string;
+    html: string;
     text?: string;
   }
 
@@ -1134,6 +1134,7 @@ declare global {
     Template: mongoose.Model<ITemplate>;
     SequenceEnrollment: mongoose.Model<ISequenceEnrollment>;
     Broadcast: mongoose.Model<IBroadcast>;
+    EmailCampaign: mongoose.Model<any>;
     ScoringConfig: mongoose.Model<any>;
     conn: mongoose.Connection;
   }

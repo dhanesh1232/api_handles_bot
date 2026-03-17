@@ -73,6 +73,7 @@ export interface IClientSecrets extends Document {
   lastCountReset?: Date;
 
   automationWebhookSecret?: string;
+  isConfigured?: boolean;
 
   /** Free-form key-value store for any extra secrets */
   customSecrets?: Map<string, string>;
@@ -159,6 +160,7 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     lastCountReset: { type: Date, default: null },
 
     automationWebhookSecret: { type: String, default: null },
+    isConfigured: { type: Boolean, default: false },
 
     // Custom / Preset SMTP
     smtpHost: { type: String, default: null },

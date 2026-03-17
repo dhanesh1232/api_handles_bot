@@ -8,7 +8,7 @@ export class EmailMarketingJobHandler extends JobHandler {
   async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { campaignId, recipient, subject, html } = payload;
     const io = (global as any).io;
-    const { EmailCampaign } = await getCrmModels(clientCode);
+    const { EmailCampaign } = await getCrmModels(clientCode!);
 
     let success = false;
 
