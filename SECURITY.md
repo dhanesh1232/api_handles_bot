@@ -43,14 +43,38 @@ We will acknowledge within **48 hours** and aim to release a patch within **7 da
 
 ### Tenant Isolation
 
-Every database query includes `clientCode` as a mandatory filter. Tenant data is physically isolated in separate MongoDB databases — one per client. A bug in query X for client A **cannot** leak client B's data.
+### Multi-Tenant Threat Model
 
-> [!CAUTION]
-> **Never** use the default Mongoose connection for tenant data. The default connection points to the central `services` DB. See `CONTRIBUTING.md` for enforcement patterns.
+| Threat                 | Mitigation Strategy                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| **Data Leakage**       | Physical isolation in separate DBs + mandatory `clientCode` query filters.          |
+| **API Impersonation**  | HMAC API keys + SHA256 hashed storage.                                              |
+| **Cross-Tenant Admin** | Bearer token required for global admin routes, strictly separated from SaaS routes. |
+| **DDoS on Trigger**    | IP-based + Tenant-based rate limiters (60 req/min).                                 |
+| **Spam / Quota Abuse** | Daily sending limits + Automated CC/BCC for compliance audit.                       |
+| **Stolen Credentials** | AES-256-CBC encryption at rest using environment-only `ENCRYPTION_KEY`.             |
+| **Webhook Spoofing**   | HMAC-SHA256 signing of all outbound payloads.                                       |
+
+---
 
 ### Secrets Encryption
 
-All per-client credentials (WhatsApp tokens, SMTP passwords, etc.) stored in `ClientSecrets` are encrypted at rest using **AES-256-CBC** with the server-side `ENCRYPTION_KEY`.
+All per-client credentials (WhatsApp tokens, SMTP passwords, AWS SES configurations, and Google OAuth tokens) stored in `ClientSecrets` are encrypted at rest using **AES-256-CBC** with the server-side `ENCRYPTION_KEY`.
+
+#### Module-Specific Security:
+
+- **WhatsApp Business API**:
+  - Tokens are encrypted at rest.
+  - Meta Webhook requests are verified using the `whatsappWebhookToken` as an `X-Hub-Signature-256` HMAC salt.
+- **Google Meet Integration**:
+  - Refresh tokens and Access tokens are encrypted at rest.
+  - We request minimal scopes (`calendar.events`, `calendar.settings.readonly`).
+- **AWS SES (Email)**:
+  - Verifies sending identity (domain) before enabling outbound mail.
+  - Enforces a domain-match gate (prevents sending from unverified domains).
+  - **Compliance Gate**: Injects `List-Unsubscribe` headers and enforces tenant daily quotas to protect provider reputation.
+
+### Encryption Key Management
 
 The `ENCRYPTION_KEY` is **never** stored in the database. If this key is compromised:
 

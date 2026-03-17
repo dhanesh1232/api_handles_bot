@@ -38,6 +38,10 @@ cp .env.example .env
 | `MONGODB_URI_END` | Atlas connection string suffix (e.g. `?retryWrites=true&w=majority`)                 |
 | `ENCRYPTION_KEY`  | Exactly **32 characters** — used for AES-256 encryption of client secrets            |
 | `CORE_API_TOKEN`  | Admin JWT secret — used by `verifyCoreToken` on `/api/clients/*` routes              |
+| `AWS_SES_ACCESS_KEY` | AWS Access Key for SES sending (muli-tenant account) |
+| `AWS_SES_SECRET_KEY` | AWS Secret Key for SES sending |
+| `AWS_SES_REGION`     | AWS Region (default: `ap-south-1`) |
+
 
 > [!CAUTION]
 > `ENCRYPTION_KEY` cannot be changed after you've stored any client secrets. Rotating it requires decrypting + re-encrypting all tenant secrets. See `RUNBOOK.md`.

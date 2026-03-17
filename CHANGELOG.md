@@ -7,6 +7,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.7.5] — 2026-03-17
+
+### Added
+
+- **Strict SES Onboarding Flow**: Implemented a 4-step domain-first verification process (Domain Setup → DNS Pending → Email Config → Active).
+- **Email Security Gates**: Added 3-layer runtime validation in `MailClient` to enforce domain verification and matching before sending.
+- **Enhanced Encryption**: Refactored all configuration storage to use `.save()` triggers, ensuring AES-256-CBC encryption for all sensitive sender details.
+- **DMARC Auto-Provisioning**: Automated generation of DMARC TXT records for all SES domains.
+- **Contextual Health Engine**: `EmailHealthService` now provides step-by-step setup recommendations.
+
 ## [1.7.4] — 2026-03-16
 
 ### Added

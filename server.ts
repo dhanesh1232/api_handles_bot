@@ -28,6 +28,7 @@ import mongoose from "mongoose";
 import { Server, type Socket } from "socket.io";
 import { createImagesRouter } from "@/routes/saas/media.routes";
 import agencyRoutes from "./src/routes/agency/agency.router.ts";
+import emailConfigRoutes from "./src/routes/settings/emailConfig.routes.ts";
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
@@ -369,6 +370,9 @@ const initializeRoutes = async () => {
 
   // Queue admin (dead-letter visibility + retry)
   app.use("/api/saas/admin/queue", queueRouter);
+
+  // Email Configuration
+  app.use("/api/settings/email", emailConfigRoutes);
 
   // Global error handler — must be last, handles AppError + ZodError + unknown
   app.use(errorHandler);

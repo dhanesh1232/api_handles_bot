@@ -2,6 +2,7 @@ import { getTenantConnection } from "@lib/connectionManager";
 import mongoose, { type Connection, type Schema } from "mongoose";
 import { Client } from "@/model/clients/client";
 import AutomationRuleSchema from "@/model/saas/crm/automationRule.model";
+import EmailCampaignSchema from "@/model/saas/crm/emailCampaign.model";
 import LeadSchema from "@/model/saas/crm/lead.model";
 import LeadActivitySchema from "@/model/saas/crm/leadActivity.model";
 import LeadNoteSchema from "@/model/saas/crm/leadNote.model";
@@ -65,6 +66,7 @@ export const tenantModelConfig: Record<
   Message: { name: "Message", schema: MessageSchema },
   Template: { name: "Template", schema: TemplateSchema },
   Broadcast: { name: "Broadcast", schema: BroadcastSchema },
+  EmailCampaign: { name: "EmailCampaign", schema: EmailCampaignSchema },
   SequenceEnrollment: {
     name: "SequenceEnrollment",
     schema: SequenceEnrollmentSchema,

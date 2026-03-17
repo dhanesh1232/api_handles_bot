@@ -14,19 +14,21 @@
 1. [Authentication](#authentication)
 2. [Response Format](#response-format)
 3. [Client Onboarding Checklist](#client-onboarding-checklist)
-4. [Workflow Triggers](#1-workflow-triggers--core-entry-point)
-5. [CRM → Leads](#2-crm--leads)
-6. [CRM → Pipelines & Stages](#3-crm--pipelines--stages)
-7. [CRM → Activities, Calls & Notes](#4-crm--activities-calls--notes)
-8. [CRM → Automations](#5-crm--automations)
-9. [CRM → Analytics & Scoring](#6-crm--analytics--scoring)
-10. [WhatsApp → Chat & Messaging](#7-whatsapp--chat--messaging)
-11. [WhatsApp → Templates](#8-whatsapp--templates)
-12. [WhatsApp → Broadcasts](#9-whatsapp--broadcasts)
-13. [Monitoring → Health, Events & Jobs (Erix Workers)](#13-monitoring--health-events--jobs-erix-workers)
-14. [Client Integration Guide](#client-integration-guide)
-15. [Callback Verification](#callback-verification)
-16. [Tech Stack](#tech-stack)
+4. [Workflow Triggers](#4-workflow-triggers--real-world-scenarios)
+5. [CRM → Leads](#5-crm--leads)
+6. [CRM → Pipelines & Stages](#6-crm--pipelines--stages)
+7. [CRM → Activities, Calls & Notes](#7-crm--activities-calls--notes)
+8. [CRM → Automations](#8-crm--automations)
+9. [CRM → Analytics & Scoring](#9-crm--analytics--scoring)
+10. [WhatsApp → Chat & Messaging](#10-whatsapp--chat--messaging)
+11. [WhatsApp → Templates](#11-whatsapp--templates)
+12. [WhatsApp → Broadcasts](#12-whatsapp--broadcasts)
+13. [Email Infrastructure → SES Onboarding](#13-email-infrastructure--ses-onboarding)
+13.1. [Email Marketing → Campaigns & Quotas](#131-email-marketing--campaigns--quotas)
+14. [Monitoring → Health, Events & Jobs](#14-monitoring--health-events--jobs)
+15. [Client Integration Guide](#client-integration-guide)
+16. [Callback Verification](#callback-verification)
+17. [Tech Stack](#tech-stack)
 
 ---
 
@@ -106,12 +108,24 @@ Before a client can call the API, you (ECODrIx admin) must complete these setup 
 
 ☐ 8. POST /api/clients/:code/google/reauth ← Link Google Meet refresh token
 
-☐ 9. Share with client: API_URL, API_KEY, CLIENT_CODE, WEBHOOK_SECRET
+☐ 10. POST /api/settings/email/ses/domain
+       { "domain": "client-domain.com" }
+       → Generates 4 DNS records (DKIM + DMARC)
+
+☐ 11. GET /api/settings/email/ses/verify
+       → Finalizes Step 2 of onboarding once DNS propagates
+
+☐ 12. POST /api/settings/email/ses/config
+       { "fromName": "Clinic Name", "fromEmail": "support@client-domain.com" }
+       → Unlocks active sending (locks to verified domain)
+
+☐ 13. Share with client: API_URL, API_KEY, CLIENT_CODE, WEBHOOK_SECRET
+
 ```
 
 ---
 
-## 1. Workflow Triggers — Real-World Scenarios
+## 4. Workflow Triggers — Real-World Scenarios
 
 The entry point for all website automations.
 **Rate limit:** 60 requests / minute / tenant.
@@ -207,7 +221,7 @@ The single endpoint any client website calls to fire an automation.
 
 ---
 
-## 2. CRM → Leads
+## 5. CRM → Leads
 
 **Base path:** `/api/crm`
 **Auth:** `x-api-key` + `x-client-code` (all routes)
@@ -359,7 +373,7 @@ Bulk upsert up to 1000 leads by phone. Existing leads are updated, new ones are 
 
 ---
 
-## 3. CRM → Pipelines & Stages
+## 6. CRM → Pipelines & Stages
 
 ### `GET /api/crm/pipelines`
 
@@ -480,7 +494,7 @@ Revenue forecast: deal value × probability per stage.
 
 ---
 
-## 4. CRM → Activities, Calls & Notes
+## 7. CRM → Activities, Calls & Notes
 
 ### `GET /api/crm/leads/:leadId/timeline`
 
@@ -543,7 +557,7 @@ Delete a note.
 
 ---
 
-## 5. CRM → Automations
+## 8. CRM → Automations
 
 Configure what ECODrIx does when a trigger fires.
 
@@ -605,7 +619,7 @@ ECODrIx automations now support a nested context for template resolution:
 **Example in a WhatsApp template:**
 `"Hello {{lead.firstName}}, your appointment for {{event.appointmentTime}} is confirmed!"`
 
-````
+```
 
 **Available action types:**
 
@@ -636,7 +650,7 @@ Dry-run a rule against a specific lead. Does NOT execute actions.
 
 ```json
 { "leadId": "65b2..." }
-````
+```
 
 ### Sequence Enrollments
 
@@ -660,7 +674,7 @@ List all active sequence enrollments for a specific lead.
 
 ---
 
-## 6. CRM → Analytics & Scoring
+## 9. CRM → Analytics & Scoring
 
 ### Analytics
 
@@ -705,7 +719,7 @@ Force-recalculate score for a single lead immediately.
 
 ---
 
-## 7. WhatsApp → Chat & Messaging
+## 10. WhatsApp → Chat & Messaging
 
 ### `GET /api/saas/chat/conversations`
 
@@ -765,7 +779,7 @@ Add a reaction emoji to a message.
 
 ---
 
-## 8. WhatsApp → Templates
+## 11. WhatsApp → Templates
 
 ### `GET /api/saas/chat/templates`
 
@@ -821,7 +835,7 @@ Get all fields from a specific collection for variable mapping configuration.
 
 ---
 
-## 9. WhatsApp → Broadcasts
+## 12. WhatsApp → Broadcasts
 
 ### `POST /api/saas/chat/broadcast`
 
@@ -844,7 +858,66 @@ List all broadcast campaigns with status summary.
 
 ---
 
-## 10. Monitoring → Health, Events & Jobs
+## 13. Email Infrastructure → SES Onboarding
+
+ECODrIx enforces a strict domain-first onboarding flow for AWS SES to ensure deliverability and security.
+
+### 1. Initialize Domain
+
+`POST /api/settings/email/ses/domain`
+
+- Generates 3 DKIM CNAMEs + 1 DMARC TXT record.
+- **State:** `dns_pending`
+
+### 2. Verify DNS
+
+`GET /api/settings/email/ses/verify`
+
+- Polls AWS for propagation.
+- **State:** `email_config` (unlocked only if verified)
+
+### 3. Finalize Config
+
+`POST /api/settings/email/ses/config`
+
+- Saves `fromEmail` (must match domain) and `fromName`.
+- **State:** `active`
+
+### End-to-End Email Flow
+
+```mermaid
+graph LR
+    Trigger[Workflow Trigger] -->|Automation Rule| Action[Send Email Action]
+    Action -->|SES Match Gate| SES[AWS SES]
+    SES -->|Success| Log[EventLog: Sent]
+    SES -->|Bounce/Complaint| SNS[AWS SNS]
+    SNS -->|Webhook| Health[Health Engine]
+    Health -->|SPF/DKIM Fail| Alert[Admin Alert]
+```
+
+**Security Enforcement:** ECODrIx uses a "Domain Match Gate" — if a client attempts to send an email from a domain that isn't their verified `sesDomain`, the request is rejected with `DOMAIN_MISMATCH` before hitting AWS.
+
+---
+
+## 13.1 Email Marketing — Campaigns & Quotas
+
+ECODrIx provides a professional-grade email marketing infrastructure optimized for deliverability and recipient trust.
+
+### Mass Campaigns (Queue-Driven)
+All bulk sends are processed asynchronously via the `ErixJobs` queue. 
+- **Reliability:** If the server restarts, the campaign resumes where it left off.
+- **Tracking:** Real-time progress is stored in the `EmailCampaign` model and emitted via Socket.IO.
+- **Headers:** Injects `List-Unsubscribe` and `X-Campaign-ID` for ISP compliance.
+
+### Compliance & Safety Gateway
+Every email sent through the `MailClient` passes through a multi-stage safety gate:
+1. **Quota Check:** Blocks sending if the tenant's `dailyLimit` has been exceeded.
+2. **Global BCC/CC:** Automatically attaches compliance copies if configured.
+3. **Professional Footer:** Appends your global company footer/disclaimer to every HTML body.
+
+---
+
+## 14. Monitoring — Health, Events & Jobs
 
 ### `GET /api/saas/health`
 
@@ -913,7 +986,7 @@ Real-time status of a background job (queued → processing → completed → fa
 
 ---
 
-## Client Integration Guide
+## 12. Client Integration Guide
 
 ### Step 1 — Install in your project
 
@@ -1045,7 +1118,7 @@ export async function POST(req: Request) {
 
 ---
 
-## Callback Verification
+## 13. Callback Verification
 
 ECODrIx signs all outbound webhook callbacks with HMAC-SHA256.
 
@@ -1057,7 +1130,7 @@ Verify it with `crypto.timingSafeEqual` to prevent timing attacks (see Step 4 ab
 
 ---
 
-## Tech Stack
+## 14. Tech Stack
 
 | Layer           | Technology                                        |
 | --------------- | ------------------------------------------------- |

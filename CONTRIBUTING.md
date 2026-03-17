@@ -55,7 +55,7 @@ await Lead.findOne({ _id: id, clientCode });
 await Lead.findById(id);
 ```
 
-### 3. Automation Failures Must Never Crash Core Flows
+### 3. **Automation failures must never crash the primary request.** Wrap `runAutomations` calls in try/catch or use `void fireAutomations()`.
 
 ```typescript
 // ✅ Safe — automation is non-blocking
@@ -65,7 +65,9 @@ void fireAutomations(clientCode, ctx);
 await runAutomations(clientCode, ctx);
 ```
 
-### 4. Schema Files Export Schemas, Not Models
+### 4. **Always enforce the SES Domain Match Gate.** When adding new mail features, ensure the logical "From" domain matches the verified `sesDomain` in `ClientSecrets`.
+
+### 5. Schema Files Export Schemas, Not Models
 
 ```typescript
 // ✅ Export schema only

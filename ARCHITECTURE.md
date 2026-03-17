@@ -18,37 +18,19 @@ ECODrIx is an **API-first, multi-tenant business automation platform** built aro
 - **Express API Layer** — all routes scoped and isolated by `clientCode`
 - **Real-time Layer** — Socket.IO for WhatsApp inbox updates
 
-```
-Client Website
-     │
-     ▼ POST /api/saas/workflows/trigger
-     │   x-api-key + x-client-code
-     │
- ┌───┴──────────────────────────────────────┐
- │           Express API Server             │
- │  validateClientKey → attaches clientCode │
- │                                          │
- │  trigger.routes.ts                       │
- │    1. Create EventLog                    │
- │    2. Find / create Lead                 │
- │    3. Google Meet (if requiresMeet)      │
- │    4. runAutomations()                   │
- │    5. Send callback                      │
- └──────────────┬───────────────────────────┘
-                │
-        ┌───────┴───────┐
-        │   Erix Jobs   │  (crmWorker.ts)
-        │ centralised   │
-        │ job executor  │
-        └───────┬───────┘
-                │
-      ┌─────────┴──────────┐
-      │  Tenant DB (dynamic)│
-      │  Lead, Pipeline,    │
-      │  Conversation,      │
-      │  AutomationRule,    │
-      │  Template…          │
-      └─────────────────────┘
+```mermaid
+graph TD
+    A[Client Website / App] -->|POST /api/saas/workflows/trigger| B(Express API Server)
+    B -->|vKey Check| C{clientCode?}
+    C -->|Yes| D[Trigger Service]
+    D -->|1. EventLog| E[(Central DB)]
+    D -->|2. Lead Lookup/Create| F[(Tenant DB)]
+    D -->|3. EventBus.emit| G[Automation Engine]
+    G -->|isSequence?| H[Sequence Enrollment]
+    G -->|Immediate| I[executeRule]
+    I -->|Enqueue Job| J[ErixJobs Queue]
+    J -->|Worker| K[crmWorker.ts]
+    K -->|Action: WA/Email/CRM| L[Delivery Services]
 ```
 
 ---
@@ -60,11 +42,11 @@ Client Website
 | Database                 | Connection                        | Contents                                                                                                                          |
 | ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **Central** (`services`) | Default Mongoose connection       | `Client`, `ClientDataSource`, `ClientSecrets`, `Job`, `EventLog`, `CallbackLog`, `CorsOrigin`                                     |
-| **Tenant** (dynamic)     | `getTenantConnection(clientCode)` | `Lead`, `Pipeline`, `PipelineStage`, `Conversation`, `Message`, `Template`, `AutomationRule`, `Activity`, `LeadNote`, `Broadcast` |
+| **Tenant** (dynamic)     | `getTenantConnection(clientCode)` | `Lead`, `Pipeline`, `PipelineStage`, `Conversation`, `Message`, `Template`, `AutomationRule`, `Activity`, `LeadNote`, `Broadcast`, `EmailCampaign` |
 
 ### Tenant Connection Management
 
-`src/lib/connectionManager.ts` maintains a pooled connection cache keyed by `clientCode`. Each new client gets a dedicated MongoDB URI — loaded from `ClientDataSource`.
+`src/lib/connectionManager.ts` maintains a pooled connection cache keyed by `clientCode`. Each new client gets a dedicated MongoDB URI — loaded from `ClientDataSource` in the central database.
 
 ```typescript
 // Always use this pattern:
@@ -72,17 +54,20 @@ const tenantConn = await getTenantConnection(clientCode);
 const Lead = getTenantModel(tenantConn, "Lead", schemas.leads);
 ```
 
+#### Shared models vs Tenant models
+- **Shared Models**: (e.g. `Client`, `ClientSecrets`) live in the `services` database. Accessible via default mongoose connection.
+- **Tenant Models**: (e.g. `Lead`, `AutomationRule`) live in the client's own database. MUST be accessed via `getCrmModels(clientCode)`.
+
 ### CRM Model Shortcut
 
 `getCrmModels(clientCode)` is a convenience wrapper for the common CRM models:
 
 ```typescript
-const { Lead, Pipeline, PipelineStage, AutomationRule } =
-  await getCrmModels(clientCode);
+const { Lead, Pipeline, AutomationRule, EventLog } = await getCrmModels(clientCode);
 ```
 
 > [!CAUTION]
-> **Never** call `mongoose.model()` on the default connection for tenant data. The default connection points to the central DB. Using it for a tenant model will silently create collections in `services`, mixing data across tenants.
+> **Never** call `mongoose.model()` on the default connection for tenant data. The default connection points to the central DB. Using it for a tenant model will silently create collections in `services`, mixing data across tenants and bypassing security filters.
 
 ---
 
@@ -113,22 +98,22 @@ When `POST /api/saas/workflows/trigger` is called:
 
 ```
 1. validateClientKey middleware → sets req.clientCode
-2. triggerLimiter → rate check
+2. triggerLimiter → rate check (IP-based protection)
 3. trigger.routes.ts:
-   a. Validate request body (trigger name, phone format)
-   b. Create EventLog { status: "received" }
-   c. getLeadByPhone() → find existing lead
-      └─ if not found + createLeadIfMissing:
-           createLead() → auto-creates default pipeline if none exists
-   d. if requiresMeet: createGoogleMeetService().createMeeting()
-      → meetLink or meetWarning (never crashes the trigger)
-   e. Count matching AutomationRule documents
-   f. Update EventLog { status: "processing", rulesMatched }
-   g. if callbackUrl: sendCallbackWithRetry() [non-blocking void]
-   h. if delayMinutes > 0: crmQueue.add({ type: "crm.automation_event" }) [ErixJobs]
-      else: runAutomations(clientCode, ctx) [inline]
-   i. Update EventLog { status: "completed" }
-   j. Return response with eventLogId, leadId, meetLink, rulesMatched
+   a. Create EventLog { status: "received" }
+   b. lead.service.getLeadByPhone() → check existence
+      └─ if createLeadIfMissing: createLead() with source: "webhook"
+   c. Dynamic Trigger Mapping: Check CustomEventDef for renames (e.g. "contact_form" -> "lead_created")
+   d. Count matching AutomationRule documents in tenant DB
+   e. Build Unified Context:
+      - lead.*: All standard lead fields
+      - event.*: Variables passed in the POST body
+      - data.*: Structured data from the POST body
+   f. EventBus.emit() → The core orchestrator
+      - Normal triggers: Immediate execution
+      - Scheduled triggers (runAt/delaySeconds): Enqueue in ErixJobs
+   g. Update EventLog { status: "completed", rulesMatched }
+   h. Return response with leadId and eventLogId
 ```
 
 ---
@@ -150,38 +135,57 @@ Actions are executed by `crmWorker.ts` pulling from the `ErixJobs` queue. Each a
 | Action type              | What happens                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `send_whatsapp`          | Resolves template variables from lead context + event variables → `whatsapp.service.sendOutboundMessage()` |
-| `send_email`             | `email.service.sendEmail()` via SMTP credentials in `ClientSecrets`                                        |
+| `send_email`             | `email.service.sendEmail()` via SMTP/SES with compliance gate injection                      |
 | `move_stage`             | `lead.service.moveLead()` → fires `stage_enter`/`stage_exit` hooks                                         |
 | `assign_to`              | Direct field update + activity log                                                                         |
 | `add_tag` / `remove_tag` | `lead.service.updateTags()` → fires `tag_added`/`tag_removed` hooks                                        |
 
-### Template Variable Resolution
+### Context Variable Resolution
 
-When `send_whatsapp` fires, it builds a nested context:
+The `VariableResolver` (in `src/lib/variableResolver.ts`) manages data injection for templates:
 
-```typescript
-const context = {
-  lead: {
-    firstName,
-    lastName,
-    email,
-    phone,
-    dealValue,
-    source,
-    score,
-    ...refs,
-    ...extra,
-  },
-  event: ctx.variables, // variables from the original trigger call
-  resolved: { meetLink }, // auto-injected Google Meet link if generated
-};
+```mermaid
+flowchart LR
+    TriggerData[Trigger Payload] --> Vars[Context variables]
+    LeadDB[(Lead Profile)] --> Vars
+    MeetAPI[Meet Link] --> Vars
+    Vars --> Engine[Handlebars/Regex Resolver]
+    Engine --> Final[Final Message: Hello Ravi...]
 ```
 
-This context is passed to `resolveTemplateVariables()` which maps each `{{1}}`, `{{2}}` placeholder to the correct field per the saved variable mapping.
+1. **Lead Layer**: `{{lead.firstName}}`, `{{lead.dealValue}}` etc.
+2. **Event Layer**: `{{event.productName}}` (from POST body).
+3. **Derived Layer**: `{{resolved.meetLink}}`, `{{resolved.today}}`.
 
 ---
 
-## 6. Background Job System
+## 7. WhatsApp Infrastructure
+
+### Webhook Flow (Ingestion)
+
+When Meta sends a webhook to `/api/saas/whatsapp/webhook`:
+
+```mermaid
+sequenceDiagram
+    participant Meta
+    participant Server
+    participant SocketIO
+    participant EventBus
+    
+    Meta->>Server: POST (encrypted/signed)
+    Server->>Server: Verify X-Hub-Signature-256
+    Server->>Server: Decrypt & Parse
+    par Real-time Sync
+        Server->>SocketIO: emit('new_message')
+    and Automation logic
+        Server->>EventBus: emit('whatsapp_message_received')
+    end
+    Server-->>Meta: HTTP 200 OK
+```
+
+---
+
+## 8. Background Job System
 
 ### Erix Jobs (`src/lib/erixJobs/`)
 
@@ -201,6 +205,7 @@ crm.automation_event   → runAutomations()
 crm.send_whatsapp      → executeAction()
 crm.send_broadcast_msg → whatsapp.service.sendOutboundMessage()
 crm.send_email         → email.service.sendEmail()
+crm.email_marketing    → emailMarketing.handler.ts (bulk send)
 crm.google_meet        → googleMeet.service.createMeeting()
 ```
 
@@ -250,7 +255,7 @@ src/
     └── saas/
         ├── crm/                ← lead, pipeline, automation, scoring, analytics
         ├── whatsapp/           ← whatsapp.service, template.service
-        ├── mail/               ← email.service
+        ├── mail/               ← email.service (strict domain-first SES onboarding)
         ├── meet/               ← google.meet.service
         └── media/              ← media.service (image/video optimization)
 ```

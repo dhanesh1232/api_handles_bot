@@ -24,23 +24,57 @@ export interface IClientSecrets extends Document {
   r2Endpoint?: string;
   r2PublicDomain?: string;
 
-  emailApiKey?: string;
+  // ── Email Configuration ──────────────────────────────────────────────────
+  /** Which provider is active: 'ses' | 'smtp' | 'gmail_smtp' | 'zoho_smtp' | 'outlook_smtp' */
   emailProvider?: string;
+  /** Sender display name used by all providers */
   emailFromName?: string;
 
-  automationWebhookSecret?: string;
+  // AWS SES
+  sesFromEmail?: string;
+  sesReplyTo?: string;
+  sesDomain?: string;
+  sesVerified?: boolean;
+  sesVerifiedAt?: Date;
+  sesDnsRecords?: Array<{
+    type: string;
+    name: string;
+    value: string;
+    description?: string;
+  }>;
 
-  // SMTP Configuration
+  // Custom / Preset SMTP
   smtpHost?: string;
   smtpPort?: string;
   smtpUser?: string;
   smtpPass?: string;
-  smtpFrom?: string;
-  smtpSecure?: boolean;
-  smtpFromName?: string;
   smtpFromEmail?: string;
+  smtpFromName?: string;
+  smtpSecure?: boolean;
 
-  // General purpose secrets map
+  // Email health stats (not encrypted)
+  emailStats?: {
+    totalSent: number;
+    totalFailed: number;
+    lastSentAt?: Date;
+    lastFailedAt?: Date;
+    lastFailureReason?: string;
+    consecutiveFailures: number;
+    failureRate: number; // 0–100
+    status: "healthy" | "degraded" | "failing" | "unconfigured";
+  };
+
+  // Advanced Marketing Config
+  emailFooter?: string;
+  emailCc?: string;
+  emailBcc?: string;
+  dailyLimit?: number;
+  currentDayCount?: number;
+  lastCountReset?: Date;
+
+  automationWebhookSecret?: string;
+
+  /** Free-form key-value store for any extra secrets */
   customSecrets?: Map<string, string>;
 
   createdAt?: Date;
@@ -77,20 +111,62 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     r2Endpoint: { type: String, default: null },
     r2PublicDomain: { type: String, default: null },
 
-    emailApiKey: { type: String, default: null },
-    emailProvider: { type: String, default: "nodemailer" },
+    emailProvider: {
+      type: String,
+      default: "ses",
+      enum: ["ses", "smtp", "gmail_smtp", "zoho_smtp", "outlook_smtp"],
+    },
     emailFromName: { type: String, default: null },
+
+    // AWS SES
+    sesFromEmail: { type: String, default: null },
+    sesReplyTo: { type: String, default: null },
+    sesDomain: { type: String, default: null },
+    sesVerified: { type: Boolean, default: false },
+    sesVerifiedAt: { type: Date, default: null },
+    sesDnsRecords: [
+      {
+        type: { type: String },
+        name: { type: String },
+        value: { type: String },
+        description: { type: String, default: null },
+        _id: false,
+      },
+    ],
+
+    // Health tracking (not encrypted — just stats)
+    emailStats: {
+      totalSent: { type: Number, default: 0 },
+      totalFailed: { type: Number, default: 0 },
+      lastSentAt: { type: Date, default: null },
+      lastFailedAt: { type: Date, default: null },
+      lastFailureReason: { type: String, default: null },
+      consecutiveFailures: { type: Number, default: 0 },
+      failureRate: { type: Number, default: 0 },
+      status: {
+        type: String,
+        default: "unconfigured",
+        enum: ["healthy", "degraded", "failing", "unconfigured"],
+      },
+    },
+
+    // Advanced Marketing Config
+    emailFooter: { type: String, default: null },
+    emailCc: { type: String, default: null },
+    emailBcc: { type: String, default: null },
+    dailyLimit: { type: Number, default: 0 }, // 0 = unlimited
+    currentDayCount: { type: Number, default: 0 },
+    lastCountReset: { type: Date, default: null },
 
     automationWebhookSecret: { type: String, default: null },
 
-    // SMTP Configuration
+    // Custom / Preset SMTP
     smtpHost: { type: String, default: null },
     smtpPort: { type: String, default: null },
     smtpUser: { type: String, default: null },
     smtpPass: { type: String, default: null },
-    smtpFrom: { type: String, default: null },
-    smtpFromName: { type: String, default: null },
     smtpFromEmail: { type: String, default: null },
+    smtpFromName: { type: String, default: null },
     smtpSecure: { type: Boolean, default: true },
 
     // General purpose secrets map
@@ -120,15 +196,19 @@ ClientSecretsSchema.pre("save", function () {
     "r2AccessKeyId",
     "r2SecretKey",
     "r2Endpoint",
-    "emailApiKey",
+    // Email
     "emailFromName",
     "automationWebhookSecret",
+    "sesFromEmail",
+    "sesReplyTo",
     "smtpHost",
     "smtpUser",
     "smtpPass",
-    "smtpFrom",
-    "smtpFromName",
     "smtpFromEmail",
+    "smtpFromName",
+    "emailFooter",
+    "emailCc",
+    "emailBcc",
   ] as Array<keyof IClientSecrets>;
 
   secretFields.forEach((field) => {
