@@ -26,6 +26,37 @@ router.get(
   },
 );
 
+// 1b. GET CLIENT COUNT & AUTO-GENERATE UNIQUE CODE
+router.get(
+  "/clients/count",
+  verifyCoreToken,
+  async (_req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const count = await Client.countDocuments();
+
+      // Simple loop to ensure uniqueness
+      let clientCode = "";
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let isUnique = false;
+
+      while (!isUnique) {
+        let result = "";
+        for (let i = 0; i < 6; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        clientCode = `ERIX_CLNT_${result}`;
+        const existing = await Client.findOne({ clientCode });
+        if (!existing) isUnique = true;
+      }
+
+      res.status(200).json({ success: true, count, code: clientCode });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
 // 1a. GET SINGLE CLIENT
 router.get(
   "/clients/:code",
@@ -41,21 +72,6 @@ router.get(
           .status(404)
           .json({ success: false, message: "Client not found" });
       res.status(200).json({ success: true, data: client });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  },
-);
-
-// 1b. GET CLIENT COUNT
-router.get(
-  "/clients/count",
-  verifyCoreToken,
-  async (_req: Request, res: Response) => {
-    await dbConnect("services");
-    try {
-      const count = await Client.countDocuments();
-      res.status(200).json({ success: true, count });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }

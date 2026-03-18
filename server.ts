@@ -113,6 +113,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 app.use(
   helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
