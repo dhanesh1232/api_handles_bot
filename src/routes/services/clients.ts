@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from "express";
+import crypto from "node:crypto";
 
 import { dbConnect } from "../../lib/config.ts";
 import { verifyCoreToken } from "../../middleware/auth.ts";
@@ -72,6 +73,59 @@ router.get(
           .status(404)
           .json({ success: false, message: "Client not found" });
       res.status(200).json({ success: true, data: client });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+// 1c. GET CLIENT API KEY (Admin Only)
+router.get(
+  "/clients/:code/api-key",
+  verifyCoreToken,
+  async (req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const client = await Client.findOne({
+        clientCode: (req.params.code as string).toUpperCase(),
+      });
+      if (!client)
+        return res
+          .status(404)
+          .json({ success: false, message: "Client not found" });
+
+      res.status(200).json({ success: true, apiKey: client.apiKey });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+// 1d. GENERATE/ROTATE CLIENT API KEY (Admin Only)
+router.post(
+  "/clients/:code/api-key",
+  verifyCoreToken,
+  async (req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const client = await Client.findOne({
+        clientCode: (req.params.code as string).toUpperCase(),
+      });
+      if (!client)
+        return res
+          .status(404)
+          .json({ success: false, message: "Client not found" });
+
+      // Generate a new secure API key
+      const newKey = `erix_${crypto.randomBytes(32).toString("hex")}`;
+      client.apiKey = newKey;
+      await client.save();
+
+      res.status(200).json({
+        success: true,
+        message: "API Key generated successfully",
+        apiKey: newKey,
+      });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }
