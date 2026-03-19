@@ -7,6 +7,8 @@ import { Client } from "../../model/clients/client.ts";
 import { ClientServiceConfig } from "../../model/clients/config.ts";
 import { ClientDataSource } from "../../model/clients/dataSource.ts";
 import { ClientSecrets } from "../../model/clients/secrets.ts";
+import { ClientStorage } from "../../model/clients/ClientStorage.ts";
+import { PLAN_QUOTA_BYTES } from "../../constants/storage.ts";
 
 const router = express.Router();
 
@@ -172,15 +174,36 @@ router.post(
         clientId: client._id,
       });
 
-      // Auto-create Secrets Holder
       await ClientSecrets.create({
         clientCode: client.clientCode,
         clientId: client._id,
       });
 
-      // Auto-create Data Source placeholder
-      // We don't necessarily need to create this if empty, but for consistency:
-      // await ClientDataSource.create({ ... });
+      // Synchronous Storage Initialization (Phase 19)
+      const planName = client.plan?.name?.toLowerCase() || "default";
+      const quotaBytes = PLAN_QUOTA_BYTES[planName] || PLAN_QUOTA_BYTES.default;
+
+      await ClientStorage.create({
+        clientCode: client.clientCode,
+        bucket: process.env.R2_BUCKET_NAME || "ecodrix-universal",
+        rootPrefix: `tenants/${client.clientCode.toUpperCase()}`,
+        quotaBytes,
+        isProvisioned: true,
+        provisionedAt: new Date(),
+      });
+
+      // Enqueue storage provisioning (Phase 8)
+      try {
+        const { ErixJobs } = await import("@/lib/erixJobs/index");
+        const storageQueue = ErixJobs.getQueue("crm");
+        await storageQueue.add({
+          clientCode: client.clientCode,
+          type: "storage.provision",
+          payload: { clientId: client._id },
+        });
+      } catch (err: any) {
+        console.error(`[Storage Provision] Enqueue failed: ${err.message}`);
+      }
 
       res.status(201).json({ success: true, data: client });
     } catch (error: any) {
@@ -258,12 +281,6 @@ router.get(
         googleClientId: secrets.getDecrypted("googleClientId"),
         googleClientSecret: secrets.getDecrypted("googleClientSecret"),
         googleRefreshToken: secrets.getDecrypted("googleRefreshToken"),
-
-        r2AccessKeyId: secrets.getDecrypted("r2AccessKeyId"),
-        r2SecretKey: secrets.getDecrypted("r2SecretKey"),
-        r2BucketName: secrets.r2BucketName,
-        r2Endpoint: secrets.getDecrypted("r2Endpoint"),
-        r2PublicDomain: secrets.r2PublicDomain,
 
         emailApiKey: secrets.getDecrypted("emailApiKey"),
         emailProvider: secrets.emailProvider,
@@ -573,6 +590,41 @@ router.post(
         success: true,
         message: "Re-authentication triggered",
         reauthUrl: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=postmessage&response_type=code&scope=https://www.googleapis.com/auth/calendar.events&access_type=offline&prompt=consent`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+// 10. DELETE CLIENT (Admin Only - Cascading Cleanup)
+router.delete(
+  "/clients/:id",
+  verifyCoreToken,
+  async (req: Request, res: Response) => {
+    await dbConnect("services");
+    try {
+      const client = await Client.findById(req.params.id);
+      if (!client) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Client not found" });
+      }
+
+      const clientCode = client.clientCode;
+
+      // Cascading deletion across all related collections
+      await Promise.all([
+        Client.findByIdAndDelete(req.params.id),
+        ClientSecrets.deleteOne({ clientCode }),
+        ClientServiceConfig.deleteOne({ clientCode }),
+        ClientDataSource.deleteOne({ clientCode }),
+        ClientStorage.deleteOne({ clientCode }),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        message: `Client ${clientCode} and all associated configurations deleted successfully`,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });

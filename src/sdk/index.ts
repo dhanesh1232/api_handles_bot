@@ -23,12 +23,11 @@ import { CacheSDK } from "./cache.sdk.ts";
 import { JobSDK } from "./job.sdk.ts";
 import { LeadSDK } from "./lead.sdk.ts";
 import { MailSDK } from "./mail.sdk.ts";
-import { MediaSDK } from "./media.sdk.ts";
-import { MeetSDK } from "./meet.sdk.ts";
-import { NotificationSDK } from "./notification.sdk.ts";
 import { PipelineSDK } from "./pipeline.sdk.ts";
 import { StorageSDK } from "./storage.sdk.ts";
 import { WhatsAppSDK } from "./whatsapp.sdk.ts";
+import { MeetSDK } from "./meet.sdk.ts";
+import { NotificationSDK } from "./notification.sdk.ts";
 
 export { ActivitySDK } from "./activity.sdk.ts";
 export { AutomationSDK } from "./automation.sdk.ts";
@@ -36,7 +35,6 @@ export { CacheSDK } from "./cache.sdk.ts";
 export { JobSDK } from "./job.sdk.ts";
 export { LeadSDK } from "./lead.sdk.ts";
 export { MailSDK } from "./mail.sdk.ts";
-export { MediaSDK } from "./media.sdk.ts";
 export { MeetSDK } from "./meet.sdk.ts";
 export { NotificationSDK } from "./notification.sdk.ts";
 export { PipelineSDK } from "./pipeline.sdk.ts";
@@ -67,8 +65,8 @@ export function createSDK(clientCode: string, io: Server | null = null): SDK {
     pipeline: new PipelineSDK(clientCode),
     activity: new ActivitySDK(clientCode),
     whatsapp: new WhatsAppSDK(clientCode, io),
-    media: new MediaSDK(clientCode, io as any),
-    storage: new StorageSDK(clientCode, io as any),
+    media: new StorageSDK(clientCode),
+    storage: new StorageSDK(clientCode),
     mail: new MailSDK(clientCode),
     meet: new MeetSDK(clientCode),
     automation: new AutomationSDK(clientCode),

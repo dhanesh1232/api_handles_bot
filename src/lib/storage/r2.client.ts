@@ -50,11 +50,20 @@ export class StorageClient {
   constructor(options: StorageOptions) {
     this.bucket = options.bucketName;
     this.publicDomain = options.publicDomain;
-    this.endpoint = options.endpoint;
+
+    // Sanitize endpoint: remove trailing slashes and the bucket name if it was accidentally appended
+    let sanitizedEndpoint = options.endpoint.replace(/\/+$/, "");
+    if (sanitizedEndpoint.endsWith(`/${this.bucket}`)) {
+      sanitizedEndpoint = sanitizedEndpoint.substring(
+        0,
+        sanitizedEndpoint.length - (this.bucket.length + 1),
+      );
+    }
+    this.endpoint = sanitizedEndpoint;
 
     this.client = new S3Client({
       region: "auto",
-      endpoint: options.endpoint,
+      endpoint: this.endpoint,
       credentials: {
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
@@ -63,19 +72,19 @@ export class StorageClient {
   }
 
   /**
-   * Factory to create a client from a secrets object.
+   * Factory to create a client from environment variables (Universal).
    */
-  static fromSecrets(secrets: {
-    getDecrypted: (key: string) => string | null | undefined;
-  }): StorageClient {
-    const accessKeyId = secrets.getDecrypted("r2AccessKeyId");
-    const secretAccessKey = secrets.getDecrypted("r2SecretKey");
-    const endpoint = secrets.getDecrypted("r2Endpoint");
-    const bucketName = secrets.getDecrypted("r2BucketName");
-    const publicDomain = secrets.getDecrypted("r2PublicDomain") || undefined;
+  static fromUniversal(): StorageClient {
+    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+    const endpoint = process.env.R2_ENDPOINT;
+    const bucketName = process.env.R2_BUCKET_NAME;
+    const publicDomain = process.env.R2_PUBLIC_URL || undefined;
 
     if (!accessKeyId || !secretAccessKey || !endpoint || !bucketName) {
-      throw new Error("R2 Storage configuration missing in secrets");
+      throw new Error(
+        "R2 Universal Storage configuration missing in environment variables",
+      );
     }
 
     return new StorageClient({

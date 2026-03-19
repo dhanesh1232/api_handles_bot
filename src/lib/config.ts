@@ -12,72 +12,28 @@ mongoose.set("strictQuery", false);
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
-  listenersAttached: boolean;
 }
 
-// Global declaration for the mongoose cache
-declare global {
-  var mongoose: MongooseCache | undefined;
-}
-
-// Cache connection
-let cached: MongooseCache | undefined = global.mongoose;
-
-const MONGODB_URI = env.MONGODB_URI;
-const MONGODB_URI_END = env.MONGODB_URI_END || "";
-
+// @ts-ignore
+let cached: MongooseCache = global.mongoose_cache;
 if (!cached) {
-  cached = global.mongoose = {
-    conn: null,
-    promise: null,
-    listenersAttached: false,
-  };
+  // @ts-ignore
+  cached = global.mongoose_cache = { conn: null, promise: null };
 }
 
 /**
- * Add connection events only once
- */
-function attachConnectionListeners(): void {
-  if (!cached || cached.listenersAttached) return;
-
-  mongoose.connection.on("connected", () => {
-    logger.info("✅ MongoDB connected");
-  });
-
-  mongoose.connection.on("error", (err) => {
-    logger.error({ err }, "❌ MongoDB connection error");
-  });
-
-  mongoose.connection.on("disconnected", () => {
-    logger.warn("⚠️ MongoDB disconnected");
-  });
-
-  cached.listenersAttached = true;
-}
-
-/**
- * Dynamically connects to the main application databases (e.g., services)
- * @param db - The database name to connect to
+ * Dynamically connects to the MongoDB cluster.
+ * Note: Currently optimized as a singleton connection to avoid 'openUri' conflicts.
  */
 async function dbConnect(db: string): Promise<typeof mongoose> {
-  attachConnectionListeners();
+  const MONGODB_URI = process.env.MONGODB_URI;
+  const MONGODB_URI_END = process.env.MONGODB_URI_END || "";
 
-  if (!cached) {
-    throw new Error("Mongoose cache not initialized");
+  if (!MONGODB_URI) {
+    throw new Error("⚠️ MONGODB_URI missing in .env");
   }
 
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  // Access env var here, after dotenv.config() has run
-  const URI = `${MONGODB_URI}${db}${MONGODB_URI_END}`;
-
-  if (!URI || !MONGODB_URI) {
-    throw new Error(
-      "⚠️ Please define the MONGODB_URI environment variable inside .env",
-    );
-  }
+  if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
     const opts: mongoose.ConnectOptions = {
@@ -88,13 +44,14 @@ async function dbConnect(db: string): Promise<typeof mongoose> {
       minPoolSize: 10,
       retryWrites: true,
     };
-    cached.promise = mongoose
-      .connect(URI, opts)
-      .then((mongoose) => mongoose)
-      .catch((err) => {
-        if (cached) cached.promise = null;
-        throw err;
-      });
+
+    const URI = `${MONGODB_URI}${db}${MONGODB_URI_END}`;
+    logger.info(`🔌 Connecting to MongoDB [DB: ${db}]...`);
+
+    cached.promise = mongoose.connect(URI, opts).then((m) => {
+      logger.info(`✅ Initialized MongoDB connection via DB: ${db}`);
+      return m;
+    });
   }
 
   try {

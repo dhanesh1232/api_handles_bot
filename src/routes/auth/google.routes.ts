@@ -1,8 +1,39 @@
 import express, { type Request, type Response } from "express";
 import { google } from "googleapis";
-import { renderView } from "../../lib/renderView.ts";
-import { Client } from "../../model/clients/client.ts";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
+import dns from "node:dns";
+import { renderView } from "@/lib/renderView";
+import { Client } from "@/model/clients/client";
+import { ClientSecrets } from "@/model/clients/secrets";
+
+// Fix for ETIMEDOUT issues on some networks where IPv6 is advertised but not working.
+// Node.js 18+ defaults to happy-eyeballs which can sometimes wait too long for IPv6.
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
+
+// Global configuration for Google API client to handle slow networks and transient errors.
+google.options({
+  timeout: 60000, // 60 seconds
+  retry: true,
+  retryConfig: {
+    retry: 3,
+    retryDelay: 1000,
+    httpMethodsToRetry: [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "PATCH",
+      "HEAD",
+      "OPTIONS",
+    ],
+    statusCodesToRetry: [
+      [100, 199],
+      [429, 429],
+      [500, 599],
+    ],
+  },
+});
 
 const router = express.Router();
 
@@ -96,7 +127,39 @@ router.get("/callback", async (req: Request, res: Response) => {
     );
 
     // 2. Exchange Code for Tokens
-    const { tokens } = await oauth2Client.getToken(code as string);
+    // We'll use a manual POST request with a high timeout to bypass any gaxios/google-auth-library quirks.
+    console.log("📡 Exchanging code for tokens manually...");
+    const axios = (await import("axios")).default;
+
+    let tokens: any;
+    try {
+      const response = await axios.post(
+        "https://oauth2.googleapis.com/token",
+        new URLSearchParams({
+          code: code as string,
+          client_id: clientId as string,
+          client_secret: clientSecret as string,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }).toString(),
+        {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          timeout: 60000, // 60 seconds
+          family: 4, // Force IPv4 to avoid time-out issues on some systems (WSL/IPv6)
+        },
+      );
+      tokens = response.data;
+      console.log("✅ Tokens received successfully");
+    } catch (axiosError: any) {
+      console.error(
+        "❌ Token Exchange failed via manual axios:",
+        axiosError.message,
+      );
+      if (axiosError.response) {
+        console.error("Response data:", axiosError.response.data);
+      }
+      throw axiosError;
+    }
 
     if (!tokens.refresh_token) {
       console.warn(

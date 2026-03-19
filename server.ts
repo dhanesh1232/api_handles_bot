@@ -3,8 +3,12 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { logger } from "@lib/logger";
 import { renderView } from "@lib/renderView";
-import { getDynamicOrigins, getCachedOrigins, isOriginAllowed } from "@models/cors-origins";
-import googleAuthRouter from "@routes/auth/google";
+import {
+  getDynamicOrigins,
+  getCachedOrigins,
+  isOriginAllowed,
+} from "@models/cors-origins";
+import googleAuthRouter from "@/routes/auth/google.routes.ts";
 import corsRouter from "@routes/saas/cors/cors.routes";
 import { createCrmRouter } from "@routes/saas/crm/crm.router";
 import eventLogRouter from "@routes/saas/eventLog.routes";
@@ -27,6 +31,7 @@ import http from "http";
 import mongoose from "mongoose";
 import { Server, type Socket } from "socket.io";
 import { createImagesRouter } from "@/routes/saas/media.routes";
+import { createStorageRouter } from "@/routes/saas/storage.routes";
 import agencyRoutes from "./src/routes/agency/agency.router.ts";
 import emailConfigRoutes from "./src/routes/settings/emailConfig.routes.ts";
 
@@ -376,6 +381,7 @@ const initializeRoutes = async () => {
   app.use("/api/saas/whatsapp", await createWebhookRouter(io));
   app.use("/api/saas/chat", validateClientKey, createChatRouter(io));
   app.use("/api/saas/images", validateClientKey, createImagesRouter(io));
+  app.use("/api/saas/storage", validateClientKey, createStorageRouter(io));
   app.use(
     "/api/saas/chat/templates",
     validateClientKey,

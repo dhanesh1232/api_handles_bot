@@ -69,4 +69,32 @@ export function cronJobs() {
       log.error({ err }, "Nightly score recalculation failed");
     }
   });
+
+  // Daily at 8:30 PM — Sync R2 Storage Usage
+  cron.schedule("30 20 * * *", async () => {
+    const log = jobLogger("cron:storage-sync");
+    try {
+      const { dbConnect } = await import("@lib/config");
+      const { ClientStorage } = await import("@models/clients/ClientStorage");
+      const { StorageService } = await import("@services/StorageService");
+
+      await dbConnect("services");
+      const storages = await ClientStorage.find({ isProvisioned: true }).lean();
+
+      for (const storage of storages) {
+        try {
+          const service = new StorageService(storage.clientCode);
+          await service.syncUsage();
+        } catch (err) {
+          log.error(
+            { err, clientCode: storage.clientCode },
+            "Failed to sync storage for client",
+          );
+        }
+      }
+      log.info({ count: storages.length }, "Completed nightly storage sync");
+    } catch (err) {
+      log.error({ err }, "Storage sync cron failed");
+    }
+  });
 }

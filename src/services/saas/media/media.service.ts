@@ -13,7 +13,6 @@ import {
   StorageClient,
   type UploadResult,
 } from "@lib/storage/r2.client";
-import type { IClientSecrets } from "@models/clients/secrets";
 import ffmpegPath from "ffmpeg-static";
 import ffmpeg from "fluent-ffmpeg";
 import sharp from "sharp";
@@ -108,7 +107,7 @@ export const optimizeAndUploadMedia = async (
   originalMimeType: string,
   originalFileName: string | undefined | null,
   mediaId: string,
-  secrets: IClientSecrets,
+  storage: StorageClient, // Pass the pre-configured storage client
   folder: string = "whatsapp",
 ): Promise<OptimizedMediaResult> => {
   let mimeType = originalMimeType;
@@ -189,7 +188,6 @@ export const optimizeAndUploadMedia = async (
   }
 
   const r2Key = `${folder}/${fileName}`;
-  const storage = StorageClient.fromSecrets(secrets);
 
   // 4. Upload
   const uploadResult = await storage.upload(r2Key, buffer, mimeType);
@@ -213,10 +211,9 @@ export const uploadBufferToR2 = async (
   buffer: Buffer,
   mimeType: string,
   filename: string,
-  secrets: IClientSecrets,
+  storage: StorageClient,
 ): Promise<string> => {
   const r2Key = `whatsapp/${filename}`;
-  const storage = StorageClient.fromSecrets(secrets);
 
   if (await storage.exists(r2Key)) {
     logger.debug({ filename }, "File already exists in R2, skipping upload");
@@ -233,9 +230,8 @@ export const uploadBufferToR2 = async (
  */
 export const listObjectsFromR2 = async (
   folder: string,
-  secrets: IClientSecrets,
+  storage: StorageClient,
 ): Promise<ListResult[]> => {
-  const storage = StorageClient.fromSecrets(secrets);
   const prefix = folder.endsWith("/") ? folder : `${folder}/`;
 
   const items = await storage.list(prefix);
@@ -259,8 +255,7 @@ export const listObjectsFromR2 = async (
  */
 export const deleteObjectFromR2 = async (
   key: string,
-  secrets: IClientSecrets,
+  storage: StorageClient,
 ): Promise<void> => {
-  const storage = StorageClient.fromSecrets(secrets);
   await storage.delete(key);
 };

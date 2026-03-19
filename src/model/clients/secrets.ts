@@ -16,15 +16,6 @@ export interface IClientSecrets extends Document {
   googleClientId?: string;
   googleClientSecret?: string;
   googleRefreshToken?: string;
-
-  // Cloudflare R2
-  r2AccessKeyId?: string;
-  r2SecretKey?: string;
-  r2BucketName?: string;
-  r2Endpoint?: string;
-  r2PublicDomain?: string;
-
-  // ── Email Configuration ──────────────────────────────────────────────────
   /** Which provider is active: 'ses' | 'smtp' | 'gmail_smtp' | 'zoho_smtp' | 'outlook_smtp' */
   emailProvider?: string;
   /** Sender display name used by all providers */
@@ -104,13 +95,6 @@ const ClientSecretsSchema = new mongoose.Schema<IClientSecrets>(
     googleClientId: { type: String, default: null },
     googleClientSecret: { type: String, default: null },
     googleRefreshToken: { type: String, default: null },
-
-    // Cloudflare R2
-    r2AccessKeyId: { type: String, default: null },
-    r2SecretKey: { type: String, default: null },
-    r2BucketName: { type: String, default: null },
-    r2Endpoint: { type: String, default: null },
-    r2PublicDomain: { type: String, default: null },
 
     emailProvider: {
       type: String,
@@ -195,9 +179,6 @@ ClientSecretsSchema.pre("save", function () {
     "googleClientId",
     "googleClientSecret",
     "googleRefreshToken",
-    "r2AccessKeyId",
-    "r2SecretKey",
-    "r2Endpoint",
     // Email
     "emailFromName",
     "automationWebhookSecret",

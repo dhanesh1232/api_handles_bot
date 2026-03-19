@@ -7,6 +7,7 @@ import { getCrmModels } from "@/lib/tenant/crm.models";
 import { validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
 import { ClientSecrets } from "@/model/clients/secrets";
+import { StorageClient } from "@/lib/storage/r2.client";
 import { optimizeAndUploadMedia } from "@/services/saas/media/media.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -263,21 +264,14 @@ export const createChatRouter = (io: Server) => {
             .json({ success: false, message: "No file provided" });
         }
 
-        await dbConnect("services");
-        const secrets = await ClientSecrets.findOne({ clientCode });
-
-        if (!secrets) {
-          return res
-            .status(404)
-            .json({ success: false, message: "Client secrets not found" });
-        }
-
+        const storage = StorageClient.fromUniversal();
         const result = await optimizeAndUploadMedia(
           file.buffer,
           file.mimetype,
           file.originalname,
           `chat_${Date.now()}`,
-          secrets,
+          storage,
+          `tenants/${clientCode.toUpperCase()}/chat`,
         );
 
         let type = "document";

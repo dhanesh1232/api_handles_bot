@@ -58,6 +58,7 @@ export const createWhatsappService = (io: Server | null) => {
     originalFilename?: string,
   ): Promise<string | null> => {
     if (!mediaId) return null;
+    const clientCode = secrets.clientCode;
     try {
       const metaClient = MetaWhatsAppClient.fromSecrets(secrets);
 
@@ -70,20 +71,25 @@ export const createWhatsappService = (io: Server | null) => {
       if (!buffer) return null;
 
       // 3. Optimize & Upload
-      const { optimizeAndUploadMedia } = await import(
-        "@services/saas/media/media.service"
-      );
+      const { optimizeAndUploadMedia } =
+        await import("@services/saas/media/media.service");
+      const { StorageClient } = await import("@lib/storage/r2.client");
+
       const result = await optimizeAndUploadMedia(
         buffer,
         resolved.mimeType,
         originalFilename,
         mediaId,
-        secrets,
+        StorageClient.fromUniversal(),
+        `tenants/${clientCode.toUpperCase()}/chat`,
       );
 
       return result.url;
     } catch (e: any) {
-      tenantLogger("unknown").error({ err: e }, "Media processing failed");
+      tenantLogger(clientCode || "unknown").error(
+        { err: e },
+        "Media processing failed",
+      );
       return null;
     }
   };
@@ -628,9 +634,8 @@ export const createWhatsappService = (io: Server | null) => {
 
         // 🎉 Also update Meeting reminders if linked
         if (message.metadata?.meetingId && message.metadata?.actionId) {
-          const { getCrmModels } = await import(
-            "../../../lib/tenant/crm.models"
-          );
+          const { getCrmModels } =
+            await import("../../../lib/tenant/crm.models");
           const { Meeting } = await getCrmModels(clientCode);
           // Only update if current status in meeting is lower priority
           const meeting = await Meeting.findById(message.metadata.meetingId);
@@ -763,9 +768,8 @@ export const createWhatsappService = (io: Server | null) => {
       // Unified resolution attempt if it's a template
       if (metadata || !variables || variables.length === 0) {
         try {
-          const { resolveUnifiedWhatsAppTemplate } = await import(
-            "./template.service"
-          );
+          const { resolveUnifiedWhatsAppTemplate } =
+            await import("./template.service");
           const { getCrmModels } = await import("@lib/tenant/crm.models");
           const { Lead } = await getCrmModels(clientCode);
 

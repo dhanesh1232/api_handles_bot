@@ -8,6 +8,7 @@ import { ReminderJobHandler } from "./handlers/reminder.handler";
 import { ScoreRefreshJobHandler } from "./handlers/scoreRefresh.handler";
 import { SegmentRefreshJobHandler } from "./handlers/segmentRefresh.handler";
 import { SequenceStepJobHandler } from "./handlers/sequenceStep.handler";
+import { StorageProvisionJobHandler } from "./handlers/storageProvision.handler";
 import { WebhookNotifyJobHandler } from "./handlers/webhookNotify.handler";
 import { WhatsAppBroadcastJobHandler } from "./handlers/whatsappBroadcast.handler";
 
@@ -24,6 +25,7 @@ export class JobRegistry {
     "crm.webhook_notify": new WebhookNotifyJobHandler(),
     "crm.whatsapp_broadcast": new WhatsAppBroadcastJobHandler(),
     "crm.email_marketing": new EmailMarketingJobHandler(),
+    "storage.provision": new StorageProvisionJobHandler(),
   };
 
   static getHandler(type: string): JobHandler | undefined {
