@@ -29,11 +29,11 @@ import helmet from "helmet";
 import http from "http";
 import mongoose from "mongoose";
 import { Server, type Socket } from "socket.io";
-import googleAuthRouter from "@/routes/auth/google.routes.ts";
+import googleAuthRouter from "@/routes/auth/google.routes";
 import { createImagesRouter } from "@/routes/saas/media.routes";
 import { createStorageRouter } from "@/routes/saas/storage.routes";
-import agencyRoutes from "./src/routes/agency/agency.router.ts";
-import emailConfigRoutes from "./src/routes/settings/emailConfig.routes.ts";
+import agencyRoutes from "./src/routes/agency/agency.router";
+import emailConfigRoutes from "./src/routes/settings/emailConfig.routes";
 
 /**
  * @Start MongoDB Workflow Processor (Free Alternative)
