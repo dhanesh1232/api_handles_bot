@@ -20,6 +20,10 @@ export async function validateClientKey(
   res: Response,
   next: NextFunction,
 ) {
+  // CORS handles OPTIONS, but just in case it leaks through or is misconfigured, don't block it with auth
+  if (req.method === "OPTIONS") {
+    return next();
+  }
   const apiKey = req.headers["x-api-key"] as string | undefined;
   const clientCode = req.headers["x-client-code"] as string | undefined;
 

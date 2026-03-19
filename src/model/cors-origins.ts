@@ -53,7 +53,7 @@ export async function getDynamicOrigins(): Promise<DynamicOrigin[]> {
       ...BASE_DEFAULTS_URLS,
       ...envOriginsUrls,
     ].map((url) => ({
-      url,
+      url: url.replace(/\/$/, ""),
       allowedHeaders: DEFAULT_HEADERS,
       allowedMethods: DEFAULT_METHODS,
     }));
@@ -62,7 +62,7 @@ export async function getDynamicOrigins(): Promise<DynamicOrigin[]> {
     await dbConnect("saas");
     const dbOrigins = await CorsOrigin.find({ isActive: true }).lean();
     const dynamicOrigins: DynamicOrigin[] = dbOrigins.map((o: any) => ({
-      url: o.url.toLowerCase().trim(),
+      url: o.url.toLowerCase().trim().replace(/\/$/, ""),
       allowedHeaders: o.allowedHeaders || DEFAULT_HEADERS,
       allowedMethods: o.allowedMethods || DEFAULT_METHODS,
     }));
