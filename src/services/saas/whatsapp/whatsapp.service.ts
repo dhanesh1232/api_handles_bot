@@ -814,15 +814,23 @@ export const createWhatsappService = (io: Server | null) => {
         const bodyVars = content.match(/{{[0-9]+}}/g) || [];
         for (const placeholder of bodyVars) {
           const index = parseInt(placeholder.replace(/{{|}}/g, ""), 10);
-          const mapping = tmpl.variableMapping.find(
-            (m: any) => m.componentType === "BODY" && m.originalIndex === index,
+          const mapping = tmpl.variableMapping?.find(
+            (m: any) =>
+              (m.componentType === "BODY" && m.originalIndex === index) ||
+              (!m.componentType && (m.originalIndex === index || m.position === index))
           );
+          
+          let val = "";
           if (mapping) {
-            const val =
-              variables[mapping.position - 1] ?? mapping.fallback ?? "";
-            const regex = new RegExp(`\\{\\{${index}\\}\\}`, "g");
-            content = content.replace(regex, String(val));
+            val = variables[mapping.position - 1] ?? mapping.fallback ?? "";
+          } else {
+            // Robust fallback: assume position = index if header doesn't have variables, 
+            // but standard fallback is variables[index-1]
+            val = variables[index === 0 ? 0 : index - 1] ?? "";
           }
+          
+          const regex = new RegExp(`\\{\\{${index}\\}\\}`, "g");
+          content = content.replace(regex, String(val));
         }
         resolvedText = content;
         templateData = {
