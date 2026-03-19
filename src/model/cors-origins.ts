@@ -1,5 +1,6 @@
 import { dbConnect } from "@/lib/config";
 import { CorsOrigin } from "./cors-origin.model.ts";
+import { Client } from "./clients/client.ts";
 
 export interface DynamicOrigin {
   url: string;
@@ -7,16 +8,31 @@ export interface DynamicOrigin {
   allowedMethods: string[];
 }
 
-let cachedOrigins: DynamicOrigin[] | null = null;
+// 🔒 Never allow null in runtime
+let cachedOrigins: DynamicOrigin[] = [];
+let originSet: Set<string> = new Set();
 let lastFetch = 0;
-const CACHE_TTL = 60 * 1000; // 1 minute cache
 
-// Hardcoded minimal safety defaults (to prevent lockouts)
+const CACHE_TTL = 60 * 1000;
+
+// Base defaults — always allowed even if DB is unreachable
 const BASE_DEFAULTS_URLS = [
+  // Local dev
   "http://localhost:3000",
   "http://localhost:3001",
-  "http://localhost:5173", // Vite
+  "http://localhost:5173",
+  // ECODrIx platform
   "https://admin.ecodrix.com",
+  "https://services.ecodrix.com",
+  "https://www.ecodrix.com",
+  "https://app.ecodrix.com",
+  "https://ecodrix.com",
+  "https://portfolio.ecodrix.com",
+  // Clients
+  "https://nirvisham.com",
+  "https://www.nirvisham.com",
+  "https://www.thepathfinderr.com",
+  "https://thepathfinderr.com",
 ];
 
 const DEFAULT_HEADERS = [
@@ -33,79 +49,120 @@ const DEFAULT_HEADERS = [
 
 const DEFAULT_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
 
+/** Normalize URL */
+function normalizeUrl(url: string): string {
+  return url.toLowerCase().trim().replace(/\/$/, "");
+}
+
+/** Get cached origins (sync use) */
+export function getCachedOrigins() {
+  return cachedOrigins;
+}
+
+/** Fast origin check */
+export function isOriginAllowed(origin?: string): boolean {
+
+  if (!origin) return true;
+  const normalized = normalizeUrl(origin);
+  return originSet.has(normalized) || originSet.has("*");
+}
+
 /**
- * Fetches active CORS origins from the database and merges them with defaults and environment variables.
- * Uses an in-memory cache to avoid database overhead on every request.
+ * 🔄 Load + refresh origins (async, NOT per request)
  */
 export async function getDynamicOrigins(): Promise<DynamicOrigin[]> {
   const now = Date.now();
 
-  if (cachedOrigins && now - lastFetch < CACHE_TTL) {
+  if (cachedOrigins.length && now - lastFetch < CACHE_TTL) {
     return cachedOrigins;
   }
 
   try {
-    // 1. Get environment-defined origins
-    const rawEnv = (process.env.ALLOWED_ORIGINS || "").replace(/^["']|["']$/g, "").trim();
-    const envOriginsUrls = rawEnv ? rawEnv.split(",").map((url) => url.trim().toLowerCase()) : [];
-
-    const staticOrigins: DynamicOrigin[] = [
-      ...BASE_DEFAULTS_URLS,
-      ...envOriginsUrls,
-    ].map((url) => ({
-      url: url.replace(/\/$/, ""),
+    // 1. Base defaults
+    const staticOrigins: DynamicOrigin[] = BASE_DEFAULTS_URLS.map((url) => ({
+      url: normalizeUrl(url),
       allowedHeaders: DEFAULT_HEADERS,
       allowedMethods: DEFAULT_METHODS,
     }));
 
-    // 2. Fetch from Database
+    // 2. Admin whitelist
     await dbConnect("saas");
     const dbOrigins = await CorsOrigin.find({ isActive: true }).lean();
-    const dynamicOrigins: DynamicOrigin[] = dbOrigins.map((o: any) => ({
-      url: o.url.toLowerCase().trim().replace(/\/$/, ""),
+
+    const whitelistOrigins: DynamicOrigin[] = dbOrigins.map((o: any) => ({
+      url: normalizeUrl(o.url),
       allowedHeaders: o.allowedHeaders || DEFAULT_HEADERS,
       allowedMethods: o.allowedMethods || DEFAULT_METHODS,
     }));
 
-    // 3. Combine everything and ensure unique by URL
+    // 3. Client domains
+    await dbConnect("services");
+    const activeClients = await Client.find(
+      { status: "active", "business.website": { $exists: true, $ne: "" } },
+      { "business.website": 1 },
+    ).lean();
+
+    const clientOrigins: DynamicOrigin[] = activeClients
+      .map((c: any) => c.business?.website as string)
+      .filter(Boolean)
+      .map((website) => {
+        try {
+          const url = new URL(
+            website.startsWith("http") ? website : `https://${website}`,
+          );
+
+          return {
+            url: normalizeUrl(url.origin),
+            allowedHeaders: DEFAULT_HEADERS,
+            allowedMethods: DEFAULT_METHODS,
+          } as DynamicOrigin;
+        } catch {
+          return null;
+        }
+      })
+      .filter((o): o is DynamicOrigin => o !== null);
+
+    // 4. Merge
     const map = new Map<string, DynamicOrigin>();
-    [...staticOrigins, ...dynamicOrigins].forEach((origin) => {
-      if (origin.url) {
-        map.set(origin.url, origin);
-      }
-    });
+
+    [...staticOrigins, ...clientOrigins, ...whitelistOrigins].forEach(
+      (origin) => {
+        if (origin.url) map.set(origin.url, origin);
+      },
+    );
 
     const combined = Array.from(map.values());
 
-    // Update cache
+    // ✅ CRITICAL FIX (you missed this earlier)
     cachedOrigins = combined;
+    originSet = new Set(combined.map((o) => o.url));
     lastFetch = now;
 
     return cachedOrigins;
   } catch (err) {
     console.error("❌ Error fetching dynamic CORS origins:", err);
 
-    // Fallback: merge env origins with base defaults if DB fails
-    const envOriginsUrls = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(",").map((url) =>
-          url.trim().toLowerCase(),
-        )
-      : [];
-
-    return [...BASE_DEFAULTS_URLS, ...envOriginsUrls].map((url) => ({
-      url,
+    // 🛡️ fallback (never empty)
+    const fallback = BASE_DEFAULTS_URLS.map((url) => ({
+      url: normalizeUrl(url),
       allowedHeaders: DEFAULT_HEADERS,
       allowedMethods: DEFAULT_METHODS,
     }));
+
+    cachedOrigins = fallback;
+    originSet = new Set(fallback.map((o) => o.url));
+    lastFetch = now;
+
+    return cachedOrigins;
   }
 }
 
 /**
- * Manually invalidates the cache.
- * Call this after making changes via the CORS Admin API.
+ * 🔄 Force refresh (admin use)
  */
 export function refreshOriginsCache() {
-  cachedOrigins = null;
+  cachedOrigins = [];
+  originSet.clear();
   lastFetch = 0;
-  console.log("🔄 CORS origins cache invalidated.");
+  console.log("🔄 CORS cache cleared");
 }

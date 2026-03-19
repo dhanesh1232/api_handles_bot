@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { logger } from "@lib/logger";
 import { renderView } from "@lib/renderView";
-import { getDynamicOrigins } from "@models/cors-origins";
+import { getDynamicOrigins, getCachedOrigins, isOriginAllowed } from "@models/cors-origins";
 import googleAuthRouter from "@routes/auth/google";
 import corsRouter from "@routes/saas/cors/cors.routes";
 import { createCrmRouter } from "@routes/saas/crm/crm.router";
@@ -53,6 +53,39 @@ const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Nginx)
 const server = http.createServer(app);
 
+const BASE_DEFAULTS_URLS = [
+  // Local dev
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  // ECODrIx platform
+  "https://admin.ecodrix.com",
+  "https://services.ecodrix.com",
+  "https://www.ecodrix.com",
+  "https://app.ecodrix.com",
+  "https://ecodrix.com",
+  "https://portfolio.ecodrix.com",
+  // Clients
+  "https://nirvisham.com",
+  "https://www.nirvisham.com",
+  "https://www.thepathfinderr.com",
+  "https://thepathfinderr.com",
+];
+
+const DEFAULT_HEADERS = [
+  "Content-Type",
+  "Authorization",
+  "x-api-key",
+  "x-client-code",
+  "x-core-api-key",
+  "x-socket-id",
+  "x-socket-token",
+  "x-socket-client-code",
+  "x-ecodrix-signature",
+];
+
+const DEFAULT_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
+
 /**
  * @Start CORS Options
  * @borrows CORS options for saas
@@ -64,52 +97,28 @@ const server = http.createServer(app);
  * Dynamic CORS options delegate
  * Resolves origins, headers, and methods based on incoming request and DB config
  */
-const corsOptionsDelegate: cors.CorsOptionsDelegate<Request> = (
-  req,
-  callback,
-) => {
-  getDynamicOrigins()
-    .then((allowedOrigins) => {
-      const origin = req.header("Origin")?.toLowerCase().trim();
-      const urls = allowedOrigins.map((o) => o.url);
+const corsOptionsDelegate = (req: any, callback: any) => {
+  const origin = req.header("Origin")?.toLowerCase().trim().replace(/\/$/, "");
 
-      const isAllowed = !origin || urls.includes(origin) || urls.includes("*");
+  if (isOriginAllowed(origin)) {
+    // Look up exact config for this origin from the in-memory cache
+    const config = origin
+      ? getCachedOrigins().find(
+          (o) => o.url.toLowerCase().trim().replace(/\/$/, "") === origin,
+        ) || getCachedOrigins().find((o) => o.url === "*")
+      : null;
 
-      if (isAllowed) {
-        // Find specific origin config, or fall back to wildcard config, or null
-        const config = origin
-          ? allowedOrigins.find((o) => o.url === origin) ||
-            allowedOrigins.find((o) => o.url === "*")
-          : null;
-
-        callback(null, {
-          origin: true,
-          credentials: true,
-          methods: config?.allowedMethods || [
-            "GET",
-            "POST",
-            "PUT",
-            "DELETE",
-            "PATCH",
-            "OPTIONS",
-          ],
-          allowedHeaders: config?.allowedHeaders || [
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "Accept",
-            "Origin",
-          ],
-        });
-      } else {
-        logger.warn({ origin }, "CORS blocked");
-        callback(null, { origin: false });
-      }
-    })
-    .catch((err) => {
-      logger.error(err, "CORS delegate error");
-      callback(err);
+    callback(null, {
+      origin: true,
+      credentials: true,
+      methods: config?.allowedMethods || DEFAULT_METHODS,
+      allowedHeaders: config?.allowedHeaders || DEFAULT_HEADERS,
+      maxAge: 86400,
     });
+  } else {
+    logger.warn({ origin }, "CORS blocked — Origin not whitelisted");
+    callback(null, { origin: false });
+  }
 };
 
 /**
@@ -165,6 +174,7 @@ app.use("/api", limiter);
  * @param {corsOptionsDelegate} - CORS options delegate
  */
 app.use(cors(corsOptionsDelegate));
+app.options("/", cors(corsOptionsDelegate));
 
 /**
  * @Start JSON Parser
@@ -209,25 +219,12 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: (origin: any, callback: any) => {
-      const normalizedOrigin = origin?.toLowerCase().trim();
-      getDynamicOrigins()
-        .then((allowedOrigins) => {
-          const urls = allowedOrigins.map((o) => o.url);
-          const isAllowed = 
-            !normalizedOrigin || 
-            urls.includes(normalizedOrigin) || 
-            urls.includes("*");
-          if (isAllowed) {
-            callback(null, true);
-          } else {
-            callback(new Error("Not allowed by CORS"), false);
-          }
-        })
-        .catch((err) => {
-          logger.error(err, "Socket.IO CORS error");
-          callback(err, false);
-        });
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"), false);
+      }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
@@ -416,7 +413,7 @@ const initializeRoutes = async () => {
    *
    * @param {PORT} - Port for server
    */
-
+  await getDynamicOrigins();
   server.listen(PORT, () => {
     logger.info(`Server running at http://localhost:${PORT}`);
   });
