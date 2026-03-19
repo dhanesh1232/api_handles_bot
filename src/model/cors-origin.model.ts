@@ -17,6 +17,24 @@ const CorsOriginSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    allowedHeaders: {
+      type: [String],
+      default: [
+        "Content-Type",
+        "Authorization",
+        "x-api-key",
+        "x-client-code",
+        "x-core-api-key",
+        "x-socket-id",
+        "x-socket-token",
+        "x-socket-client-code",
+        "x-ecodrix-signature",
+      ],
+    },
+    allowedMethods: {
+      type: [String],
+      default: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    },
   },
   { timestamps: true },
 );

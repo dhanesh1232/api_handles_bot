@@ -1,8 +1,8 @@
 import express from "express";
-import { dbConnect } from "../../../lib/config.ts";
-import { verifyCoreToken } from "../../../middleware/auth.ts";
-import { CorsOrigin } from "../../../model/cors-origin.model.ts";
-import { refreshOriginsCache } from "../../../model/cors-origins.ts";
+import { dbConnect } from "@/lib/config";
+import { verifyCoreToken } from "@/middleware/auth";
+import { CorsOrigin } from "@/model/cors-origin.model";
+import { refreshOriginsCache } from "@/model/cors-origins";
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ router.get("/", async (_req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const { url, name } = req.body;
+    const { url, name, allowedHeaders, allowedMethods } = req.body;
     if (!url) {
       return res
         .status(400)
@@ -40,6 +40,8 @@ router.post("/", async (req, res) => {
     const origin = await CorsOrigin.create({
       url: url.toLowerCase().trim(),
       name,
+      allowedHeaders: allowedHeaders || undefined,
+      allowedMethods: allowedMethods || undefined,
     });
 
     // Invalidate cache immediately to apply changes

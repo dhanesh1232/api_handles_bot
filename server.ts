@@ -60,46 +60,56 @@ const server = http.createServer(app);
  * @param {getDynamicOrigins} - Get dynamic origins
  */
 
-const originsUrls = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173", // Vite
-  "https://services.ecodrix.com",
-  "https://www.ecodrix.com",
-  "https://app.ecodrix.com",
-  "https://ecodrix.com",
-  "https://admin.ecodrix.com",
-  "https://portfolio.ecodrix.com",
-  "https://nirvisham.com",
-  "https://www.nirvisham.com",
-  "https://www.thepathfinderr.com",
-  "https://thepathfinderr.com",
-];
+/**
+ * Dynamic CORS options delegate
+ * Resolves origins, headers, and methods based on incoming request and DB config
+ */
+const corsOptionsDelegate: cors.CorsOptionsDelegate<Request> = (
+  req,
+  callback,
+) => {
+  getDynamicOrigins()
+    .then((allowedOrigins) => {
+      const origin = req.header("Origin");
+      const urls = allowedOrigins.map((o) => o.url);
 
-const corsOptions: cors.CorsOptions = {
-  origin: async (
-    origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void,
-  ) => {
-    const allowedOrigins = [...originsUrls, ...(await getDynamicOrigins())];
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-api-key",
-    "x-client-code",
-    "x-core-api-key",
-    "x-socket-id",
-    "x-socket-token",
-    "x-socket-client-code",
-    "x-ecodrix-signature",
-  ],
+      const isAllowed = !origin || urls.includes(origin) || urls.includes("*");
+
+      if (isAllowed) {
+        // Find specific origin config, or fall back to wildcard config, or null
+        const config = origin
+          ? allowedOrigins.find((o) => o.url === origin) ||
+            allowedOrigins.find((o) => o.url === "*")
+          : null;
+
+        callback(null, {
+          origin: true,
+          credentials: true,
+          methods: config?.allowedMethods || [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "OPTIONS",
+          ],
+          allowedHeaders: config?.allowedHeaders || [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+          ],
+        });
+      } else {
+        logger.warn({ origin }, "CORS blocked");
+        callback(null, { origin: false });
+      }
+    })
+    .catch((err) => {
+      logger.error(err, "CORS delegate error");
+      callback(err);
+    });
 };
 
 /**
@@ -152,9 +162,9 @@ app.use("/api", limiter);
  * @Start CORS
  * @borrows CORS for saas
  *
- * @param {corsOptions} - CORS options
+ * @param {corsOptionsDelegate} - CORS options delegate
  */
-app.use(cors(corsOptions));
+app.use(cors(corsOptionsDelegate));
 
 /**
  * @Start JSON Parser
@@ -199,8 +209,24 @@ app.use(express.urlencoded({ extended: true }));
 
 const io = new Server(server, {
   cors: {
-    origin: corsOptions.origin,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    origin: (origin: any, callback: any) => {
+      getDynamicOrigins()
+        .then((allowedOrigins) => {
+          const urls = allowedOrigins.map((o) => o.url);
+          const isAllowed =
+            !origin || urls.includes(origin) || urls.includes("*");
+          if (isAllowed) {
+            callback(null, true);
+          } else {
+            callback(new Error("Not allowed by CORS"), false);
+          }
+        })
+        .catch((err) => {
+          logger.error(err, "Socket.IO CORS error");
+          callback(err, false);
+        });
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   },
 });
