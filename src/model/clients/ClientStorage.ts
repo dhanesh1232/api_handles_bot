@@ -65,7 +65,9 @@ const ClientStorageSchema = new Schema<IClientStorage>(
 );
 
 // Virtual usagePercent
-ClientStorageSchema.virtual("usagePercent").get(function (this: IClientStorage) {
+ClientStorageSchema.virtual("usagePercent").get(function (
+  this: IClientStorage,
+) {
   return this.quotaBytes > 0
     ? Math.round((this.usedBytes / this.quotaBytes) * 100)
     : 0;

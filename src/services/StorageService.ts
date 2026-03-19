@@ -50,24 +50,12 @@ export class StorageService {
   }
 
   /**
-   * Private: Check if a folder is date sharded for this client.
-   */
-  private async isFolderDateSharded(folderName: string): Promise<boolean> {
-    const storage = await ClientStorage.findOne({
-      clientCode: this.clientCode,
-    });
-    if (!storage) return false;
-    const folder = storage.folders.find((f) => f.name === folderName);
-    return folder?.dateShard || false;
-  }
-
-  /**
    * Public: Generate a signed URL for direct upload to R2.
    */
   async getUploadUrl(
     folderName: string,
     filename: string,
-    contentType: string,
+    _contentType: string,
     expiresIn: number = R2_PRESIGN_EXPIRY.upload,
   ) {
     const storage = await ClientStorage.findOne({

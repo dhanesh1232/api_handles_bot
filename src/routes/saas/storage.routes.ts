@@ -2,7 +2,7 @@ import { storageQuota } from "@middleware/storageQuota";
 import { StorageService } from "@services/StorageService";
 import { Router } from "express";
 
-export const createStorageRouter = (io: any) => {
+export const createStorageRouter = (_io: any) => {
   const router = Router();
 
   /**

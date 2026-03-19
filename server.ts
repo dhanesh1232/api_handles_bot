@@ -4,11 +4,10 @@ import { join } from "node:path";
 import { logger } from "@lib/logger";
 import { renderView } from "@lib/renderView";
 import {
-  getDynamicOrigins,
   getCachedOrigins,
+  getDynamicOrigins,
   isOriginAllowed,
 } from "@models/cors-origins";
-import googleAuthRouter from "@/routes/auth/google.routes.ts";
 import corsRouter from "@routes/saas/cors/cors.routes";
 import { createCrmRouter } from "@routes/saas/crm/crm.router";
 import eventLogRouter from "@routes/saas/eventLog.routes";
@@ -30,6 +29,7 @@ import helmet from "helmet";
 import http from "http";
 import mongoose from "mongoose";
 import { Server, type Socket } from "socket.io";
+import googleAuthRouter from "@/routes/auth/google.routes.ts";
 import { createImagesRouter } from "@/routes/saas/media.routes";
 import { createStorageRouter } from "@/routes/saas/storage.routes";
 import agencyRoutes from "./src/routes/agency/agency.router.ts";

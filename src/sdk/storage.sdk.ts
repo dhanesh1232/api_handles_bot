@@ -1,11 +1,9 @@
-import { StorageClient } from "@/lib/storage/r2.client";
+import { StorageService } from "@services/StorageService";
 import {
-  deleteObjectFromR2,
-  listObjectsFromR2,
   type OptimizedMediaResult,
   optimizeAndUploadMedia,
 } from "@services/saas/media/media.service";
-import { StorageService } from "@services/StorageService";
+import { StorageClient } from "@/lib/storage/r2.client";
 import { BaseSDK } from "./base.sdk";
 
 /**
@@ -47,7 +45,7 @@ export class StorageSDK extends BaseSDK {
     mimeType: string,
     originalName?: string,
     folder: string = "general",
-    options: { optimize?: boolean } = { optimize: true },
+    _options: { optimize?: boolean } = { optimize: true },
   ): Promise<OptimizedMediaResult> {
     const { storage, prefix } = await this.getStorageContext();
     const mediaId = `file_${Date.now()}`;

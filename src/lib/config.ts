@@ -1,4 +1,3 @@
-import { env } from "@lib/env";
 import { logger } from "@lib/logger";
 import mongoose from "mongoose";
 
@@ -14,10 +13,10 @@ interface MongooseCache {
   promise: Promise<typeof mongoose> | null;
 }
 
-// @ts-ignore
+// @ts-expect-error
 let cached: MongooseCache = global.mongoose_cache;
 if (!cached) {
-  // @ts-ignore
+  // @ts-expect-error
   cached = global.mongoose_cache = { conn: null, promise: null };
 }
 

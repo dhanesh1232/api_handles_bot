@@ -23,11 +23,11 @@ import { CacheSDK } from "./cache.sdk.ts";
 import { JobSDK } from "./job.sdk.ts";
 import { LeadSDK } from "./lead.sdk.ts";
 import { MailSDK } from "./mail.sdk.ts";
+import { MeetSDK } from "./meet.sdk.ts";
+import { NotificationSDK } from "./notification.sdk.ts";
 import { PipelineSDK } from "./pipeline.sdk.ts";
 import { StorageSDK } from "./storage.sdk.ts";
 import { WhatsAppSDK } from "./whatsapp.sdk.ts";
-import { MeetSDK } from "./meet.sdk.ts";
-import { NotificationSDK } from "./notification.sdk.ts";
 
 export { ActivitySDK } from "./activity.sdk.ts";
 export { AutomationSDK } from "./automation.sdk.ts";

@@ -1,6 +1,6 @@
+import dns from "node:dns";
 import express, { type Request, type Response } from "express";
 import { google } from "googleapis";
-import dns from "node:dns";
 import { renderView } from "@/lib/renderView";
 import { Client } from "@/model/clients/client";
 import { ClientSecrets } from "@/model/clients/secrets";

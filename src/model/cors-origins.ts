@@ -1,6 +1,6 @@
 import { dbConnect } from "@/lib/config";
-import { CorsOrigin } from "./cors-origin.model.ts";
 import { Client } from "./clients/client.ts";
+import { CorsOrigin } from "./cors-origin.model.ts";
 
 export interface DynamicOrigin {
   url: string;
@@ -61,7 +61,6 @@ export function getCachedOrigins() {
 
 /** Fast origin check */
 export function isOriginAllowed(origin?: string): boolean {
-
   if (!origin) return true;
   const normalized = normalizeUrl(origin);
   return originSet.has(normalized) || originSet.has("*");

@@ -1,13 +1,10 @@
 import express, { type Request, type Response } from "express";
 import multer from "multer";
 import { Server } from "socket.io";
-import { dbConnect } from "@/lib/config";
+import { StorageClient } from "@/lib/storage/r2.client";
 import { getCrmModels } from "@/lib/tenant/crm.models";
-
 import { validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
-import { ClientSecrets } from "@/model/clients/secrets";
-import { StorageClient } from "@/lib/storage/r2.client";
 import { optimizeAndUploadMedia } from "@/services/saas/media/media.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
