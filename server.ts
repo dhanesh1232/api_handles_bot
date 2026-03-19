@@ -72,6 +72,8 @@ const originsUrls = [
   "https://portfolio.ecodrix.com",
   "https://nirvisham.com",
   "https://www.nirvisham.com",
+  "https://www.thepathfinderr.com",
+  "https://thepathfinderr.com",
 ];
 
 const corsOptions: cors.CorsOptions = {
