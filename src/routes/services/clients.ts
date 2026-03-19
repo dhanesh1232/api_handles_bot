@@ -1,5 +1,5 @@
-import express, { type Request, type Response } from "express";
 import crypto from "node:crypto";
+import express, { type Request, type Response } from "express";
 
 import { dbConnect } from "../../lib/config.ts";
 import { verifyCoreToken } from "../../middleware/auth.ts";
