@@ -70,7 +70,7 @@ const corsOptionsDelegate: cors.CorsOptionsDelegate<Request> = (
 ) => {
   getDynamicOrigins()
     .then((allowedOrigins) => {
-      const origin = req.header("Origin");
+      const origin = req.header("Origin")?.toLowerCase().trim();
       const urls = allowedOrigins.map((o) => o.url);
 
       const isAllowed = !origin || urls.includes(origin) || urls.includes("*");
@@ -210,11 +210,14 @@ app.use(express.urlencoded({ extended: true }));
 const io = new Server(server, {
   cors: {
     origin: (origin: any, callback: any) => {
+      const normalizedOrigin = origin?.toLowerCase().trim();
       getDynamicOrigins()
         .then((allowedOrigins) => {
           const urls = allowedOrigins.map((o) => o.url);
-          const isAllowed =
-            !origin || urls.includes(origin) || urls.includes("*");
+          const isAllowed = 
+            !normalizedOrigin || 
+            urls.includes(normalizedOrigin) || 
+            urls.includes("*");
           if (isAllowed) {
             callback(null, true);
           } else {

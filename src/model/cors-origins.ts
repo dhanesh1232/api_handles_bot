@@ -46,11 +46,8 @@ export async function getDynamicOrigins(): Promise<DynamicOrigin[]> {
 
   try {
     // 1. Get environment-defined origins
-    const envOriginsUrls = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(",").map((url) =>
-          url.trim().toLowerCase(),
-        )
-      : [];
+    const rawEnv = (process.env.ALLOWED_ORIGINS || "").replace(/^["']|["']$/g, "").trim();
+    const envOriginsUrls = rawEnv ? rawEnv.split(",").map((url) => url.trim().toLowerCase()) : [];
 
     const staticOrigins: DynamicOrigin[] = [
       ...BASE_DEFAULTS_URLS,
