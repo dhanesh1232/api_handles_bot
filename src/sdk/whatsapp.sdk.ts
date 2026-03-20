@@ -1,13 +1,8 @@
 /**
- * WhatsAppSDK
- *
- * Class facade over the createWhatsappService() factory.
- * Pass the socket.io instance at construction; clientCode stays bound.
- *
- * @example
- *   const whatsapp = new WhatsAppSDK(clientCode, io);
- *   await whatsapp.sendTemplate(convId, "welcome_msg", undefined, undefined, "system", { lead });
- *   await whatsapp.send(convId, "Hello from the team!");
+ * @file whatsapp.sdk.ts
+ * @module WhatsAppSDK
+ * @responsibility Facade for the Meta WhatsApp Business API, handling both conversational messaging and template-based automation.
+ * @dependencies whatsapp.service.ts
  */
 
 import type { Server } from "socket.io";
@@ -26,8 +21,20 @@ export class WhatsAppSDK {
   // ── Inbound webhook handlers ───────────────────────────────────────────────
 
   /**
-   * Handle an inbound WhatsApp message from the webhook.
-   * Auto-creates a lead if one doesn't exist for the sender's phone.
+   * Processes a standard inbound message from a customer.
+   *
+   * @param {any} messagePayload - The raw Meta JSON block.
+   * @param {string} from - Sender's international phone number.
+   * @param {string} msgBody - Decrypted text content.
+   * @param {any} contacts - Contact metadata (Profile name, etc.).
+   * @returns {Promise<void>}
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Lead Sync**: Resolves the Lead by phone; auto-creates if missing (Category: WhatsApp User).
+   * 2. **Conversation Routing**: Ensures a `Conversation` hub exists for the thread.
+   * 3. **Persistence**: Saves the message with its Meta ID to prevent duplicates.
+   * 4. **Side-Effects**: Updates `unreadCount`, `lastMessageAt`, and bumps the Lead's activity timeline.
+   * 5. **Real-time**: Emits to the tenant's socket room for frontend UI updates.
    */
   handleIncoming(
     messagePayload: any,
@@ -45,8 +52,15 @@ export class WhatsAppSDK {
   }
 
   /**
-   * Handle a status update webhook (sent → delivered → read / failed).
-   * Guards against priority regression (e.g. delivered can't go back to sent).
+   * Orchestrates message status transitions (sent -> delivered -> read).
+   *
+   * **WORKING PROCESS:**
+   * 1. Matches the Meta `whatsappId` to a local `Message` document.
+   * 2. Guards against "status regression" (prevents a 'delivered' status from reverting to 'sent').
+   * 3. Updates the `status` field and logs the timestamp.
+   *
+   * @param {any} statusPayload - Meta status webhook payload.
+   * @returns {Promise<void>}
    */
   handleStatus(statusPayload: any): Promise<void> {
     return this.svc.handleStatusUpdate(this.clientCode, statusPayload);
@@ -55,15 +69,23 @@ export class WhatsAppSDK {
   // ── Outbound messaging ────────────────────────────────────────────────────
 
   /**
-   * Send a plain text or media message to an existing conversation.
+   * Dispatches a free-text or media message within an active 24-hour window.
    *
-   * @param conversationId - MongoDB _id of the Conversation document
-   * @param text           - Message body text
-   * @param mediaUrl       - Public URL of an image/video/document
-   * @param mediaType      - "image" | "video" | "audio" | "document"
-   * @param userId         - ID of the admin who sent it (default: "admin")
-   * @param replyToId      - Message _id to thread-reply to
-   * @param metadata       - Extra metadata attached to the Message document
+   * @param {string} conversationId - CRM conversation identifier.
+   * @param {string} [text] - Text body.
+   * @param {string} [mediaUrl] - Publicly accessible asset URL.
+   * @param {string} [mediaType] - "image" | "video" | "audio" | "document".
+   * @param {string} [userId="admin"] - Identity of the sending staff member.
+   * @param {string} [replyToId] - ID of the message being replied to (threading).
+   * @param {object} [metadata] - Operational context flags.
+   * @param {string} [filename] - Display name for document attachments.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Quota Check**: Verifies the tenant has sufficient credits before dispatch.
+   * 2. **Context Resolution**: Resolves the Meta Phone ID and access token for the tenant.
+   * 3. **Media Orchestration**: Re-uploads external assets to Meta's servers if required.
+   * 4. **API Dispatch**: Executes the Graph API request.
+   * 5. **Logging**: Persists the message as `sent` (or `failed` if the API rejects it).
    */
   send(
     conversationId: string,
@@ -92,16 +114,20 @@ export class WhatsAppSDK {
   }
 
   /**
-   * Send a pre-approved WhatsApp template message.
-   * Variables and language are resolved automatically via the stored
-   * template mapping; pass raw overrides only if needed.
+   * Sends a pre-registered Meta template (required for starting conversations).
    *
-   * @param conversationId  - MongoDB _id of the Conversation document
-   * @param templateName    - Exact template name as registered in WhatsApp Business
-   * @param language        - BCP-47 language code (default "en_US")
-   * @param variables       - Ordered variable values (overrides auto-resolution)
-   * @param userId          - Sender identity (default "system")
-   * @param metadata        - Lead / event context for variable auto-resolution
+   * **WORKING PROCESS:**
+   * 1. Retrieves the template definition and mapping from the `Template` collection.
+   * 2. Resolves dynamic variables using `metadata` (e.g., replaces `{{1}}` with lead name).
+   * 3. Compiles the Meta component payload (HEADER, BODY, BUTTONS).
+   * 4. Transmits to Meta and records the interactive message in CRM history.
+   *
+   * @param {string} conversationId - CRM conversation identifier.
+   * @param {string} templateName - Name as defined in FB Business Manager.
+   * @param {string} [language="en_US"] - BCP-47 locale.
+   * @param {string[]} [variables=[]] - Explicit values (overrides auto-mapping).
+   * @param {string} [userId="system"] - Identity for automation logs.
+   * @param {object} [metadata] - Data object for auto-resolution logic.
    */
   sendTemplate(
     conversationId: string,
@@ -131,11 +157,11 @@ export class WhatsAppSDK {
   }
 
   /**
-   * Send or remove an emoji reaction on a specific message.
-   * Pass an empty string for `emoji` to un-react.
+   * Sends or removes a reaction emoji on a received message.
    *
-   * @param messageId - MongoDB _id of the Message to react to
-   * @param emoji     - Emoji string, e.g. "👍" — pass "" to remove
+   * @param {string} messageId - The `_id` of the target Message.
+   * @param {string} emoji - Emoji character or empty string to remove.
+   * @returns {Promise<{ success: boolean }>}
    */
   sendReaction(
     messageId: string,

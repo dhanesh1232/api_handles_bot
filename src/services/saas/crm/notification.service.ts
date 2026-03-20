@@ -5,6 +5,17 @@ import { tenantLogger } from "@/lib/logger";
 /**
  * Creates a new notification record.
  */
+/**
+ * Creates a new system notification and emits a real-time event.
+ *
+ * **WORKING PROCESS:**
+ * 1. Model Initialization: Connects to the tenant's `Notification` model.
+ * 2. Record Creation: Persists the notification with the provided payload (title, message, type, actionData).
+ * 3. Real-time Dispatch: Uses the global Socket.IO instance (`io`) to emit the `notification:new` event to the client's room.
+ *
+ * **EDGE CASES:**
+ * - Socket Offline: If the global `io` is not defined, the notification is still saved to the DB but not emitted in real-time.
+ */
 export const createNotification = async (
   clientCode: string,
   input: Record<string, any>,
@@ -82,6 +93,19 @@ export const dismissAllNotifications = async (clientCode: string) => {
 
 /**
  * Retries the action associated with a notification.
+ */
+/**
+ * Re-attempts an automation action that previously failed or required manual intervention.
+ *
+ * **WORKING PROCESS:**
+ * 1. Verification: Fetches the unread notification and ensures it contains the necessary `actionData`.
+ * 2. Lead Validation: Verifies the target lead still exists in the CRM.
+ * 3. Action Execution: Re-runs the `ActionExecutor.execute` logic with the original context snapshot.
+ * 4. State Transition: Upon success, marks the notification as "resolved" and emits a real-time update.
+ *
+ * **EDGE CASES:**
+ * - Stale Data: If the lead has been deleted, the retry fails with an explicit error.
+ * - Double Retry: Prevents retrying notifications that aren't in the "unread" status.
  */
 export const retryNotificationAction = async (
   clientCode: string,

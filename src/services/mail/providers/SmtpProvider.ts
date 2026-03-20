@@ -72,6 +72,7 @@ export async function sendViaSMTP(options: {
 
 /**
  * 2. testSmtpConnection
+ *
  */
 export async function testSmtpConnection(smtpConfig: {
   host: string;

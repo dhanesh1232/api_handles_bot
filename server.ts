@@ -1,3 +1,17 @@
+/**
+ * @file server.ts
+ * @module BackendRoot
+ * @responsibility Main entry point for the Ecodrix Backend. Handles HTTP/Socket initialization, CORS, and graceful shutdown.
+ * @dependencies Express, Socket.io, Mongoose, Helmet, Pino
+ *
+ * **BOOTSTRAP PROCESS:**
+ * 1. Loads environment variables and connects to global databases.
+ * 2. Initializes Express app with security middlewares (Helmet, CSP, CORS).
+ * 3. Mounts Socket.io and registers it globally for service-level access.
+ * 4. Loads dynamic CORS origins from the database.
+ * 5. Mounts SaaS-specific routes (WA, CRM, Jobs) and starts background workers.
+ */
+
 import "@lib/env";
 import crypto from "node:crypto";
 import { join } from "node:path";
@@ -45,8 +59,6 @@ import emailConfigRoutes from "./src/routes/settings/emailConfig.routes";
 
 import { cronJobs } from "@jobs/cron";
 import { registerCrmIo, startCrmWorker } from "@jobs/saas/crmWorker";
-// registerGlobalIo was moved or deleted.
-
 import { errorHandler } from "@middleware/errorHandler";
 import { requestLogger } from "@middleware/logger";
 import { limiter, triggerLimiter } from "@middleware/rate-limit";
@@ -99,8 +111,18 @@ const DEFAULT_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
  */
 
 /**
- * Dynamic CORS options delegate
- * Resolves origins, headers, and methods based on incoming request and DB config
+ * Dynamic CORS options delegate.
+ *
+ * **WORKING PROCESS:**
+ * 1. Sanitizes the incoming `Origin` header (lowercase, trim, strip trailing slash).
+ * 2. Checks if the origin is allowed via `isOriginAllowed` (using in-memory cache).
+ * 3. Fetches service-specific CORS configuration (headers, methods) for that origin.
+ * 4. Invokes the Express `callback` with the resolved security policy.
+ *
+ * @param {any} req - Express request object.
+ * @param {any} callback - CORS library callback.
+ * @returns {void}
+ * @edge_case Blocks unknown origins and logs a warning for security auditing.
  */
 const corsOptionsDelegate = (req: any, callback: any) => {
   const origin = req.header("Origin")?.toLowerCase().trim().replace(/\/$/, "");
@@ -377,6 +399,18 @@ app.use("/api", clientsRouter);
 
 // Using top-level await pattern natively or wrap carefully.
 // Express use doesn't support async correctly without wrapping if createWebhookRouter(io) returns a promise resolving to router
+/**
+ * Asynchronous route and service initializer.
+ *
+ * **WORKING PROCESS:**
+ * 1. Mounts all API routers with their respective middlewares (Auth, Limiting).
+ * 2. Initializes routers that require the `io` instance.
+ * 3. Performs a final sync of dynamic origins from the DB.
+ * 4. Starts the HTTP server listener.
+ *
+ * @async
+ * @returns {Promise<void>}
+ */
 const initializeRoutes = async () => {
   app.use("/api/saas/whatsapp", await createWebhookRouter(io));
   app.use("/api/saas/chat", validateClientKey, createChatRouter(io));
@@ -429,6 +463,18 @@ initializeRoutes().catch(console.error);
 
 /**
  * @Start Graceful Shutdown
+ */
+/**
+ * Orchestrates a graceful application shutdown.
+ *
+ * **WORKING PROCESS:**
+ * 1. Signals the CRM Worker to stop polling for new jobs.
+ * 2. Closes the HTTP server to reject new incoming requests.
+ * 3. Disconnects from MongoDB to ensure data integrity.
+ * 4. Forces process exit after 15 seconds if hanging.
+ *
+ * @async
+ * @param {string} signal - The termination signal (SIGTERM/SIGINT).
  */
 const shutdown = async (signal: string) => {
   logger.info({ signal }, "Shutting down gracefully...");

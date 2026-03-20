@@ -9,6 +9,29 @@ import { getSesClient } from "@/config/ses";
 
 /**
  * 1. sendViaSES
+ *
+ * **WORKING PROCESS:**
+ * 1. Initialization: Connects to the global services database and fetches all clients belonging to the specified agency.
+ * 2. Parallel Aggregation: Uses `Promise.all` to concurrently process each client, calculating key metrics such as total leads, total pipeline value, won deals count, and won deals value.
+ * 3. Error Handling: Implements a `try-catch` block for each client to prevent a single client's data issues from affecting the entire aggregation.
+ * 4. Portfolio Summary: Calculates the grand totals for the entire portfolio by summing the metrics from all individual clients.
+ *
+ * **EDGE CASES:**
+ * - Empty Agency: If no clients are found for the given agency code, it returns an empty breakdown and zeroed-out portfolio totals.
+ * - Data Corruption: If a specific client's database connection fails or aggregation errors occur, that client is skipped, and an error is logged, allowing the service to continue processing other clients.
+ * - No Won Deals: If no deals are marked as "won" across all clients, the conversion rate correctly defaults to 0%.
+ *
+ * @param {object} options - The email options.
+ * @param {string|string[]} options.to - The recipient email address(es).
+ * @param {string} options.subject - The email subject.
+ * @param {string} options.html - The email HTML content.
+ * @param {string} [options.text] - The email text content.
+ * @param {string} options.from - The sender email address.
+ * @param {string} [options.replyTo] - The reply-to email address.
+ * @param {string|string[]} [options.cc] - The CC email address(es).
+ * @param {string|string[]} [options.bcc] - The BCC email address(es).
+ * @param {Record<string, string>} [options.headers] - The email headers.
+ * @returns {Promise<{ messageId: string }>} The message ID.
  */
 export async function sendViaSES(options: {
   to: string | string[];
@@ -92,6 +115,29 @@ export async function sendViaSES(options: {
 
 /**
  * 2. createDomainIdentity
+ *
+ * **WORKING PROCESS:**
+ * 1. Initialization: Connects to the global services database and fetches all clients belonging to the specified agency.
+ * 2. Parallel Aggregation: Uses `Promise.all` to concurrently process each client, calculating key metrics such as total leads, total pipeline value, won deals count, and won deals value.
+ * 3. Error Handling: Implements a `try-catch` block for each client to prevent a single client's data issues from affecting the entire aggregation.
+ * 4. Portfolio Summary: Calculates the grand totals for the entire portfolio by summing the metrics from all individual clients.
+ *
+ * **EDGE CASES:**
+ * - Empty Agency: If no clients are found for the given agency code, it returns an empty breakdown and zeroed-out portfolio totals.
+ * - Data Corruption: If a specific client's database connection fails or aggregation errors occur, that client is skipped, and an error is logged, allowing the service to continue processing other clients.
+ * - No Won Deals: If no deals are marked as "won" across all clients, the conversion rate correctly defaults to 0%.
+ *
+ * @param {object} options - The email options.
+ * @param {string|string[]} options.to - The recipient email address(es).
+ * @param {string} options.subject - The email subject.
+ * @param {string} options.html - The email HTML content.
+ * @param {string} [options.text] - The email text content.
+ * @param {string} options.from - The sender email address.
+ * @param {string} [options.replyTo] - The reply-to email address.
+ * @param {string|string[]} [options.cc] - The CC email address(es).
+ * @param {string|string[]} [options.bcc] - The BCC email address(es).
+ * @param {Record<string, string>} [options.headers] - The email headers.
+ * @returns {Promise<{ messageId: string }>} The message ID.
  */
 export async function createDomainIdentity(domain: string): Promise<{
   dnsRecords: Array<{

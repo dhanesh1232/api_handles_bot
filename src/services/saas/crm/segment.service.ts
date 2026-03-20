@@ -26,6 +26,18 @@ export class SegmentService {
     return segment;
   }
 
+  /**
+   * Recalculates the membership for a specific dynamic segment.
+   *
+   * **WORKING PROCESS:**
+   * 1. Rule Resolution: Fetches the segment definition (logic and rules).
+   * 2. Bulk Filter: Scans all active leads for the tenant.
+   * 3. Rule Evaluation: Applies the `ConditionEvaluator` to each lead to determine membership eligibility.
+   * 4. Metadata Update: Updates the `memberCount` and `lastCalculatedAt` in the repository.
+   *
+   * **EDGE CASES:**
+   * - Performance: Currently performs an in-memory filter. For extremely large datasets (>100k leads), this should transition to a MongoDB native query builder.
+   */
   async refreshSegment(id: string): Promise<number> {
     const repo = await getSegmentRepo(this.clientCode);
     const segment = await repo.findById(id);
@@ -62,6 +74,17 @@ export class SegmentService {
     return repo.findMany({});
   }
 
+  /**
+   * Retrieves the list of leads that currently match a segment's criteria.
+   *
+   * **WORKING PROCESS:**
+   * 1. Definition Lookup: Retrieves the segment rules.
+   * 2. Membership Calculation: Dynamically filters the lead database using `ConditionEvaluator`.
+   * 3. Memory Pagination: Performs offset/limit slicing on the resulting filtered array.
+   *
+   * **EDGE CASES:**
+   * - Stale Data: Results are calculated in real-time, meaning members may change between calls if lead data is updated.
+   */
   async getSegmentMembers(id: string, options: any = {}) {
     const repo = await getSegmentRepo(this.clientCode);
     const segment = await repo.findById(id);

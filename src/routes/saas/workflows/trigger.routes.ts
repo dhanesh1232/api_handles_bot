@@ -8,22 +8,20 @@ import { normalizePhone } from "@/utils/phone";
 const triggerRouter = Router();
 
 /**
- * POST /api/saas/workflows/trigger
+ * @module Routes/Workflows/Trigger
+ * @responsibility High-volume programmatic event ingestion.
  *
- * Generic event dispatcher. Accepts any named trigger and arbitrary context.
- * All domain actions (meeting creation, WhatsApp, callbacks, etc.) are handled
- * by Automation Rules — nothing is hardcoded here.
+ * **GOAL:** Unified entry point for all external events (webhooks, API calls, manual triggers) to enter the CRM automation engine.
  *
- * Body:
- *   trigger          string   — event name, no spaces, max 100 chars
- *   phone            string   — E.164 digits only (normalized server-side)
- *   email?           string   — optional contact email
- *   variables?       Record<string, string> — flat KV pairs accessible as {{vars.key}}
- *   data?            Record<string, any>    — structured event data (flattened to data.key)
- *   callbackUrl?     string   — receives { status, eventLogId, rulesMatched } after processing
- *   callbackMetadata? any     — extra metadata echoed back in callback
- *   createLeadIfMissing? bool — auto-create lead if not found
- *   leadData?        { firstName?, lastName?, source? } — used only if createLeadIfMissing
+ * **DETAILED EXECUTION:**
+ * 1. **Idempotent Ingestion**: Every hit is logged in `EventLog` with a `received` status before processing starts.
+ * 2. **Lead Resolution**: Automatically attempts to find an existing lead by phone or creates a new one if `createLeadIfMissing` is enabled.
+ * 3. **Rule Orchestration**: Calculates matching `AutomationRule` counts and dispatches the event to `EventBus.emit()` for background worker execution.
+ * 4. **Callback Loop**: If a `callbackUrl` is provided, the system sends an immediate acknowledgment and later a completion notification via `sendCallbackWithRetry`.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - **Duplicate Events**: Handled by the worker layer using `eventLogId` as an idempotency key.
+ * - **Delayed Execution**: Supports `delaySeconds` or `runAt` for scheduled automation triggers.
  */
 triggerRouter.post("/trigger", async (req: any, res: any) => {
   const clientCode = req.clientCode;

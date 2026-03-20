@@ -1,5 +1,5 @@
 import mongoose, { type Document, type Model } from "mongoose";
-import { decrypt, encrypt } from "../../lib/crypto.ts";
+import { decrypt, encrypt } from "@/lib/crypto";
 
 export interface IClientDataSource extends Document {
   clientCode: string;

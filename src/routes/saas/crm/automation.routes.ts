@@ -1,7 +1,8 @@
 /**
- * automation.routes.ts
- * CRUD + test-run for automation rules.
- * Place at: src/routes/saas/crm/automation.routes.ts
+ * @module Routes/CRM/Automation
+ * @responsibility Management of event-driven workflows and rule-based processing.
+ *
+ * **GOAL:** Define, test, and manage automation rules that respond to lead activities (stage changes, score drops, etc.) with automated actions (WhatsApp, Emails).
  */
 
 import { getCrmModels } from "@lib/tenant/crm.models";
@@ -155,9 +156,14 @@ router.post("/automations/bulk-delete", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/crm/automations/:ruleId/test
- * Dry-run a rule against a specific lead. Does NOT execute actions.
- * Body: { leadId }
+ * Automation Dry-Run / Testing.
+ *
+ * **GOAL:** Safely validate if an automation rule would fire for a specific lead without actually executing the side-effect actions.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Context Mocking**: Simulates the trigger event for the specified `leadId`.
+ * 2. **Condition Engine**: Evaluates the rule's `condition` against the lead's current state.
+ * 3. **Outcome Reporting**: Returns boolean `match` and evaluation metadata.
  */
 router.post(
   "/automations/:ruleId/test",
@@ -180,46 +186,18 @@ router.post(
   },
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
 /**
- * POST /api/crm/automations/events
+ * Legacy Universal Event Hook.
  *
- * Universal event hook — the single endpoint any external client app calls
- * to fire a named automation trigger.  A client never has to know which
- * WhatsApp template, email, or stage move to run; the configured
- * AutomationRules handle all of that.
+ * **GOAL:** Provide backward compatibility for older integrations firing custom events.
  *
- * Authentication: standard x-client-code + x-api-key (validateClientKey
- * is applied at the router mount point in server.ts).
- *
- * Body:
- *   {
- *     "trigger":            "appointment_confirmed",   // required — any trigger enum value
- *     "phone":              "+919876543210",           // required — identifies the lead
- *     "variables":          { "name": "Ravi" },        // optional — passed to action configs
- *     "createLeadIfMissing": true,                    // optional — auto-create lead if new contact
- *     "leadData": {                                   // optional — used only when creating a new lead
- *       "firstName": "Ravi",
- *       "source": "website"
- *     }
- *   }
- *
- * Example — Nirvisham fires after an appointment is confirmed:
- *   POST /api/crm/automations/events
- *   x-client-code: nirvisham
- *   { "trigger": "appointment_confirmed", "phone": "+91...", "variables": { "name": "Ravi", "time": "3 PM" } }
- *
- * Example — an e-commerce app fires after a product purchase:
- *   POST /api/crm/automations/events
- *   x-client-code: store_client
- *   { "trigger": "product_purchased", "phone": "+91...", "variables": { "product": "Plan A" }, "createLeadIfMissing": true }
+ * **DETAILED EXECUTION:**
+ * 1. **Deprecation Notice**: Returns a 301 status pointing to the new `/api/saas/workflows/trigger` endpoint.
+ * 2. **Migration Metadata**: Includes a mapping of schema changes between the legacy and modern trigger formats.
  */
 /**
  * POST /api/crm/automations/events
  * @deprecated — Use POST /api/saas/workflows/trigger instead.
- *
- * This endpoint is kept to avoid hard failures for any existing integrations
- * but new features (Meet, EventLog, callbacks, delayMinutes) are NOT available here.
  */
 router.post("/events", (_req: Request, res: Response) => {
   res.status(301).json({
@@ -389,8 +367,8 @@ router.post(
         }
 
         await crmQueue.add(
+          clientCode,
           {
-            clientCode,
             type: "crm.sequence_step",
             payload: {
               enrollmentId: enrollment._id.toString(),

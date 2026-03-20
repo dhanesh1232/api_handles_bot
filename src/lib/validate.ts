@@ -1,15 +1,15 @@
 /**
- * lib/validate.ts
+ * Centralized schema registry for all structural data validation across the platform.
  *
- * Zod schemas for all SDK method inputs.
- * Import these in SDK classes or route middleware to validate before hitting the DB.
+ * **GOAL:** Enforce strict type safety and data integrity at the system entry-points (SDK calls, API requests).
  *
- * Usage:
- *   import { LeadSchemas } from "@lib/validate";
- *   const data = LeadSchemas.create.parse(req.body);
+ * **DETAILED EXECUTION:**
+ * 1. **Primitive Definition**: Establishes reusable atoms like `phone` (with regex normalization) and `mongoId`.
+ * 2. **Composite Object Assembly**: Builds complex validation trees for Leads, Pipelines, and Activities.
+ * 3. **Input Sanitization**: Automatically trims strings and coerces numeric strings (from query params) into proper JS Numbers.
  *
- * On parse failure, Zod throws a ZodError which the global errorHandler
- * automatically converts to a 400 JSON response with field-level details.
+ * **EDGE CASE MANAGEMENT:**
+ * - Schema Violation: Throws a standard `ZodError` which is intercepted by the global middleware to return structured `fieldErrors` to the client.
  */
 
 import { z } from "zod";

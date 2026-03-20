@@ -9,11 +9,16 @@ import { optimizeAndUploadMedia } from "@/services/saas/media/media.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-export interface SaasRequest extends Request {
-  clientCode: string;
-  user?: any;
-}
-
+/**
+ * @module Routes/WhatsApp/Chat
+ * @responsibility Real-time conversational interface for WhatsApp.
+ *
+ * **GOAL:** Provide endpoints for listing conversations, fetching message history, uploading media, and sending outgoing messages via the WhatsApp SDK.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Context Injection**: Mounts `withSDK(io)` to provide all handlers with a tenant-scoped `req.sdk`.
+ * 2. **Real-time Synchronization**: Emits socket events (`conversation_updated`, `message_updated`) to ensure the agent dashboard reflects changes immediately across all connected instances.
+ */
 export const createChatRouter = (io: Server) => {
   const router = express.Router();
 
@@ -245,6 +250,15 @@ export const createChatRouter = (io: Server) => {
   );
 
   // 5. Upload Media to R2
+  /**
+   * Media Upload for Chat.
+   *
+   * **GOAL:** Securely upload files to R2/Cloud Storage and optimize them for WhatsApp delivery (auto-generating thumbnails and converting formats).
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Tenant Isolation**: Uploads files to a tenant-specific folder (`tenants/{CLIENT}/chat`).
+   * 2. **Media Optimization**: Invokes `optimizeAndUploadMedia()` to ensure images/videos meet WhatsApp's bandwidth and format requirements.
+   */
   router.post(
     "/upload",
     validateClientKey,
@@ -287,6 +301,16 @@ export const createChatRouter = (io: Server) => {
   );
 
   // 6. Dashboard Message Sender
+  /**
+   * Outgoing Message Dispatcher.
+   *
+   * **GOAL:** Unified interface for sending text, media, or template-based messages from the agent dashboard.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Conversation Resolution**: If a `to` phone number is provided without a `conversationId`, it automatically resolves/creates a conversation.
+   * 2. **SDK Dispatch**: Delegates to `req.sdk.whatsapp.send()` or `req.sdk.whatsapp.sendTemplate()` depending on the payload type.
+   * 3. **Auditing**: Automatically logs the outgoing message in the CRM activity timeline.
+   */
   router.post(
     "/send",
     validateClientKey,
@@ -505,11 +529,10 @@ export const createChatRouter = (io: Server) => {
         });
 
         // Enqueue jobs
-        const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+        const { crmQueue } = await import("@/jobs/saas/crmWorker");
 
         for (const recipient of recipients) {
-          await crmQueue.add({
-            clientCode,
+          await crmQueue.add(clientCode, {
             type: "crm.whatsapp_broadcast",
             payload: {
               broadcastId: broadcast._id.toString(),

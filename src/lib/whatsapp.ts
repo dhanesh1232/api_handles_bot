@@ -1,18 +1,17 @@
 import axios, { type AxiosError } from "axios";
 
-export interface WhatsAppResponse {
-  success: boolean;
-  data?: any;
-  error?: any;
-}
-
 /**
- * Sends a WhatsApp message using Meta Cloud API.
+ * Dispatches a raw text message via the Meta Cloud API.
  *
- * @param phoneId - Meta Phone Number ID
- * @param token - Meta Permanent Access Token
- * @param to - Recipient WhatsApp ID (phone number)
- * @param message - Text body
+ * @param phoneId - Meta Business Phone Number ID.
+ * @param token - Business Access Token.
+ * @param to - Recipient number with country code.
+ * @param message - The raw text payload.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Endpoint Resolution**: Constructs the Graph API v24.0 URL for the specific `phoneId`.
+ * 2. **Payload Marshalling**: Wraps the text in the mandatory `messaging_product: "whatsapp"` structure.
+ * 3. **API Dispatch**: Executes a POST request via `axios` with the Bearer token.
  */
 export async function sendWhatsAppMessage(
   phoneId: string,
@@ -52,13 +51,17 @@ export async function sendWhatsAppMessage(
 }
 
 /**
- * Sends a WhatsApp Template message.
+ * Sends a pre-approved WhatsApp Template message. Use this for pro-active messaging outside the 24h window.
  *
- * @param phoneId
- * @param token
- * @param to
- * @param templateName
- * @param components - Template parameters
+ * @param phoneId - Meta Business Phone Number ID.
+ * @param components - Array of template parameters (header, body, buttons).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Template Mapping**: Instructs Meta to resolve the template by `name` and `language.code`.
+ * 2. **Component Injection**: Passes the `variables` array as Meta-compliant components.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - API Rejection: Captures 4xx errors (e.g., Template Not Found, Rate Limited) and returns them in the `WhatsAppResponse` wrapper for graceful UI feedback.
  */
 export async function sendWhatsAppTemplate(
   phoneId: string,

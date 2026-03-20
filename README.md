@@ -24,7 +24,7 @@
 11. [WhatsApp → Templates](#11-whatsapp--templates)
 12. [WhatsApp → Broadcasts](#12-whatsapp--broadcasts)
 13. [Email Infrastructure → SES Onboarding](#13-email-infrastructure--ses-onboarding)
-13.1. [Email Marketing → Campaigns & Quotas](#131-email-marketing--campaigns--quotas)
+    13.1. [Email Marketing → Campaigns & Quotas](#131-email-marketing--campaigns--quotas)
 14. [Monitoring → Health, Events & Jobs](#14-monitoring--health-events--jobs)
 15. [Client Integration Guide](#client-integration-guide)
 16. [Callback Verification](#callback-verification)
@@ -619,7 +619,7 @@ ECODrIx automations now support a nested context for template resolution:
 **Example in a WhatsApp template:**
 `"Hello {{lead.firstName}}, your appointment for {{event.appointmentTime}} is confirmed!"`
 
-```
+````
 
 **Available action types:**
 
@@ -650,7 +650,7 @@ Dry-run a rule against a specific lead. Does NOT execute actions.
 
 ```json
 { "leadId": "65b2..." }
-```
+````
 
 ### Sequence Enrollments
 
@@ -904,13 +904,17 @@ graph LR
 ECODrIx provides a professional-grade email marketing infrastructure optimized for deliverability and recipient trust.
 
 ### Mass Campaigns (Queue-Driven)
-All bulk sends are processed asynchronously via the `ErixJobs` queue. 
+
+All bulk sends are processed asynchronously via the `ErixJobs` queue.
+
 - **Reliability:** If the server restarts, the campaign resumes where it left off.
 - **Tracking:** Real-time progress is stored in the `EmailCampaign` model and emitted via Socket.IO.
 - **Headers:** Injects `List-Unsubscribe` and `X-Campaign-ID` for ISP compliance.
 
 ### Compliance & Safety Gateway
+
 Every email sent through the `MailClient` passes through a multi-stage safety gate:
+
 1. **Quota Check:** Blocks sending if the tenant's `dailyLimit` has been exceeded.
 2. **Global BCC/CC:** Automatically attaches compliance copies if configured.
 3. **Professional Footer:** Appends your global company footer/disclaimer to every HTML body.
@@ -1162,7 +1166,7 @@ ECODrIx uses a custom lightweight template renderer located at `src/lib/renderVi
 3. Import `renderView` and call it in your route:
 
 ```typescript
-import { renderView } from "../../lib/renderView";
+import { renderView } from "@/lib/renderView";
 
 router.get("/", (req, res) => {
   const html = renderView("index.html", {

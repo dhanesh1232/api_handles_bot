@@ -1,10 +1,22 @@
 import { Model, QueryOptions, Types, UpdateQuery } from "mongoose";
 
 /**
- * BaseRepository
+ * @module Lib/Tenant/BaseRepository
+ * @responsibility Foundation for all tenant-aware database interactions, ensuring strict data isolation.
  *
- * A generic repository for tenant-scoped database operations.
- * Ensures every query is strictly bound to the providing clientCode.
+ * **WHY THIS EXISTS:**
+ * In a high-stakes multi-tenant environment, any query "leak" is a critical security failure.
+ * The `BaseRepository` acts as a mandatory filter layer that automatically injects the `clientCode`
+ * into every atomic MongoDB operation.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Initialization**: The constructor binds a specific Mongoose `Model` and a `clientCode` string.
+ * 2. **Auto-Scoping**: Every method (`find`, `create`, `update`, etc.) spreads the established `clientCode` into the query filter, making un-scoped lookups impossible by design.
+ * 3. **Performance Optimization**:
+ *    - Defaults to `.lean()` for read operations to minimize memory overhead.
+ *    - Uses `Promise.all` in `paginate` for parallel execution of data fetch and total count.
+ *
+ * **GOAL**: Provide a fail-safe, performant, and consistent interface for data access across the entire SaaS portfolio.
  */
 export class BaseRepository<T> {
   constructor(
@@ -13,7 +25,15 @@ export class BaseRepository<T> {
   ) {}
 
   /**
-   * Find a single document by its ID.
+   * Retrieves a single document by its unique ID while enforcing tenant isolation.
+   *
+   * @param id - The Mongoose ObjectId or string ID.
+   * @returns The document or `null` if not found or if the document belongs to a different tenant.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Filter Injection**: Automatically appends `{ clientCode: this.clientCode }` to the query.
+   * 2. **Execution**: Invokes `findOne` on the underlying Mongoose model.
+   * 3. **Optimization**: Defaults to `.lean()` to bypass Mongoose hydration overhead.
    */
   async findById(
     id: string | Types.ObjectId,
@@ -68,7 +88,7 @@ export class BaseRepository<T> {
   }
 
   /**
-   * Create a new document.
+   * Persists a new document, automatically stamping it with the established `clientCode`.
    */
   async create(data: Partial<T>): Promise<T> {
     const doc = await this.model.create({
@@ -148,7 +168,16 @@ export class BaseRepository<T> {
   }
 
   /**
-   * Paginate documents.
+   * Performs a high-performance, paginated lookup with total count metadata.
+   *
+   * @param options - Pagination settings (page, limit, sort).
+   * @returns A structured object containing `docs`, `total` count, and pagination math.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Parallelization**: Spawns two concurrent promises via `Promise.all`:
+   *    - Data Fetch: Applies `skip((page-1)*limit)` and `limit()`.
+   *    - Metrics: Triggers `countDocuments` for the entire filtered set.
+   * 2. **Isolation**: Ensures both the fetch and the count are strictly scoped to `this.clientCode`.
    */
   async paginate(
     filter: any,

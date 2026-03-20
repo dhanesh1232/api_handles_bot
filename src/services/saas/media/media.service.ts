@@ -8,11 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { logger } from "@lib/logger";
-import {
-  type ListResult,
-  StorageClient,
-  type UploadResult,
-} from "@lib/storage/r2.client";
+import { StorageClient } from "@lib/storage/r2.client";
 import ffmpegPath from "ffmpeg-static";
 import ffmpeg from "fluent-ffmpeg";
 import sharp from "sharp";
@@ -29,7 +25,26 @@ if (ffmpegPath && fs.existsSync(ffmpegPath as unknown as string)) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Compresses video or audio buffer using FFmpeg.
+ * Compresses video or audio buffer using FFmpeg for storage efficiency.
+ *
+ * **WORKING PROCESS:**
+ * 1. Bootstraps a local `temp` directory for atomic processing.
+ * 2. Writes the raw buffer to an input file.
+ * 3. FFmpeg Execution:
+ *    - **Video**: Transcodes to `libx264` with a medium CRF (30) for significant size reduction.
+ *    - **Audio**: Transcodes to `libopus` (Ogg) at 64kbps mono.
+ * 4. Reads the resulting compressed file back into memory.
+ * 5. Cleanup: Wipes temporary files regardless of outcome.
+ *
+ * **EDGE CASES:**
+ * - FFmpeg Missing: Fallback to returning the original, uncompressed buffer.
+ * - Unsupported Format: If neither video nor audio prefix matches, returns original buffer.
+ * - Process Failure: Catches FFmpeg errors and returns the original buffer to avoid upstream breakage.
+ *
+ * @param {Buffer} buffer - The raw media payload.
+ * @param {string} mimeType - Source MIME type (e.g., video/mp4).
+ * @param {string} id - Unique ID for transient file naming.
+ * @returns {Promise<Buffer>} The (potentially) compressed buffer.
  */
 export const compressMedia = async (
   buffer: Buffer,
@@ -92,15 +107,28 @@ export const compressMedia = async (
   }
 };
 
-// ─── Service API ──────────────────────────────────────────────────────────────
-
-export interface OptimizedMediaResult extends UploadResult {
-  mimeType: string;
-  fileName: string;
-}
-
 /**
- * Processes (optimizes) and uploads media to R2.
+ * Primary engine for media ingestion, optimization, and R2 persistence.
+ *
+ * **WORKING PROCESS:**
+ * 1. Image Optimization: Uses `Sharp` to downscale high-resolution images to 1280px (max) and convert to MozJPEG.
+ * 2. Media Compression: Routes video/audio through `compressMedia` if they exceed the 512KB threshold.
+ * 3. Extension Management: Manages a rigid mapping of MIME types to standard file extensions.
+ * 4. Naming: Sanitizes original filenames and appends a `Date.now()` suffix to prevent collisions.
+ * 5. R2 Dispatch: Uploads the finalized buffer to the specified R2 bucket/folder.
+ *
+ * **EDGE CASES:**
+ * - Image Processing Error: If `Sharp` fails (e.g., corrupt buffer), defaults to the original unoptimized image.
+ * - Filename Collisions: Uses timestamps for uniqueness even if multiple files with the same name are uploaded.
+ * - Tiny Audio: Skips FFmpeg overhead if the audio file is already small (<512KB).
+ *
+ * @param {Buffer} fileBuffer - The source file content.
+ * @param {string} originalMimeType - Initial MIME type from the upload.
+ * @param {string | undefined} originalFileName - Source filename for SEO-friendly naming.
+ * @param {string} mediaId - Unique identifier for the media record.
+ * @param {StorageClient} storage - Initialized tenant storage client.
+ * @param {string} [folder] - Destination folder (default: "whatsapp").
+ * @returns {Promise<OptimizedMediaResult>} Full upload metadata.
  */
 export const optimizeAndUploadMedia = async (
   fileBuffer: Buffer,

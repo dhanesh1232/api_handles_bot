@@ -1,8 +1,8 @@
 import { type Request, type Response, Router } from "express";
 import mongoose from "mongoose";
-import { dbConnect } from "../../lib/config.ts";
-import { renderView } from "../../lib/renderView.ts";
-import { validateClientKey } from "../../middleware/saasAuth.ts";
+import { dbConnect } from "@/lib/config";
+import { renderView } from "@/lib/renderView";
+import { validateClientKey } from "@/middleware/saasAuth";
 
 const router = Router();
 
@@ -22,10 +22,16 @@ function highlight(obj: unknown): string {
 }
 
 /**
- * GET /api/saas/health
- * Public — no auth required.
- * • Browser (Accept: text/html) → premium live health dashboard (src/views/health.html)
- * • API / curl / load balancer  → clean JSON envelope
+ * Root Health Monitoring Endpoint.
+ *
+ * **GOAL:** Provide a real-time pulse of the system for both automated load balancers and human administrators.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Component Probing**: Checks `mongoose.connection.readyState` and lazy-loads the `Job` model to count pending tasks.
+ * 2. **Content Negotiation**:
+ *    - `application/json`: Returns a machine-readable status envelope for uptime monitoring.
+ *    - `text/html`: Renders a premium, interactive CSS dashboard (via `health.html`) showing system metrics, boot time, and highlighted JSON stats.
+ * 3. **Uptime Calculation**: Computes process uptime and maps MongoDB numeric states to human-readable badges (ok, error).
  */
 router.get("/health", async (req: Request, res: Response) => {
   const dbState = mongoose.connection.readyState;
@@ -36,7 +42,7 @@ router.get("/health", async (req: Request, res: Response) => {
 
   let queueDepth = 0;
   try {
-    const { default: Job } = await import("../../model/queue/job.model.ts");
+    const { default: Job } = await import("@/model/queue/job.model");
     queueDepth = await Job.countDocuments({
       status: { $in: ["pending", "processing"] },
     });
@@ -100,8 +106,18 @@ router.get("/health", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/saas/health/client
- * Client-specific health — requires validateClientKey
+ * Tenant-Specific Service Health Check.
+ *
+ * **GOAL:** Verify the connectivity and configuration status of a specific client's third-party integrations (WhatsApp, SMTP, Google Meet).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Secret Decryption**: Fetches encrypted tokens from the Control Plane via `ClientSecrets`.
+ * 2. **Integration Audit**: Checks for the existence of decrypted keys to determine if services are "connected" vs "not_configured".
+ * 3. **Tenant Metric Aggregation**: Queries the tenant's actual database to count active automation rules and pending jobs.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Missing Secrets: Gracefully labels services as `not_configured` instead of throwing.
+ * - Tenant DB Offline: Catches errors during automation counting to ensure the health check itself doesn't crash if a single tenant DB is down.
  */
 router.get(
   "/health/client",
@@ -165,7 +181,7 @@ router.get(
  */
 router.get("/jobs/status/:jobId", async (req: Request, res: Response) => {
   try {
-    const { default: Job } = await import("../../model/queue/job.model.ts");
+    const { default: Job } = await import("@/model/queue/job.model");
     const job = await Job.findById(req.params.jobId).lean();
 
     if (!job) {

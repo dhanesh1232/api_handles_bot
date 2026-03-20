@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CRM_MODELS_BASE = path.resolve(__dirname, "../../model/saas/crm");
-const MEET_MODELS_BASE = path.resolve(__dirname, "../../model/saas/meet");
+const CRM_MODELS_BASE = path.resolve(__dirname, "@/model/saas/crm");
+const MEET_MODELS_BASE = path.resolve(__dirname, "@/model/saas/meet");
 
 interface FieldDefinition {
   key: string;
@@ -24,7 +24,18 @@ export class SchemaScanner {
   }
 
   /**
-   * Extracts fields from a model file within internal backend directories.
+   * Introspects backend model files to extract schema field definitions for the UI.
+   *
+   * @param collectionName - The name of the collection to scan (e.g., 'leads', 'meetings').
+   * @returns An array of `FieldDefinition` objects containing keys, labels, and types.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Normalization**: Canonicalizes the collection name to find matching files (e.g., handles pluralization).
+   * 2. **File Discovery**: Searches across `@/model/saas/crm` and `@/model/saas/meet`.
+   * 3. **Heuristic Parsing**:
+   *    - Static Keys: Scans the file content for standard JS/TS property declarations.
+   *    - Virtuals: Specifically looks for `.virtual()` calls to include computed properties.
+   * 4. **Blacklisting**: Filters out reserved Mongoose keywords (e.g., `_id`, `__v`) and internal scoping fields like `clientCode`.
    */
   public static async getFieldsForCollection(
     _clientCode: string,

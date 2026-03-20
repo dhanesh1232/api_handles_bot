@@ -1,16 +1,22 @@
 import { logger } from "@lib/logger";
 import { ClientStorage } from "@models/clients/ClientStorage";
 import { StorageEvent } from "@models/clients/StorageEvent";
+import { DEFAULT_SYSTEM_FOLDERS, R2_PRESIGN_EXPIRY } from "@/constants/storage";
 import { StorageClient } from "@/lib/storage/r2.client";
-import {
-  DEFAULT_SYSTEM_FOLDERS,
-  R2_PRESIGN_EXPIRY,
-} from "../constants/storage";
 
 export class StorageService {
   private readonly tenantPrefix: string;
   private readonly storage: StorageClient;
 
+  /**
+   * Initializes the storage service for a specific tenant.
+   *
+   * **WORKING PROCESS:**
+   * 1. Tenant Prefixing: Scopes all operations to `tenants/{clientCode}/` for strict data isolation.
+   * 2. Client Initialization: Bootstraps a `StorageClient` using the universal environment configuration.
+   *
+   * @param {string} clientCode - Unique identifier for the tenant.
+   */
   constructor(private readonly clientCode: string) {
     this.tenantPrefix = `tenants/${clientCode}`;
     this.storage = StorageClient.fromUniversal();
@@ -50,7 +56,22 @@ export class StorageService {
   }
 
   /**
-   * Public: Generate a signed URL for direct upload to R2.
+   * Generates a signed PUT URL for direct-to-cloud browser uploads.
+   *
+   * **WORKING PROCESS:**
+   * 1. Quota Check: Enforces hard storage limits and suspension status from `ClientStorage`.
+   * 2. Key Synthesis: Uses `buildKey` to enforce tenant isolation and handle industry-specific date sharding.
+   * 3. Signing: Generates a short-lived R2 pre-signed URL (default: 1 hour).
+   *
+   * **EDGE CASES:**
+   * - No Provisioning: Throws error if the tenant doesn't have a `ClientStorage` document.
+   * - Over Quota: Blocks the upload URL generation if `usedBytes >= quotaBytes`.
+   *
+   * @param {string} folderName - Destination category (e.g. "leads", "whatsapp").
+   * @param {string} filename - Desired name for the file.
+   * @param {string} _contentType - Expected MIME type (reserved for future policy checks).
+   * @param {number} [expiresIn] - Link validity in seconds.
+   * @returns {Promise<object>} The signed URL and the finalized isolation key.
    */
   async getUploadUrl(
     folderName: string,
@@ -90,7 +111,15 @@ export class StorageService {
   }
 
   /**
-   * Public: Record an internal storage action (SDK or System).
+   * Finalizes the record of a storage transaction in the database.
+   *
+   * **WORKING PROCESS:**
+   * 1. Guard Check: Validates that the key being recorded belongs to the active tenant.
+   * 2. Counter Sync: Atomically increments/decrements `usedBytes` and `fileCount` in `ClientStorage`.
+   * 3. Audit Logging: Creates a `StorageEvent` to track who (user/system) and what was managed.
+   *
+   * **EDGE CASES:**
+   * - Missing Folder: If the specific folder stats don't exist, fall back to updating the root quota only.
    */
   async recordInternalAction(
     action: "upload" | "delete",

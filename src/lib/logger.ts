@@ -68,12 +68,13 @@ export const logger: Logger = pino({
 // ─── Child logger helpers ─────────────────────────────────────────────────────
 
 /**
- * Create a child logger bound to a tenant (clientCode).
- * Use this inside services and SDK methods.
+ * Generates a scoped child logger for a specific tenant.
  *
- * @example
- *   const log = tenantLogger("ACME_001");
- *   log.info({ leadId }, "Lead created");
+ * @param clientCode - The unique identifier for the tenant.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Context Binding**: Uses Pino's `.child()` method to inject `clientCode` into every subsequent log line's JSON structure.
+ * 2. **Traceability**: Ensures all logs generated within a tenant's request life-cycle are easily filterable in log aggregators (e.g., CloudWatch, Datadog).
  */
 export function tenantLogger(clientCode: string): Logger {
   return logger.child({ clientCode });

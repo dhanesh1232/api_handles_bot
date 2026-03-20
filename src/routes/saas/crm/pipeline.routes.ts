@@ -1,5 +1,15 @@
 /**
- * pipeline.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
+ * @module Routes/CRM/Pipelines
+ * @responsibility Structural management of sales funnels and stages.
+ *
+ * **GOAL:** Provide an interface for creating multi-stage sales processes, including revenue forecasting and board-view data aggregation.
+ */
+
+/**
+ * @module Routes/CRM/Automation
+ * @responsibility Management of event-driven workflows and rule-based processing.
+ *
+ * **GOAL:** Define, test, and manage automation rules that respond to lead activities (stage changes, score drops, etc.) with automated actions (WhatsApp, Emails).
  */
 
 import { type Request, type Response, Router } from "express";
@@ -246,8 +256,14 @@ router.delete("/stages/:stageId", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Board & Analytics ────────────────────────────────────────────────────────
-
+/**
+ * Kanban Board Aggregator.
+ *
+ * **GOAL:** Generate a high-performance board-view data structure where leads are grouped by their respective stages.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Board Resolution**: Calls `req.sdk.pipeline.board()` which performs a tenant-scoped aggregation to group leads by `stageId`.
+ */
 router.get(
   "/pipelines/:pipelineId/board",
   async (req: Request, res: Response) => {

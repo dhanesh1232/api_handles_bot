@@ -1,9 +1,14 @@
 /**
- * pipelineService.ts
+ * @file pipeline.service.ts
+ * @module PipelineService
+ * @responsibility End-to-end management of Kanban pipelines and sales stages.
+ * @dependencies getCrmModels, pipeline.repository
  *
- * All pipeline + stage operations for the CRM.
- * Every function takes `clientCode` as its first param — tenant isolation.
- * All DB ops go to the client's own tenant DB via getCrmModels().
+ * **WORKING PROCESS:**
+ * 1. Utilizes a set of `DEFAULT_STAGE_TEMPLATES` for rapid industry-specific setup (Sales, Healthcare, SaaS, etc.).
+ * 2. Manages tenant-isolated pipeline structures via the repository pattern.
+ * 3. Handles complex reordering and migration logic when deleting stages.
+ * 4. Provides aggregate summaries for Kanban board rendering and revenue forecasting.
  */
 
 import { getCrmModels } from "@lib/tenant/crm.models";
@@ -250,11 +255,22 @@ export const getPipelineWithStages = async (
 
 // ─── 3. Create pipeline + stages ─────────────────────────────────────────────
 /**
- * @description This function is used to create a new pipeline with its stages.
- * @param {string} clientCode - The client code.
- * @param {CreatePipelineInput} input - The data to create the pipeline.
- * @param {keyof typeof DEFAULT_STAGE_TEMPLATES} [templateKey] - The template key.
- * @returns {Promise<{ pipeline: IPipeline; stages: IPipelineStage[] }>} The created pipeline with its stages.
+ * Creates a new pipeline and bootstraps its initial stages.
+ *
+ * **WORKING PROCESS:**
+ * 1. Enforces single-default constraint (marks others non-default if `isDefault: true`).
+ * 2. Persists the pipeline with a calculated `order` index.
+ * 3. Populates stages from the provided `input` or a `templateKey` (defaults to "sales").
+ * 4. Bulk creates all stage documents for high performance.
+ *
+ * **EDGE CASES:**
+ * - First Pipeline: Automatically marked as `isDefault: true`.
+ * - Invalid Template Key: Defaults to "sales" template.
+ *
+ * @param {string} clientCode - Unique tenant identifier.
+ * @param {CreatePipelineInput} input - Pipeline metadata and optional stage definitions.
+ * @param {keyof typeof DEFAULT_STAGE_TEMPLATES} [templateKey] - Industry template for stages.
+ * @returns {Promise<{ pipeline: IPipeline; stages: IPipelineStage[] }>}
  */
 export const createPipeline = async (
   clientCode: string,
@@ -518,11 +534,17 @@ export const reorderStages = async (
 
 // ─── 10. Delete a stage ──────────────────────────────────────────────────────
 /**
- * @description This function is used to delete a stage.
- * @param {string} clientCode - The client code.
- * @param {string} stageId - The ID of the stage.
- * @param {string} [moveLeadsToStageId] - The ID of the stage to move leads to.
- * @returns {Promise<void>}
+ * Deletes a stage and optionally migrates its leads to another stage.
+ *
+ * **WORKING PROCESS:**
+ * 1. Checks for existing leads in the stage.
+ * 2. If leads exist and no migration target is provided, blocks the deletion.
+ * 3. If a target is provided, bulk updates all leads to the new `stageId`.
+ * 4. Permanently removes the stage document.
+ *
+ * **EDGE CASES:**
+ * - Leads in Stage: Throws error unless `moveLeadsToStageId` is specified.
+ * - Target Stage Not Found: Throws "Target stage not found".
  */
 export const deleteStage = async (
   clientCode: string,
@@ -554,10 +576,16 @@ export const deleteStage = async (
 
 // ─── 11. Board summary (Kanban) ──────────────────────────────────────────────
 /**
- * @description This function is used to get the board summary.
- * @param {string} clientCode - The client code.
- * @param {string} pipelineId - The ID of the pipeline.
- * @returns {Promise<BoardColumn[]>}
+ * Generates an aggregated summary of leads and deal values per stage for Kanban.
+ *
+ * **WORKING PROCESS:**
+ * 1. Fetches all active stages for the target pipeline.
+ * 2. Executes a MongoDB aggregation to sum `leadCount` and `totalValue` per `stageId`.
+ * 3. Maps the aggregation results back to the stage list, ensuring empty stages return zero.
+ *
+ * **EDGE CASES:**
+ * - Empty Pipeline: Returns an empty array.
+ * - Null Deal Values: Handled via `$ifNull` in aggregation to avoid NaN.
  */
 export const getBoardSummary = async (
   clientCode: string,

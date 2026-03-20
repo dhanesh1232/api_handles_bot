@@ -1,3 +1,15 @@
+/**
+ * @module Jobs/SaaS/JobRegistry
+ * @responsibility Central catalog and dispatcher for all background job handlers.
+ *
+ * **DESIGN PATTERN:**
+ * Acts as a Factory/Registry. Instead of monolithic switch statements in the worker,
+ * the registry decouples job types from their implementation logic.
+ *
+ * **WORKING PROCESS:**
+ * 1. Initialization: Pre-instantiates all handlers (Email, Meeting, Scoring, etc.) in a read-only registry.
+ * 2. Lookup: `getHandler(type)` returns the singleton instance responsible for that job type.
+ */
 import { JobHandler } from "./base.handler";
 import { AutomationActionJobHandler } from "./handlers/automationAction.handler";
 import { AutomationEventJobHandler } from "./handlers/automationEvent.handler";

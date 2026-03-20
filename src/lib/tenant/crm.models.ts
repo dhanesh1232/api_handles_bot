@@ -21,6 +21,16 @@ import ConversationSchema from "@/model/saas/whatsapp/conversation.model";
 import MessageSchema from "@/model/saas/whatsapp/message.model";
 import TemplateSchema from "@/model/saas/whatsapp/template.model";
 
+/**
+ * @module Lib/Tenant/CrmModels
+ * @responsibility Orchestrates dynamic Model-to-Connection binding for multi-tenant isolation.
+ *
+ * **WORKING PROCESS:**
+ * 1. Schema Registration: All CRM-related schemas are imported and registered in `tenantModelConfig`.
+ * 2. Model Injection: `getTenantModels` iterates through the config and binds each schema to a provided Mongoose connection.
+ * 3. Connection Retrieval: `getCrmModels` uses the `connectionManager` to get or create a tenant-specific DB connection.
+ * 4. Model Retrieval: Returns a cohesive object (`CrmModels`) containing all bound models (Lead, Pipeline, etc.).
+ */
 export {
   AutomationRuleSchema,
   BroadcastSchema,
@@ -76,6 +86,9 @@ export const tenantModelConfig: Record<
 
 // function getOrCreate... (keeping common lines for context or just deleting the block)
 
+/**
+ * Internal helper to safely register a model on a connection if it doesn't already exist.
+ */
 function getOrCreate<T>(
   conn: mongoose.Connection,
   name: string,
@@ -86,7 +99,14 @@ function getOrCreate<T>(
 }
 
 /**
- * Returns all CRM models bound to a specific tenant connection.
+ * Binds all registered schemas to a specific Mongoose Connection.
+ *
+ * **WORKING PROCESS:**
+ * 1. Registry Traversal: Loops through `tenantModelConfig`.
+ * 2. Model Creation: Uses `getOrCreate` to ensure models are only defined once per connection.
+ * 3. Aggregation: Returns the full set of models for immediate use.
+ *
+ * @param conn - The active Mongoose connection for a specific tenant.
  */
 export function getTenantModels(conn: Connection): CrmModels {
   const models: any = { conn };
@@ -99,8 +119,15 @@ export function getTenantModels(conn: Connection): CrmModels {
 }
 
 /**
- * Returns all CRM models bound to the client's own DB connection.
- * The connection is cached — subsequent calls for the same clientCode are free.
+ * Entry point for any CRM data operation. Resolves the tenant's connection and returns their models.
+ *
+ * **WORKING PROCESS:**
+ * 1. Normalization: Converts `clientCode` to uppercase.
+ * 2. Connection Lookup: Asks `getTenantConnection` for a shared or dedicated connection (cached).
+ * 3. Integration: Passes the connection to `getTenantModels` for model binding.
+ *
+ * **EDGE CASES:**
+ * - Invalid clientCode: If the connection cannot be established, this throws an error, preventing data cross-pollution.
  */
 export async function getCrmModels(clientCode: string): Promise<CrmModels> {
   const code = clientCode.toUpperCase();

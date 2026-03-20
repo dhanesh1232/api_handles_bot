@@ -1,8 +1,5 @@
 import { logger } from "@lib/logger";
-import {
-  ClientSecrets,
-  type IClientSecrets,
-} from "../../model/clients/secrets.ts";
+import { ClientSecrets, type IClientSecrets } from "@/model/clients/secrets";
 import { emailHealthService } from "./EmailHealthService.ts";
 import { sendViaSES } from "./providers/SesProvider.ts";
 import { sendViaSMTP } from "./providers/SmtpProvider.ts";
@@ -46,6 +43,26 @@ function validateMailOptions(options: MailOptions): void {
 }
 
 class MailClient {
+  /**
+   * Universal engine for dispatching emails across SES and SMTP providers.
+   *
+   * **WORKING PROCESS:**
+   * 1. Validation: Enforces recipient format and batch size limits (max 50).
+   * 2. Secrets Resolution: Fetches encrypted tenant SMTP/SES credentials.
+   * 3. Routing: Dynamically selects the provider (SES, Generic SMTP, or specific hosts like Gmail/Zoho).
+   * 4. Verification Gates: Validates domain verification (`sesVerified`) and from-email alignment before execution.
+   * 5. Quota Guard: Enforces `dailyLimit` and handles automatic 24-hour counter resets.
+   * 6. Enrichment: Appends custom branding footers and standard headers (Unsubscribe, Campaign-ID).
+   * 7. Health Sync: Records success/failure metrics via `EmailHealthService` for adaptive routing or user alerts.
+   *
+   * **EDGE CASES:**
+   * - Limit Reached: Gracefully returns a failure object if the tenant's daily quota is exhausted.
+   * - Domain Mismatch: Blocks SES sends if the "From" domain doesn't match the verified AWS domain.
+   * - Provider Error: Catches provider-specific exceptions (e.g., authentication failed) and updates health status.
+   *
+   * @param {MailOptions} options - Recipient, content, and tenant context.
+   * @returns {Promise<MailResult>} Detailed result including provider and message ID.
+   */
   async send(options: MailOptions): Promise<MailResult> {
     validateMailOptions(options);
 

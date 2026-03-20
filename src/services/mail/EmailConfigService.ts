@@ -11,7 +11,17 @@ import { testSmtpConnection } from "./providers/SmtpProvider.ts";
 
 class EmailConfigService {
   /**
-   * Get current config + provider metadata for UI
+   * Retrieves the comprehensive email configuration and onboarding state for a tenant.
+   *
+   * **WORKING PROCESS:**
+   * 1. Secrets Context: Fetches the decrypted `ClientSecrets` for the tenant.
+   * 2. Provider Normalization: Validates the current provider against the `PROVIDER_CONFIG` registry.
+   * 3. Onboarding Heuristics: Calculates the current step (domain_setup -> dns_pending -> email_config -> active) based on verification flags.
+   * 4. Health Integration: Aggregates real-time delivery metrics from `EmailHealthService`.
+   * 5. Data Assembly: Returns a unified object containing DNS records, SMTP settings, and provider metadata for the UI.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @returns {Promise<object>} Unified configuration and status payload.
    */
   async getConfig(clientCode: string) {
     const secrets = await ClientSecrets.findOne({ clientCode });
@@ -172,7 +182,19 @@ class EmailConfigService {
   }
 
   /**
-   * METHOD 1 — Domain only (Step 1)
+   * Initiates the AWS SES domain verification process (Step 1 of onboarding).
+   *
+   * **WORKING PROCESS:**
+   * 1. Protection: Blocks re-init if the domain is already verified.
+   * 2. Identity Creation: Calls `SesProvider` to register the domain with AWS and receive required DNS tokens (DKIM, SPF, DMARC).
+   * 3. State Update: Persists the DNS tokens and sets `sesVerified` to `false` in `ClientSecrets`.
+   *
+   * **EDGE CASES:**
+   * - Already Verified: Throws error to prevent redundant AWS API calls.
+   * - DNS Loss: If user loses the initial records, calling this again will refresh them.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @param {string} domain - The target domain (e.g. "acme.com").
    */
   async initDomainVerification(
     clientCode: string,

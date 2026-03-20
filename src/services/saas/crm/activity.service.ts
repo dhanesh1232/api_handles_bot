@@ -16,6 +16,33 @@ import { getCrmModels } from "@lib/tenant/crm.models";
 
 // ─── Activity: log ────────────────────────────────────────────────────────────
 
+/**
+ * The unified logger for all lead interactions, ensuring a consistent audit trail across the CRM.
+ *
+ * @param clientCode - Tenant identifier used for dataset isolation.
+ * @param input - The interaction payload.
+ * @param input.leadId - UUID of the target lead.
+ * @param input.type - Category of interaction (e.g., `whatsapp_sent`, `call_logged`, `note_added`).
+ * @param input.title - Short, high-level summary of the event (e.g., "Incoming Message").
+ * @param input.body - (Optional) Detailed content or verbatim transcript.
+ * @param input.metadata - (Optional) Structured data (e.g., `messageSid`, `duration`).
+ * @param input.performedBy - (Optional) Actor ID or system tag.
+ *
+ * @returns {Promise<ILeadActivity>} The persisted activity record.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Model Binding**: Dynamically retrieves `Lead` and `LeadActivity` models per tenant.
+ * 2. **Immutability**: Persists the event with a server-side `createdAt` timestamp.
+ * 3. **Proactive Contact Tracking**:
+ *    - If the type is a "Contact Event" (WhatsApp, Email, Call, Meet), it atomically updates the Lead's `lastContactedAt`.
+ *    - This update is critical for "Inactive Lead" detection and AI re-engagement triggers.
+ * 4. **Asynchronous Scoring**:
+ *    - Triggers a "Fire-and-Forget" lead score recalculation.
+ *    - Interactions (like a received WhatsApp) immediately boost the lead's "Hotness" score without blocking the API response.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Non-Critical Scoring: Failures in the scoring service are caught locally to ensure the activity is still logged.
+ */
 export const logActivity = async (
   clientCode: string,
   input: LogActivityInput,
@@ -60,6 +87,23 @@ export const logActivity = async (
 
 // ─── Activity: list for a lead ────────────────────────────────────────────────
 
+/**
+ * Retrieves a paginated list of activities for a specific lead, optionally filtered by type.
+ *
+ * **WORKING PROCESS:**
+ * 1. Query Construction: Builds a MongoDB query matching the `clientCode` and `leadId`.
+ * 2. Type Filtering: Adds a type constraint to the query if a specific `ActivityType` is requested.
+ * 3. Parallel Execution: Concurrently fetches the total count and the sliced activity list for optimal performance.
+ * 4. Sorting: Orders activities by `createdAt` in descending order (newest first).
+ *
+ * **EDGE CASES:**
+ * - No Activities: Returns an empty array and total: 0 if the lead has no history.
+ * - Large History: Implements pagination (default 50 per page) to prevent memory issues with long timelines.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param leadId - The target lead's unique ID.
+ * @param options - Pagination and filtering options (page, limit, type).
+ */
 export const getActivities = async (
   clientCode: string,
   leadId: string,
@@ -85,6 +129,19 @@ export const getActivities = async (
 
 // ─── Activity: log a manual call ──────────────────────────────────────────────
 
+/**
+ * Specialized high-level wrapper for recording telephonic interactions.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead.
+ * @param input - Call analytics.
+ * @param input.durationMinutes - Total length of the conversation.
+ * @param input.summary - Verbatim or summarized notes from the agent.
+ * @param input.outcome - Status of the call (`connected`, `voicemail`, `no_answer`).
+ * @param input.performedBy - The ID of the salesperson.
+ *
+ * @returns {Promise<ILeadActivity>}
+ */
 export const logCall = async (
   clientCode: string,
   leadId: string,
@@ -110,6 +167,22 @@ export const logCall = async (
 
 // ─── Note: create ─────────────────────────────────────────────────────────────
 
+/**
+ * Creates a collaborative note and pushes a summarized preview to the lead's main timeline.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param leadId - UUID of the lead.
+ * @param content - Full markdown or text content of the note.
+ * @param createdBy - Actor ID.
+ *
+ * @returns {Promise<ILeadNote>} The persisted note.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Note Persistence**: Saves the raw content to the `LeadNote` collection.
+ * 2. **Timeline Notification**:
+ *    - To maintain a clean timeline, it creates a "preview" snippet (120 chars).
+ *    - This snippet is logged as a `note_added` activity, linking back to the full note ID.
+ */
 export const createNote = async (
   clientCode: string,
   leadId: string,
@@ -195,6 +268,21 @@ export const deleteNote = async (
 
 // ─── Unified timeline ─────────────────────────────────────────────────────────
 
+/**
+ * The "Single Source of Truth" for a Lead's history. Merges disparate data streams into a unified chronological feed.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param leadId - UUID of the lead.
+ * @param options - Pagination parameters.
+ *
+ * @returns {Promise<TimelineItem[]>} A flat, sorted array of mixed types (Activities and Notes).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Parallel Stream Retrieval**: Concurrently queries `LeadActivity` (system/automation events) and `LeadNote` (agent comments).
+ * 2. **Kind Injection**: Normalizes both collections into a common schema, tagging them as `kind: "activity"` or `kind: "note"`.
+ * 3. **Chrono-Sort**: Performs a global descending sort (newest first) in memory.
+ * 4. **Windowing**: Applies the pagination slice after the merge to ensure accurate chronological ordering across pages.
+ */
 export const getTimeline = async (
   clientCode: string,
   leadId: string,

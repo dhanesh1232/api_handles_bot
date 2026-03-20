@@ -33,6 +33,24 @@ const getQueryDateRange = (range?: AnalyticsRange, from?: any, to?: any) => {
 
 // ─── 0. WhatsApp Specialized Analytics ───────────────────────────────────────
 
+/**
+ * Aggregates WhatsApp messaging metrics for a specific time range.
+ *
+ * **WORKING PROCESS:**
+ * 1. Date Range: Resolves the filter range into concrete `since` and `until` Date objects.
+ * 2. Message Aggregation: Groups outbound messages by status (sent, delivered, read, failed) within the timeframe.
+ * 3. Conversation Tracking: Counts active WhatsApp conversations that had activity during the range.
+ * 4. Rate Calculation: Computes delivery and failure percentages to measure communication health.
+ *
+ * **EDGE CASES:**
+ * - Zero Messages: Correctly handles divisions by zero, returning 0% rates if no messages exist.
+ * - Missing Status: Uses default values (0) if some statuses (like "failed") are not present in the aggregation result.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param range - Predefined range (e.g., "7d", "30d").
+ * @param from - Custom start date.
+ * @param to - Custom end date.
+ */
 export const getWhatsAppAnalytics = async (
   clientCode: string,
   range?: AnalyticsRange,
@@ -93,6 +111,22 @@ export const getWhatsAppAnalytics = async (
 
 // ─── 1. Overview KPIs ─────────────────────────────────────────────────────────
 
+/**
+ * Calculates high-level CRM KPIs including total leads, won revenue, and activity volume.
+ *
+ * **WORKING PROCESS:**
+ * 1. Multi-Dimensional Scan: Runs massive parallel aggregations across `Lead` and `LeadActivity` collections.
+ * 2. Revenue Summation: Aggregates `dealValue` for all leads with "won" status within the period.
+ * 3. Global Perspective: Also fetches absolute totals (all time) to provide context for the period-specific metrics.
+ * 4. Score Averaging: Computes the mean lead score across the entire database to track lead quality.
+ *
+ * **EDGE CASES:**
+ * - No Historical Data: Returns a zeroed object if the tenant is fresh.
+ * - Null Lead Scores: Uses `$avg` which ignores nulls, ensuring inaccurate zeros don't skew the average.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param range - Analytics timeframe.
+ */
 export const getOverview = async (
   clientCode: string,
   range?: AnalyticsRange,
@@ -183,6 +217,22 @@ export const getOverview = async (
 
 // ─── 2. Pipeline funnel — conversion % per stage ──────────────────────────────
 
+/**
+ * Generates conversion data for a specific pipeline funnel.
+ *
+ * **WORKING PROCESS:**
+ * 1. Stage Inventory: Fetches all stages for the pipeline sorted by their defined order.
+ * 2. Lead Distribution: Aggregates leads currently standing in each stage, summing their deal values.
+ * 3. Funnel Calculation: Identifies the stage with the highest lead count as the "top of funnel" (usually first stage).
+ * 4. Conversion %: Calculates each stage's percentage relative to the top count to visualize drop-offs.
+ *
+ * **EDGE CASES:**
+ * - Empty Pipeline: Returns stages with zero counts if no leads are assigned to the pipeline.
+ * - Non-Linear Funnel: Logic assumes the stage with max count is the baseline, supporting flexible lead flows.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param pipelineId - Target pipeline to analyze.
+ */
 export const getFunnelData = async (clientCode: string, pipelineId: string) => {
   const { Lead, PipelineStage } = await getCrmModels(clientCode);
 
@@ -235,6 +285,22 @@ export const getFunnelData = async (clientCode: string, pipelineId: string) => {
 
 // ─── 3. Revenue forecast ──────────────────────────────────────────────────────
 
+/**
+ * Produces a weighted revenue forecast based on pipeline probabilities.
+ *
+ * **WORKING PROCESS:**
+ * 1. Probability Retrieval: Fetches the percentage probability (0-100) defined for each pipeline stage.
+ * 2. Pipeline Snapshot: Aggregates total `dealValue` for open leads grouped by their current stage.
+ * 3. Weighted Calculation: Multiplies the raw total value of each stage by its conversion probability.
+ * 4. Grand Totaling: Sums the expected revenue from all stages to provide a "realistic" sales forecast.
+ *
+ * **EDGE CASES:**
+ * - Missing Probabilities: Stages with no probability default to 0 revenue impact.
+ * - Filter Scope: Can be scoped to a specific pipeline or the entire tenant portfolio.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param pipelineId - Optional pipeline filter.
+ */
 export const getRevenueForecast = async (
   clientCode: string,
   pipelineId?: string,
@@ -585,6 +651,22 @@ export const getPredictiveConversionScore = async (
  * Basic: Core visibility (Pulse)
  * Medium: Operational efficiency (Growth)
  * Advanced: Strategic foresight & AI (Weapon)
+ */
+/**
+ * Orchestrates a complete, tiered analytics report for the executive dashboard.
+ *
+ * **WORKING PROCESS:**
+ * 1. Tier 1 (Pulse): Fetches baseline overview KPIs (leads, activity).
+ * 2. Tier 2 (Growth): Analyzes lead sources, funnel conversion, and score distribution.
+ * 3. Tier 3 (Weapon): Generates advanced foresight data like revenue forecasts, bottleneck analysis, and heatmaps.
+ * 4. Insight Engine: Applies heuristic rules to the results to generate actionable text recommendations (e.g., "Review funnel stages").
+ *
+ * **EDGE CASES:**
+ * - Inconsistent Ranges: Flexibly switches heatmap range (e.g., forcing 90d for 365d reports) to maintain chart readability.
+ *
+ * @param clientCode - Tenant identifier.
+ * @param range - High-level range.
+ * @param pipelineId - Main pipeline to focus on.
  */
 export const getTieredReport = async (
   clientCode: string,

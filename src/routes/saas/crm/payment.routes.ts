@@ -1,5 +1,17 @@
+/**
+ * @module Routes/CRM/Payment
+ * @responsibility Financial event tracking within the sales pipeline.
+ *
+ * **GOAL:** Bridge external payment processors with the CRM to automatically update lead status or revenue metrics.
+ */
+/**
+ * @module Routes/CRM/Payments
+ * @responsibility Revenue tracking and payment link generation.
+ *
+ * **GOAL:** Associate financial transactions with CRM leads, allowing for ROI calculation and direct billing integration.
+ */
 import { type Request, type Response, Router } from "express";
-import { onPaymentCaptured } from "../../../services/saas/crm/crmHooks.ts";
+import { onPaymentCaptured } from "@/services/saas/crm/crmHooks";
 
 const router = Router();
 

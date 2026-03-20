@@ -3,13 +3,35 @@ import { Blueprint } from "@models/global/blueprint.model";
 import { AuditService } from "./audit.service";
 
 /**
- * Orchestrator Service
- * Handles the deployment of Blueprints (Gold Standard Configs) into Tenant Databases.
+ * @module Services/Global/Orchestrator
+ * @responsibility The "Clonability Engine" that deploys complex configurations (Blueprints) into Tenant Databases.
+ *
+ * **GOAL:** Enable "Agency Scale" where a master config (Stages, Colors, Probabilities, Rules) can be stamped onto new client accounts in sub-second time.
  */
 export const OrchestratorService = {
   /**
    * Clones a blueprint's content into a specific client's tenant database.
-   * This is a "power move" for agencies to rapidly onboard new clients.
+   *
+   * @param clientCode - The target tenant identifier.
+   * @param blueprintId - MongoDB ID of the source blueprint.
+   * @param performedBy - The actor ID (e.g., agency admin).
+   *
+   * @returns {Promise<Object>} Deployment summary including success status and list of components created.
+   *
+   * @throws {Error} "Blueprint not found" if the ID is invalid.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Source Discovery**: Fetches the blueprint from the global registry.
+   * 2. **Target Resolution**: Dynamically connects to the tenant's DB via `getCrmModels`.
+   * 3. **Transactional Loop (Pipelines)**:
+   *    - For each pipeline in the blueprint, creates a record in the tenant DB.
+   *    - Iterates through the blueprint's stages and creates them, linking to the new pipeline ID, maintaining order and conversion probabilities.
+   * 4. **Automation Cloning**: Copies rules, triggers, and action payloads. All rules are forced to `isActive: true` by default.
+   * 5. **Global Audit**: Logs the entire "Power Operation" to the `AuditService`.
+   * 6. **Monetization (Token Consumption)**: Calls `UsageService.consume` to subtract 1 `automation_run` credit for this deployment.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Deduplication: This service DOES NOT check if a pipeline already exists. Repeated calls will result in duplicate pipelines.
    */
   deployBlueprint: async (
     clientCode: string,

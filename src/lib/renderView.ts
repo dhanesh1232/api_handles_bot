@@ -16,10 +16,15 @@ const VIEWS_DIR = join(process.cwd(), "src", "views");
 const cache = new Map<string, string>();
 
 /**
- * Render an HTML view file with token substitution.
+ * Renders an HTML view with high-speed token replacement and intelligent caching.
  *
- * @param name - Filename inside src/views/ (e.g. "index.html")
- * @param vars - Key-value map. Each key "FOO" replaces every __FOO__ token.
+ * @param name - View filename (e.g., "welcome.html").
+ * @param vars - Key-value pairs for substitution.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Cache Strategy**: In Production, reads from disk only once and persists the string in memory. In Development, re-reads every time to support hot-reload.
+ * 2. **Token Replacement**: Uses a global split/join pattern for `__TOKEN__` markers, which is significantly faster than regex for large HTML blobs.
+ * 3. **Safety**: Operates as a pure string transformation engine with no `eval()` or dangerous execution paths.
  */
 export function renderView(
   name: string,

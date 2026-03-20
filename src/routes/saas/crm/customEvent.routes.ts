@@ -1,10 +1,17 @@
 /**
- * customEvent.routes.ts
- * CRUD for CustomEventDef and manual EventBus emission.
- * Place at: src/routes/saas/crm/customEvent.routes.ts
+ * @module Routes/CRM/CustomEvents
+ * @responsibility Schema management for tenant-defined automation triggers.
+ *
+ * **GOAL:** Allow clients to define custom business events (e.g., "course_completed") and manually fire them for testing or external integrations.
  */
 
 import { getCrmModels } from "@lib/tenant/crm.models";
+/**
+ * @module Routes/CRM/CustomEvents
+ * @responsibility Definition and management of client-specific event triggers.
+ *
+ * **GOAL:** Allow tenants to define programmatic entry points (e.g., "Webinar Registered") that map to specific pipelines and automation sequences.
+ */
 import { type Request, type Response, Router } from "express";
 import { EventBus } from "@/services/saas/event/eventBus.service";
 
@@ -79,8 +86,12 @@ router.delete("/custom-events/:id", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/crm/events/emit
- * Manually trigger an event.
+ * Direct Event Emission.
+ *
+ * **GOAL:** Manually trigger the automation engine by firing a specific event trigger.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Bus Delegation**: Invokes `EventBus.emit()` which fan-out the event to all matched `AutomationRules` for the tenant.
  */
 router.post("/events/emit", async (req: Request, res: Response) => {
   try {

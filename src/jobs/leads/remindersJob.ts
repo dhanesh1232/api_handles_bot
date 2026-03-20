@@ -1,5 +1,5 @@
-import { dbConnect } from "../../lib/config.ts";
-import { Lead } from "../../model/services/leads.ts";
+import { dbConnect } from "@/lib/config";
+import { Lead } from "@/model/services/leads";
 
 export const remindersJob = async () => {
   await dbConnect("services");

@@ -1,7 +1,12 @@
 /**
- * leadActivity.model.ts
- * Auto-generated timeline events. Immutable once created.
- * Place at: src/model/saas/crm/leadActivity.model.ts
+ * @module CRM/LeadActivityModel
+ * @responsibility Records immutable timeline events for a lead.
+ *
+ * **WORKING PROCESS:**
+ * 1. Categorization: Tracks diverse interactions (whatsapp, email, meetings, stage changes).
+ * 2. Immutability: Standardized to disable `updatedAt` as activities represent a fixed point in history.
+ * 3. Attribution: Records who performed the action (`performedBy`) for audit trails.
+ * 4. Context: The `metadata` field stores event-specific data (e.g., message snippets, duration).
  */
 
 import mongoose, { type Schema } from "mongoose";

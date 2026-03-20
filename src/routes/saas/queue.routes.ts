@@ -1,15 +1,15 @@
 /**
- * routes/saas/queue.routes.ts
+ * @module Routes/QueueAdmin
+ * @responsibility High-level administrative control over the asynchronous job ecosystem.
  *
- * Admin-only endpoints for job queue visibility.
- * Mounts at: /api/saas/admin/queue
- * Protected by: x-core-api-key header (separate from tenant API key)
+ * **GOAL:** Provide visibility and recovery mechanisms for "stuck" or failed background tasks across all tenants.
  *
- * Endpoints:
- *   GET  /failed          — List failed (dead-letter) jobs
- *   GET  /stats           — Count by status per queue
- *   POST /:jobId/retry    — Re-queue a failed job (reset attempts + status)
- *   DELETE /:jobId        — Hard-delete a job record
+ * **DETAILED EXECUTION:**
+ * 1. **Dead-Letter Analysis**: The `/failed` endpoint allows admins to paginate through jobs that have exhausted their retry attempts.
+ * 2. **Fleet Stats**: The `/stats` endpoint uses MongoDB Aggregation to provide a real-time matrix of job states (pending, failed, completed) grouped by queue name.
+ * 3. **Recovery (Retry)**: The `/:jobId/retry` endpoint performs an atomic state reset, shifting a job back to `waiting` and resetting attempts to `0` for re-execution.
+ *
+ * **SECURITY:** Enforces a strict `x-core-api-key` check, bypassing the standard tenant-key auth for system-level access.
  */
 
 import { type Request, type Response, Router } from "express";

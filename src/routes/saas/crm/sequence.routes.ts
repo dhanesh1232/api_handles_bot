@@ -1,3 +1,15 @@
+/**
+ * @module Routes/CRM/Sequence
+ * @responsibility Multi-step communication flows (Drip Campaigns).
+ *
+ * **GOAL:** Allow manual and automated enrollment of leads into time-delayed message sequences.
+ */
+/**
+ * @module Routes/CRM/Sequences
+ * @responsibility Multi-step, time-delayed drip campaigns.
+ *
+ * **GOAL:** Manage the enrollment and tracking of leads within automated message sequences (e.g., 5-day welcome series).
+ */
 import { getCrmModels } from "@lib/tenant/crm.models";
 import { Router } from "express";
 import { enrollInSequence } from "@/services/saas/automation/sequenceEngine.service";
@@ -6,7 +18,13 @@ import { getLeadById } from "@/services/saas/crm/lead.service";
 const sequenceRouter = Router();
 
 /**
- * Enroll a lead into a sequence manually
+ * Manual Sequence Enrollment.
+ *
+ * **GOAL:** Explicitly subscribe a lead to a sequence, bypassing automatic trigger conditions.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Lead Validation**: Verifies the lead exists and is active for the current tenant.
+ * 2. **Sequence Injection**: Invokes `enrollInSequence()` which creates the enrollment record and enqueues the first step in BullMQ/ErixWorkers.
  */
 sequenceRouter.post("/enroll", async (req: any, res: any) => {
   const { clientCode } = req;

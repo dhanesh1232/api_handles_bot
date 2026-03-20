@@ -7,7 +7,23 @@ const openai = new OpenAI({
 });
 
 /**
- * Summarizes a conversation history using AI.
+ * Generates an AI-powered summary of a lead's recent conversation history.
+ *
+ * **WORKING PROCESS:**
+ * 1. Data Retrieval: Fetches the lead's profile and the last 50 messages across all linked conversations.
+ * 2. Normalization: Reverses the message order (chronological) and formats into a "Lead: ... / Agent: ..." transcript.
+ * 3. AI Orchestration: Dispatches the transcript to OpenAI's `gpt-4o-mini` with a specialized system prompt.
+ * 4. Refinement: Temperature is set to 0.5 to balance creativity and factual accuracy.
+ * 5. Persistence: Returns the summary string to be saved in the lead's document.
+ *
+ * **EDGE CASES:**
+ * - No History: Returns a "No conversation history found" string if the lead hasn't messaged yet.
+ * - OpenAI Downtime: Catches API errors and returns a graceful failure message.
+ * - Token Limits: Limits input to 50 messages to prevent excessive cost or context window overflow.
+ *
+ * @param {string} clientCode - Tenant's unique identifier.
+ * @param {string} leadId - The lead to summarize.
+ * @returns {Promise<string>} The generated summary or an error string.
  */
 export async function generateConversationSummary(
   clientCode: string,

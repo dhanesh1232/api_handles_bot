@@ -1,3 +1,12 @@
+/**
+ * @module CRM/PipelineStageModel
+ * @responsibility Defines the granular steps within a sales pipeline.
+ *
+ * **WORKING PROCESS:**
+ * - Behavior: Stages can be marked as `isWon` or `isLost` to signify deal closure.
+ * - Reactive Actions: `autoActions` trigger immediate responses when a lead enters the stage.
+ * - Forecasting: The `probability` field (0-100) contributes to revenue projection analytics.
+ */
 import mongoose, { type Schema } from "mongoose";
 
 const autoActionSchema = new mongoose.Schema<IAutoAction>(

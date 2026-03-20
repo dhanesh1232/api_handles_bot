@@ -1,3 +1,11 @@
+/**
+ * @module CRM/SegmentModel
+ * @responsibility Defines dynamic lead groupings based on rule sets.
+ *
+ * **WORKING PROCESS:**
+ * - Dynamism: Members are not permanently assigned; membership is recalculated based on `rules` and `logic` (AND/OR).
+ * - Caching: Keeps a `memberCount` for quick display, updated during `refreshSegment` cycles.
+ */
 import { Schema } from "mongoose";
 
 const segmentSchema = new Schema<ISegment>(

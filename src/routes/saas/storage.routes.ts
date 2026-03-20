@@ -2,12 +2,29 @@ import { storageQuota } from "@middleware/storageQuota";
 import { StorageService } from "@services/StorageService";
 import { Router } from "express";
 
+/**
+ * Factory for tenant-scoped Cloud Storage orchestration.
+ *
+ * **GOAL:** Manage unstructured data (files, images, documents) using a "Private Cloud" model where each tenant has a logical partition in R2/S3.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Security Guarding**: Mounts the `storageQuota` middleware on all write operations to prevent unbilled storage consumption.
+ * 2. **Presigned Flows**: Implements a high-security upload flow where the backend generates a short-lived URL, allowing the browser to upload directly to object storage without stressing the Node.js process.
+ * 3. **Usage Accounting**: Dynamically calculates per-tenant storage metrics via the `StorageService`.
+ *
+ * @param _io - Socket.io instance (placeholder for future real-time upload progress).
+ * @returns {Router} An Express router pre-configured with storage endpoints.
+ */
 export const createStorageRouter = (_io: any) => {
   const router = Router();
-
   /**
-   * GET /api/saas/storage/usage
-   * Returns current usage, quota, and folder stats.
+   * Tenant Storage Metrics.
+   *
+   * **GOAL:** Compute and return the total bytes consumed by a tenant across all folders (profile, chat, documents).
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Service Instantiation**: Spawns a `StorageService` anchored to the current `clientCode`.
+   * 2. **Bucket Introspection**: Iterates through R2 metadata to sum object sizes.
    */
   router.get("/usage", async (req: any, res) => {
     try {
@@ -45,8 +62,13 @@ export const createStorageRouter = (_io: any) => {
   });
 
   /**
-   * POST /api/saas/storage/upload-url
-   * Get a presigned URL for direct R2 upload.
+   * Direct Upload Presigning.
+   *
+   * **GOAL:** Generate a high-security, short-lived PUT URL that allows a client to upload directly to R2, bypassing the Node.js server to conserve CPU and Memory.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Quota Verification**: The `storageQuota` middleware first checks if the tenant has remaining space before allowing the presign.
+   * 2. **Signed Token Generation**: Uses AWS-V4 signing logic to create a URL scoped to a specific `key` and `contentType`.
    */
   router.post("/upload-url", storageQuota, async (req: any, res) => {
     try {

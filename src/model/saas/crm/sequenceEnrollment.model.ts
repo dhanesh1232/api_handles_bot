@@ -1,3 +1,12 @@
+/**
+ * @module CRM/SequenceEnrollmentModel
+ * @responsibility State machine for leads progressing through complex automation sequences.
+ *
+ * **WORKING PROCESS:**
+ * 1. Traversal: Tracks progress via `currentStep` and `status` (active, paused, completed).
+ * 2. Audit: `stepResults` stores a detailed history of each step's attempt, including errors and timing.
+ * 3. Scheduling: `nextStepAt` is used by the Job Queue to wake up the enrollment for the next action.
+ */
 import { Schema } from "mongoose";
 
 export const SequenceEnrollmentSchema = new Schema<ISequenceEnrollment>(

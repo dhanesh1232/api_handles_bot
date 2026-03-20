@@ -13,12 +13,22 @@
 
 // ─── Base ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The foundational error class for the entire backend ecosystem.
+ *
+ * **GOAL:** Standardize error responses so the global gateway can automatically map exceptions to user-friendly HTTP statuses and machine-readable error codes.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Stack Trace Capture**: Inherits standard JS Error behavior while capturing the constructor name for precise logging.
+ * 2. **Metadata Injection**: Attaches `statusCode` and `code` for downstream API response formatting.
+ * 3. **Operational Flagging**: Sets `isOperational` to true, signaling that this is a "known" error (like validation failure) rather than a system crash.
+ */
 export class AppError extends Error {
-  /** HTTP status code to respond with. */
+  /** HTTP status code to respond with (e.g., 404, 429). */
   public readonly statusCode: number;
-  /** Machine-readable error code for API consumers. */
+  /** Machine-readable error code for frontend logic/i18n (e.g., "VALIDATION_ERROR"). */
   public readonly code: string;
-  /** Whether this error should be logged at error level (vs warn). */
+  /** Whether this error was expected (true) or a catastrophic failure (false). */
   public readonly isOperational: boolean;
 
   constructor(

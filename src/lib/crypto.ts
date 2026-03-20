@@ -15,9 +15,16 @@ class CryptoClient {
   }
 
   /**
-   * Encrypts a string using AES-256-CBC
-   * @param text - The text to encrypt
-   * @returns The encrypted string in format iv:encrypted
+   * Encrypts a sensitive string using AES-256-CBC with a unique Initialization Vector (IV).
+   *
+   * @param text - The plaintext to protect.
+   * @returns A colon-separated string `iv:encryptedContent` or `null` if the input was empty.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Entropy Injection**: Generates a cryptographically strong 16-byte random IV.
+   * 2. **Cipher Initialization**: Spawns an AES-256-CBC cipher using the system-wide `ENCRYPTION_KEY`.
+   * 3. **Transformation**: Updates the cipher with the input text and flushes the final block.
+   * 4. **Packaging**: Concatenates the IV and encrypted buffer as hex strings for storage.
    */
   encrypt(text: string | null): string | null {
     if (!text) return null;
@@ -29,9 +36,17 @@ class CryptoClient {
   }
 
   /**
-   * Decrypts a string using AES-256-CBC
-   * @param text - The text to decrypt in format iv:encrypted
-   * @returns The decrypted string
+   * Decrypts a protected string back to its original plaintext.
+   *
+   * @param text - The `iv:encryptedContent` hex string.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Structural Analysis**: Splits the string at the colon to extract the IV and the cipher text.
+   * 2. **Decipher Initialization**: Reconstructs the original decryption state using the extracted IV and the global key.
+   * 3. **Inverse Transformation**: Decodes the hex buffers and computes the original UTF-8 string.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Integrity Check: Returning `null` if the string format is invalid or if the key has changed, preventing system crashes on stale secrets.
    */
   decrypt(text: string | null): string | null {
     if (!text) return null;

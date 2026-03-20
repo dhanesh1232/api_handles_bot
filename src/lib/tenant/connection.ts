@@ -8,6 +8,15 @@ dotenv.config({ path: "./.env" });
 
 const connectionMap = new Map<string, Connection>();
 
+/**
+ * Establishes and caches a Mongoose connection for a specific database URI.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Cache Reuse**: Checks if a connection for the URI already exists and is in `open` or `connecting` state.
+ * 2. **Initialization**: If no valid connection exists, spawns `mongoose.createConnection` with optimized pool settings (`maxPoolSize: 5`).
+ * 3. **Lifecycle Management**: Registers `connected` and `error` listeners for centralized logging.
+ * 4. **Promise Resolution**: Returns the connection object only after `.asPromise()` resolves.
+ */
 async function tenantDBConnect(URI: string): Promise<Connection> {
   if (connectionMap.has(URI)) {
     const conn = connectionMap.get(URI)!;
@@ -47,6 +56,14 @@ async function tenantDBConnect(URI: string): Promise<Connection> {
   return conn;
 }
 
+/**
+ * Resolves the connection string (URI) for a tenant by querying the Control Plane (Services DB).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Control Plane Handshake**: Ensures `dbConnect("services")` is active.
+ * 2. **Lookthrough**: Searches `ClientDataSource` for the record matching the `clientCode`.
+ * 3. **Validation**: extracts the URI via the `getUri()` helper or raw field, throwing if unconfigured.
+ */
 async function GetURI(code: string): Promise<string> {
   await dbConnect("services"); // Ensure control plane connection
   const dataSource = await ClientDataSource.findOne({ clientCode: code });

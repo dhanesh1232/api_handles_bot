@@ -38,8 +38,18 @@ google.options({
 const router = express.Router();
 
 /**
- * Initiate Google OAuth Flow
- * GET /api/auth/google/connect?clientCode=...
+ * @module Routes/Auth/Google
+ * @responsibility Google OAuth2 handshaking for Calendar/Meet integration.
+ *
+ * **GOAL:** Orchestrate the multi-step OAuth flow to obtain a `refreshToken` from Google, enabling the server to schedule meetings on behalf of the tenant.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Connection Initiation**: Fetches encrypted `googleClientId` and `googleClientSecret` to generate a signed redirect URL.
+ * 2. **Token Exchange**: Receives the `code` from Google, performs a server-side handshake (forcing IPv4 to avoid network timeouts), and persists the `refreshToken`.
+ * 3. **Success Visualization**: Renders a branded `google-success.html` view once the connection is verified.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - IPv6 Timeouts: Forces `family: 4` in the token exchange to bypass common misconfigurations in WSL/Docker environments.
  */
 router.get("/connect", async (req: Request, res: Response) => {
   try {

@@ -45,7 +45,15 @@ export const SYSTEM_EVENTS = [
 
 export const EventDefService = {
   /**
-   * Get all events for a client (System + Registered Custom)
+   * Retrieves all active event triggers for a specific tenant.
+   *
+   * **WORKING PROCESS:**
+   * 1. Merges the built-in `SYSTEM_EVENTS` (which are static and immutable).
+   * 2. Fetches any custom `CustomEventDef` records created by the tenant.
+   * 3. Normalizes the output into a unified schema for UI dropdowns and automation rule matching.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @returns {Promise<any[]>} Combined list of system and custom events.
    */
   async getAllEvents(clientCode: string) {
     const { CustomEventDef } = await getCrmModels(clientCode);
@@ -69,7 +77,19 @@ export const EventDefService = {
   },
 
   /**
-   * Register a new custom event (Assigning an event)
+   * Registers or updates a custom event trigger for a tenant.
+   *
+   * **WORKING PROCESS:**
+   * 1. Conflict Check: Validates that the event name does not overlap with protected `SYSTEM_EVENTS`.
+   * 2. Persistence: Upserts the event definition into the `CustomEventDef` collection.
+   * 3. Mapping: Allows mapping a custom trigger (e.g., from a Zapier webhook) to a specific pipeline/stage.
+   *
+   * **EDGE CASES:**
+   * - Reserved Names: Throws an error if a tenant tries to hijack "lead_created" or other system names.
+   * - Duplicates: Re-registering the same name simply updates the configuration.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @param {object} input - Event metadata (name, pipeline, etc.).
    */
   async registerEvent(
     clientCode: string,
@@ -98,6 +118,14 @@ export const EventDefService = {
 
   /**
    * Deactivate/Remove a custom event assignment
+   *
+   * **WORKING PROCESS:**
+   * 1. Deactivation: Sets `isActive` to `false` in the `CustomEventDef` collection.
+   * 2. Isolation: Ensures the change is scoped to the specific `clientCode`.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @param {string} eventName - Name of the event to deactivate.
+   * @returns {Promise<object>} The updated event definition.
    */
   async unassignEvent(clientCode: string, eventName: string) {
     const { CustomEventDef } = await getCrmModels(clientCode);
@@ -108,6 +136,13 @@ export const EventDefService = {
     );
   },
 
+  /**
+   * Deactivates multiple custom event assignments.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @param {string[]} eventNames - Array of event names to deactivate.
+   * @returns {Promise<object>} Result of the bulk update operation.
+   */
   async unassignEvents(clientCode: string, eventNames: string[]) {
     const { CustomEventDef } = await getCrmModels(clientCode);
     return CustomEventDef.updateMany(

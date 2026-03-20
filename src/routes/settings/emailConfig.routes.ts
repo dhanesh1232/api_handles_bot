@@ -1,17 +1,21 @@
 import { type Response, Router } from "express";
-import { PROVIDER_CONFIG } from "../../config/emailProviders.ts";
-import {
-  type AuthRequest,
-  validateClientKey,
-} from "../../middleware/saasAuth.ts";
-import { emailConfigService } from "../../services/mail/EmailConfigService.ts";
-import { emailHealthService } from "../../services/mail/EmailHealthService.ts";
+import { PROVIDER_CONFIG } from "@/config/emailProviders";
+import { type AuthRequest, validateClientKey } from "@/middleware/saasAuth";
+import { emailConfigService } from "@/services/mail/EmailConfigService";
+import { emailHealthService } from "@/services/mail/EmailHealthService";
 
 const router = Router();
 
 /**
- * GET /api/settings/email
- * Get current config + health
+ * @module Routes/Settings/Email
+ * @responsibility Tenant-level email provider and deliverability management.
+ *
+ * **GOAL:** Allow tenants to configure Amazon SES, custom SMTP, or internal providers, while providing real-time health and DMARC/SPF status checks.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Provider Switching**: Atomic updates to the `ClientSecrets` store to toggle between SMTP and SES.
+ * 2. **Identity Verification**: Multi-step flow for SES domain validation (DNS records generation -> Verification check -> DMARC hardening).
+ * 3. **Health Observability**: Integrates with `EmailHealthService` to report bounce rates, complaint rates, and connection status.
  */
 router.get("/", validateClientKey, async (req: AuthRequest, res: Response) => {
   try {

@@ -1,3 +1,16 @@
+/**
+ * @file whatsapp.service.ts
+ * @module WhatsAppService
+ * @responsibility Orchestrates the entire WhatsApp messaging lifecycle: inbound webhooks, outbound templates, media processing, and delivery status tracking.
+ * @dependencies MetaWhatsAppClient, getCrmModels, media.service, notification.service, eventBus.service
+ *
+ * **WORKING PROCESS:**
+ * 1. Factory-based instantiation (`createWhatsappService`) to inject Socket.io for real-time UI updates.
+ * 2. Tenant isolation via `getContext`, resolving specific DB models and decryption secrets (tokens/IDs).
+ * 3. Asynchronous media handling: downloads from Meta, optimizes, and uploads to R2 storage.
+ * 4. Integration with `EventBus` to trigger CRM-wide automations on incoming messages.
+ * 5. Automatic failure recovery: creates in-app notifications when delivery fails (e.g., 24h window closed).
+ */
 import path from "node:path";
 import { dbConnect } from "@lib/config";
 import { tenantLogger } from "@lib/logger";
@@ -97,6 +110,32 @@ export const createWhatsappService = (io: Server | null) => {
 
   // --- Core Methods ---
 
+  /**
+   * The "Ear" of the CRM for WhatsApp. Processes all incoming message packets from the Meta Webhook.
+   *
+   * @param clientCode - Tenant identifier for environment isolation.
+   * @param messagePayload - Raw Meta `message` object containing IDs, types, and content.
+   * @param from - Sender's WhatsApp ID (Phone number).
+   * @param msgBody - Raw text body (extracted from the webhook earlier).
+   * @param contacts - Profile data (name) sent by Meta.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Lead Discovery & Auto-Creation**:
+   *    - Searches for a lead by normalized phone.
+   *    - If missing, it uses `createLead` to bootstrap a new CRM entity (Category: "WhatsApp User", Source: "whatsapp").
+   * 2. **Conversation Management**:
+   *    - Resolves or creates a `Conversation` hub for this lead.
+   *    - Smart naming: Prioritizes Lead Name -> Meta Profile Name -> Phone.
+   * 3. **Idempotency Guard**: Checks if the `whatsappMessageId` already exists to prevent double-logging due to webhook retries.
+   * 4. **Content Parsing**:
+   *    - **Text**: Standard message logging.
+   *    - **Media (Images/Docs/Voice)**: Marks the message as `mediaUrl: "processing"` and triggers an asynchronous R2 upload task.
+   *    - **Interactive (Buttons/Lists)**: Extracts selection titles to the main message body.
+   *    - **Reactions**: Patches the original message with the reacted emoji and emits a socket update.
+   * 5. **Persistence & Lifecycle**: Saves the `Message`, updates `Conversation` counts, and bumps the Lead's `lastContactedAt`.
+   * 6. **Real-time Synchronization**: Emits `new_message` to the tenant's socket room for agent visibility.
+   * 7. **Automation Enrollment**: Emits `whatsapp.incoming` to the `EventBus`, carrying rich context (days since last message, total count) for sequence logic.
+   */
   const handleIncomingMessage = async (
     clientCode: string,
     messagePayload: any,
@@ -591,6 +630,22 @@ export const createWhatsappService = (io: Server | null) => {
     }
   };
 
+  /**
+   * Processes delivery observability webhooks (sent, delivered, read, failed).
+   *
+   * @param clientCode - Tenant identifier.
+   * @param statusPayload - Raw Meta `status` object.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Race Condition Recovery**: If the status arrives before the message is fully persisted (common in high-speed templates), the engine retries lookups for 3 seconds.
+   * 2. **Priority-Based Updates**: Prevents "Stale Status" bugs (e.g., won't revert a `read` message back to `delivered` if webhooks arrive out of order).
+   * 3. **Sync Intelligence**:
+   *    - Updates the linked `Meeting` status if the message was part of a reminder sequence.
+   *    - Updates the `Conversation` hub's `lastMessageStatus`.
+   * 4. **Smart Failure Handling**:
+   *    - If status is `failed`, it analyzes the error code (e.g., `131047` for window closure).
+   *    - Triggers `notifyFailure` to create an actionable In-App Notification for the assigned agent.
+   */
   const handleStatusUpdate = async (clientCode: string, statusPayload: any) => {
     try {
       const { Message, Conversation } = await getContext(clientCode);
@@ -635,9 +690,7 @@ export const createWhatsappService = (io: Server | null) => {
 
         // 🎉 Also update Meeting reminders if linked
         if (message.metadata?.meetingId && message.metadata?.actionId) {
-          const { getCrmModels } = await import(
-            "../../../lib/tenant/crm.models"
-          );
+          const { getCrmModels } = await import("@/lib/tenant/crm.models");
           const { Meeting } = await getCrmModels(clientCode);
           // Only update if current status in meeting is lower priority
           const meeting = await Meeting.findById(message.metadata.meetingId);
@@ -727,6 +780,34 @@ export const createWhatsappService = (io: Server | null) => {
     }
   };
 
+  /**
+   * The "Vocal Chord" of the CRM. Orchestrate outbound communication across all states (Templates vs. Free-text).
+   *
+   * @param clientCode - Tenant ID.
+   * @param conversationId - The thread ID.
+   * @param text - Raw message body (ignored if `templateName` is provided).
+   * @param mediaUrl - (Optional) URL of the file to send.
+   * @param mediaType - MIME type.
+   * @param userId - Actor ID (for audit trail).
+   * @param templateName - (Optional) The Meta-approved template key.
+   * @param templateLanguage - Defaults to "en_US".
+   * @param variables - Placeholder values for the template.
+   *
+   * @returns {Promise<Object>} API response from Meta/Twilio.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Pre-flight Persistence**: Creates a `queued` message record immediately. This ensures if the API fails, the user still sees the "Failure" on their timeline.
+   * 2. **Financial Guard**:
+   *    - Verifies the tenant's remaining message credits.
+   *    - Blocks the send if the quota is exceeded, preventing unexpected costs.
+   * 3. **Template Resolution**:
+   *    - Fetches the approved template document from the tenant's DB.
+   *    - Forges the complex JSON payload required by Meta's Graph API.
+   * 4. **Media Proxying**:
+   *    - If a `mediaUrl` is provided, it downloads the file to our ephemeral storage and re-uploads it to Meta's media CDN to obtain a valid `media_id`.
+   * 5. **API Dispatch**: Executes the authenticated HTTP request.
+   * 6. **Post-Process**: Updates the queued message to `sent` or `failed` based on the response.
+   */
   const sendOutboundMessage = async (
     clientCode: string,
     conversationId: string,
@@ -1297,7 +1378,7 @@ export const createWhatsappService = (io: Server | null) => {
         await freshConversation.save();
 
         // 🎉 Also update Lead's lastContactedAt
-        const { getCrmModels } = await import("../../../lib/tenant/crm.models");
+        const { getCrmModels } = await import("@/lib/tenant/crm.models");
         const { Lead } = await getCrmModels(clientCode);
         await Lead.updateOne(
           { phone: freshConversation.phone, clientCode, isArchived: false },
@@ -1356,6 +1437,14 @@ export const createWhatsappService = (io: Server | null) => {
     }
   };
 
+  /**
+   * Sends an emoji reaction to a specific WhatsApp message.
+   *
+   * **WORKING PROCESS:**
+   * 1. Resolves the parent `whatsappMessageId` (must have been sent/received via CRM).
+   * 2. Persists the reaction in the internal `Message.reactions` array (marked as "admin").
+   * 3. Syncs the UI via Socket.io `message_updated` event.
+   */
   const sendReaction = async (
     clientCode: string,
     messageId: string,

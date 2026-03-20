@@ -1,6 +1,18 @@
-import { dbConnect } from "../../lib/config.ts";
-import { Lead } from "../../model/services/leads.ts";
+import { dbConnect } from "@/lib/config";
+import { Lead } from "@/model/services/leads";
 
+/**
+ * The "Sanitation Worker" of the CRM. Automatically prunes dead leads to ensure sales teams focus on active opportunities.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Temporal Filtering**: Scans the global `Lead` collection for records where `updatedAt` is older than 30 days.
+ * 2. **Terminal State Guard**: Excludes leads already marked as `closed-won` or `closed-lost` to avoid interfering with historical data.
+ * 3. **Mass Transition**:
+ *    - Updates `status` to `no-response`.
+ *    - Injects a system activity record explaining the auto-closure.
+ *
+ * **GOAL**: Maintain a high-quality, high-velocity pipeline by removing "ghost" leads.
+ */
 export const autoCloseJob = async () => {
   await dbConnect("services");
 

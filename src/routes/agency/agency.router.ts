@@ -6,8 +6,19 @@ import { OrchestratorService } from "@services/global/orchestrator.service";
 import { PortfolioService } from "@services/global/portfolio.service";
 import { UsageService } from "@services/global/usage.service";
 import express, { type Request, type Response } from "express";
-import { verifyCoreToken } from "../../middleware/auth";
+import { verifyCoreToken } from "@/middleware/auth";
 
+/**
+ * @module Routes/Agency
+ * @responsibility High-level orchestration for White-Label Agencies.
+ *
+ * **GOAL:** Provide an administrative suite for Agency owners to manage "Blueprints" (standardized tenant templates), monitor portfolio health, and oversee staff/usage.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Blueprint Factory**: Manage "Gold Standard" configurations that can be cloned to new tenants via `OrchestratorService`.
+ * 2. **Portfolio Intelligence**: Aggregate KPIs across all sub-tenants belonging to an agency to detect churn or growth.
+ * 3. **Usage & Wealth**: Real-time billing insight by aggregating storage and message counters per `clientCode`.
+ */
 const router = express.Router();
 
 /**

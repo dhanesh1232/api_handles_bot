@@ -53,6 +53,16 @@ class InMemoryCache implements ICache {
 
   // ─── Core operations ───────────────────────────────────────────────────────
 
+  /**
+   * Retrieves a typed value from the cache.
+   *
+   * @param key - The unique cache identifier.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Memory Lookup**: Checks the internal Map for the key.
+   * 2. **Liveness Validation**: Compares `Date.now()` with the entry's `expiresAt`.
+   * 3. **Self-Pruning**: If expired, deletes the key immediately to maintain memory sanity and returns `undefined`.
+   */
   get<T>(key: string): T | undefined {
     const entry = this.store.get(key) as CacheEntry<T> | undefined;
     if (!entry) return undefined;
@@ -90,8 +100,7 @@ class InMemoryCache implements ICache {
   // ─── Fetch-or-set ──────────────────────────────────────────────────────────
 
   /**
-   * Return cached value if present and fresh; otherwise execute `fn`,
-   * cache the result, and return it.
+   * Standard "Fetch-through" pattern: Returns cached data or computes it fresh.
    *
    * @example
    *   const pipelines = await cache.getOrSet(
@@ -99,6 +108,11 @@ class InMemoryCache implements ICache {
    *     () => getPipelines(clientCode),
    *     { ttlSeconds: 120 }
    *   );
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Optimistic Read**: Attempts a non-blocking `get()`.
+   * 2. **Computation**: If miss, executes the provided asynchronous `fn()`.
+   * 3. **Commit**: Persists the result back into memory before returning.
    */
   async getOrSet<T>(
     key: string,

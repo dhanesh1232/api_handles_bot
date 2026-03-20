@@ -1,17 +1,13 @@
 import { StorageService } from "@services/StorageService";
-import {
-  type OptimizedMediaResult,
-  optimizeAndUploadMedia,
-} from "@services/saas/media/media.service";
+import { optimizeAndUploadMedia } from "@services/saas/media/media.service";
 import { StorageClient } from "@/lib/storage/r2.client";
 import { BaseSDK } from "./base.sdk";
 
 /**
- * StorageSDK - Unified Cloudflare R2 Interface
- *
- * Handles all file operations: general documents, optimized media,
- * presigned URLs, and tenant prefix isolation.
- * Automatically synchronizes usage stats with ClientStorage.
+ * @file storage.sdk.ts
+ * @module StorageSDK
+ * @responsibility Unified facade for Cloudflare R2 file operations, media optimization, and tenant quota management.
+ * @dependencies StorageService, media.service.ts, r2.client.ts
  */
 export class StorageSDK extends BaseSDK {
   private _service: StorageService | null = null;
@@ -37,8 +33,23 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Core: Upload a file. Automatically handles media optimization unless disabled.
-   * Records usage in ClientStorage.
+   * Uploads a file buffer with automatic tenant isolation and optional media optimization.
+   *
+   * **WORKING PROCESS:**
+   * 1. Generates a unique `mediaId` and determines the tenant-specific S3/R2 prefix.
+   * 2. Delegates to `optimizeAndUploadMedia`:
+   *    - If `optimize` is true and it's an image/video, performs resizing/compression.
+   *    - Uploads the resulting buffer(s) to R2.
+   * 3. Calls `recordInternalAction` to update the tenant's database storage usage stats.
+   * 4. Emits `storage:uploaded` for real-time UI/background consistency.
+   *
+   * @param {Buffer} buffer - File data.
+   * @param {string} mimeType - e.g., 'image/jpeg', 'application/pdf'.
+   * @param {string} [originalName] - Metadata for the original filename.
+   * @param {string} [folder="general"] - Virtual folder within the tenant's bucket.
+   * @param {object} [opts={optimize: true}] - Optimization controls.
+   * @returns {Promise<OptimizedMediaResult>}
+   * @edge_case Deducts usage even if cleanup fails, ensuring the tenant quota remains accurate.
    */
   async upload(
     buffer: Buffer,
@@ -81,7 +92,10 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Core: List files in a folder.
+   * Lists all files within a specific tenant folder by querying R2.
+   *
+   * @param {string} [folder="general"] - Target virtual folder.
+   * @returns {Promise<any[]>}
    */
   async list(folder: string = "general") {
     // List directly from R2 via service for consistent prefixing / filtering
@@ -90,8 +104,15 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Core: Delete a file by its R2 key.
-   * Automatically decrements usage in ClientStorage.
+   * Permanently removes a file from R2 and restores storage quota.
+   *
+   * **WORKING PROCESS:**
+   * 1. Invokes the `StorageService` to delete the object from the physical bucket.
+   * 2. Decrements the `totalUsed` record in `ClientStorage`.
+   * 3. Emits `storage:deleted` for cache invalidation.
+   *
+   * @param {string} key - The full R2 path key.
+   * @returns {Promise<void>}
    */
   async delete(key: string): Promise<void> {
     // Delegate to service to handle both R2 deletion and DB usage decrement
@@ -104,7 +125,12 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Presigned: Get an upload URL for large files or browser-direct uploads.
+   * Generates a temporary URL for browser-side uploads (S3 Multipart compatible).
+   *
+   * @param {string} folder - Destination folder.
+   * @param {string} filename - Target filename.
+   * @param {string} contentType - e.g., 'video/mp4'.
+   * @returns {Promise<{ url: string; key: string }>}
    */
   async getSignedUploadUrl(
     folder: string,
@@ -115,21 +141,33 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Presigned: Get a download URL.
+   * Generates a signed read URL with short TTL for private assets.
+   *
+   * @param {string} key - R2 path key.
+   * @returns {Promise<string>}
    */
   async getSignedDownloadUrl(key: string) {
     return this.service.getDownloadUrl(key);
   }
 
   /**
-   * Utility: Sync usage from R2 to Database for this client.
+   * Synchronizes the tenant's database usage records with the actual files in R2.
+   *
+   * **WORKING PROCESS:**
+   * 1. Lists all objects in the tenant's R2 prefix.
+   * 2. Sums the total bytes.
+   * 3. Updates the `totalUsed` field in the `ClientStorage` document to ensure data consistency.
+   *
+   * @returns {Promise<{ totalSizeBytes: number }>}
    */
   async syncUsage() {
     return this.service.syncUsage();
   }
 
   /**
-   * Utility: Get current usage and quota information.
+   * Retrieves current storage metrics and plan limits.
+   *
+   * @returns {Promise<{ used: number; limit: number; percentage: number }>}
    */
   async getUsage() {
     return this.service.getUsage();
@@ -138,7 +176,12 @@ export class StorageSDK extends BaseSDK {
   // ─── Specialized Helpers ──────────────────────────────────────────────────
 
   /**
-   * WhatsApp: Upload media with 'whatsapp' folder prefix.
+   * WhatsApp: Uploads media specifically to the 'whatsapp' sandbox.
+   *
+   * @param {Buffer} buffer - File data.
+   * @param {string} mimeType - e.g., 'image/png'.
+   * @param {string} [originalName] - Filename.
+   * @returns {Promise<OptimizedMediaResult>}
    */
   async uploadWhatsAppMedia(
     buffer: Buffer,
@@ -149,7 +192,12 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * CRM: Upload lead attachments.
+   * CRM: Uploads document attachments for lead records.
+   *
+   * @param {Buffer} buffer - File data.
+   * @param {string} mimeType - e.g., 'application/pdf'.
+   * @param {string} [originalName] - Filename.
+   * @returns {Promise<OptimizedMediaResult>}
    */
   async uploadLeadAttachment(
     buffer: Buffer,
@@ -160,7 +208,12 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Profiles: Upload user or client profile images.
+   * Profiles: Uploads and optimizes user avatar images.
+   *
+   * @param {Buffer} buffer - File data.
+   * @param {string} mimeType - e.g., 'image/jpeg'.
+   * @param {string} [originalName] - Filename.
+   * @returns {Promise<OptimizedMediaResult>}
    */
   async uploadProfileImage(
     buffer: Buffer,
@@ -171,7 +224,12 @@ export class StorageSDK extends BaseSDK {
   }
 
   /**
-   * Website: Upload assets for landing pages or blogs.
+   * Website: Uploads assets for CMS-managed public pages.
+   *
+   * @param {Buffer} buffer - File data.
+   * @param {string} mimeType - e.g., 'image/webp'.
+   * @param {string} [originalName] - Filename.
+   * @returns {Promise<OptimizedMediaResult>}
    */
   async uploadWebsiteAsset(
     buffer: Buffer,

@@ -1,9 +1,22 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
-import type { IJob } from "@models/queue/job.model";
 import { EventBus } from "@services/saas/event/eventBus.service";
 import { JobHandler } from "../base.handler";
 
 export class AutomationEventJobHandler extends JobHandler {
+  /**
+   * Re-emits an automation event through the EventBus, typically for delayed or scheduled triggers.
+   *
+   * @param clientCode - Tenant identifier.
+   * @param payload - Data containing `trigger`, `leadId`, and `variables`.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **State Recovery**: Fetches the lead to ensure data freshness (latest phone/email).
+   * 2. **Payload Normalization**: Guarantees that `stageId` and `score` are passed as strings to the `EventBus`.
+   * 3. **Bus Dispatch**: Invokes `EventBus.emit` to restart the rule-evaluation engine for this event.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Missing Lead: Throws a hard error if the lead has been purged; this will stop the job from infinite retries if configured.
+   */
   async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { trigger, leadId, variables, stageId, tagName, score } = payload;
     const { Lead } = await getCrmModels(clientCode);

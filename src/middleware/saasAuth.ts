@@ -8,12 +8,21 @@ export interface AuthRequest extends Request {
 }
 
 /**
- * Middleware: Validate Client API Key
- * Supports finding client by 'clientCode' (body/query) + Key check
- * OR finding client directly by Key.
- * @param {AuthRequest} req - The request object
- * @param {Response} res - The response object
- * @param {NextFunction} next - The next function
+ * Express middleware that validates the `x-api-key` and resolves the tenant's `clientCode`.
+ *
+ * **GOAL:** Ensure that every request hitting the SaaS/CRM routes is properly authenticated and tied to a valid client record.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Header Analysis**: Extracts `x-api-key` and the optional `x-client-code`.
+ * 2. **Authentication Flow**:
+ *    - Explicit Mode: If `clientCode` is provided, it fetches the client by code and verifies the key matches.
+ *    - Implicit Mode: If `clientCode` is missing, it performs a reverse lookup using the `apiKey`.
+ * 3. **Context Injection**: Normalizes the `clientCode` to uppercase and attaches it to `req.clientCode` for downstream middleware.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Missing Key: Terminates with `401 Unauthorized`.
+ * - Invalid/Mismatched Key: Terminates with `403 Forbidden` to prevent "probing" attacks.
+ * - Database Latency: Uses `dbConnect("services")` to ensure the Control Plane is ready.
  */
 export async function validateClientKey(
   req: AuthRequest,

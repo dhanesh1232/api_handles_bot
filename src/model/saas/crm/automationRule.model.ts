@@ -1,7 +1,12 @@
 /**
- * automationRule.model.ts
- * Rules that fire when a lead enters a stage, score changes, etc.
- * Place at: src/model/saas/crm/automationRule.model.ts
+ * @module CRM/AutomationRuleModel
+ * @responsibility Defines reactive logic rules and multi-step sequences for lead automation.
+ *
+ * **WORKING PROCESS:**
+ * 1. Trigger Definition: Rules fire on specific events like `stage_entered`, `score_above`, or `tag_added`.
+ * 2. Condition Evaluation: Rules can have a hierarchy of conditions (field-operator-value) evaluated via `ConditionEvaluator`.
+ * 3. Action Dispatch: Executes immediate actions (send_whatsapp, move_stage) or schedules future steps.
+ * 4. Sequence Engine: Supports linear sequences (`steps`) with relative delays and exit conditions.
  */
 
 import mongoose, { type Schema } from "mongoose";

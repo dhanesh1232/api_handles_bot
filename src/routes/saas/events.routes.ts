@@ -5,8 +5,13 @@ import { Router } from "express";
 const eventRouter = Router();
 
 /**
- * GET /api/saas/events
- * List all available triggers (System + Custom Registered)
+ * Global Trigger Registry.
+ *
+ * **GOAL:** Retrieve all valid events (e.g., Lead Created, Message Received) that can be used as building blocks for Automation Rules.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Service Delegation**: Calls `EventDefService.getAllEvents` which aggregates hardcoded system events with tenant-defined custom events.
+ * 2. **Security**: Requires a valid `clientCode` to ensure custom event definitions aren't leaked across tenants.
  */
 eventRouter.get("/", async (req: Request, res: Response) => {
   const clientCode = req.clientCode;
@@ -22,8 +27,13 @@ eventRouter.get("/", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/saas/events/assign
- * Register/Assign a new custom event trigger
+ * Custom Event Assignment.
+ *
+ * **GOAL:** Allow developers to register new granular entry points (e.g., "Webinar Joined") into the CRM's automation engine.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Payload Extraction**: Destructures event metadata (`name`, `displayName`, `pipelineId`, etc.) from the body.
+ * 2. **Service Registration**: Persists the definition using `EventDefService.registerEvent`.
  */
 eventRouter.post("/assign", async (req: any, res: any) => {
   const clientCode = req.clientCode;

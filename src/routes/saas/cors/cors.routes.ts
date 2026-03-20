@@ -7,6 +7,16 @@ import { refreshOriginsCache } from "@/model/cors-origins";
 const router = express.Router();
 
 // All routes here require Core API Key for high-level management
+/**
+ * @module Routes/CORS
+ * @responsibility Dynamic whitelist management for cross-origin requests.
+ *
+ * **GOAL:** Provide an administrative interface to manage which external domains (client frontends, third-party widgets) are allowed to hit the API.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Security Policy**: Enforces `verifyCoreToken` for all operations, as this controls the entire system's security perimeter.
+ * 2. **Cache Synchronization**: Every mutation (`POST`, `PATCH`, `DELETE`) triggers `refreshOriginsCache()` to ensure the `isOriginAllowed` middleware has zero-latency access to the updated whitelist.
+ */
 router.use(verifyCoreToken);
 
 /**

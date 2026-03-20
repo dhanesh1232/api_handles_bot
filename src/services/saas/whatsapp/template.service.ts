@@ -687,7 +687,14 @@ export const resolveUnifiedWhatsAppTemplate = async (
     // Apply Transform or Smart Date Formatting
     if (mapping.transform && mapping.transform !== "none") {
       value = applyTransform(value, mapping.transform);
-    } else if (value instanceof Date) {
+    } else if (
+      value instanceof Date ||
+      (typeof value === "string" &&
+        value.length > 10 &&
+        !Number.isNaN(Date.parse(value)) &&
+        /^\d{4}-\d{2}-\d{2}T/.test(value))
+    ) {
+      const date = new Date(value);
       const fieldName = mapping.field?.toLowerCase() || "";
       const isTimeOnly =
         fieldName.includes("time") && !fieldName.includes("date");
@@ -696,13 +703,13 @@ export const resolveUnifiedWhatsAppTemplate = async (
         !fieldName.includes("time");
 
       if (isTimeOnly) {
-        value = value.toLocaleTimeString("en-IN", {
+        value = date.toLocaleTimeString("en-IN", {
           hour: "2-digit",
           minute: "2-digit",
           hour12: true,
         });
       } else if (isDateOnly) {
-        value = value.toLocaleDateString("en-IN", {
+        value = date.toLocaleDateString("en-IN", {
           weekday: "short",
           month: "short",
           day: "numeric",
@@ -710,19 +717,23 @@ export const resolveUnifiedWhatsAppTemplate = async (
         });
       } else {
         // "Smart" default: include time only if it's not midnight
-        const hasTime = value.getHours() !== 0 || value.getMinutes() !== 0;
+        const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
         if (hasTime) {
-          value = value.toLocaleString("en-IN", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
+          value =
+            date.toLocaleDateString("en-IN", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }) +
+            " " +
+            date.toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            });
         } else {
-          value = value.toLocaleDateString("en-IN", {
+          value = date.toLocaleDateString("en-IN", {
             weekday: "short",
             month: "short",
             day: "numeric",
@@ -730,6 +741,22 @@ export const resolveUnifiedWhatsAppTemplate = async (
           });
         }
       }
+    } else if (
+      typeof value === "number" &&
+      mapping.field &&
+      (mapping.field.toLowerCase().includes("price") ||
+        mapping.field.toLowerCase().includes("amount") ||
+        mapping.field.toLowerCase().includes("total") ||
+        mapping.field.toLowerCase().includes("fee"))
+    ) {
+      // Handle minor units (paise)
+      const displayValue =
+        value > 1000 && Number.isInteger(value) ? value / 100 : value;
+      value = new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 2,
+      }).format(displayValue);
     }
 
     const finalValue =

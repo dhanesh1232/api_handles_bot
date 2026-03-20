@@ -1,8 +1,8 @@
 /**
- * NotificationSDK
- *
- * Facade for managing actionable notifications.
- * Supports failure highlights, dismissal, and automated retries.
+ * @file notification.sdk.ts
+ * @module NotificationSDK
+ * @responsibility Facade for managing actionable notifications and failure alerts.
+ * @dependencies notification.service.ts
  */
 
 import { tenantLogger } from "@lib/logger";
@@ -18,14 +18,24 @@ export class NotificationSDK {
   constructor(private readonly clientCode: string) {}
 
   /**
-   * List unread notifications for the tenant.
+   * Retrieves a list of unread notifications for the current tenant.
+   *
+   * @returns {Promise<INotification[]>}
    */
   async listUnread() {
     return getUnreadNotifications(this.clientCode);
   }
 
   /**
-   * Create a new notification (e.g. for a failure alert).
+   * Dispatches a new notification to the tenant's admin dashboard.
+   *
+   * **WORKING PROCESS:**
+   * 1. Logs the notification intent.
+   * 2. Saves the notification document to the `Notification` collection.
+   * 3. Emits a Socket.io event to provide real-time UI updates.
+   *
+   * @param {object} data - Title, message, level (alert/info), and metadata.
+   * @returns {Promise<INotification>}
    */
   async create(data: {
     title: string;
@@ -41,7 +51,10 @@ export class NotificationSDK {
   }
 
   /**
-   * Dismiss a specific notification.
+   * Marks a single notification as read/dismissed.
+   *
+   * @param {string} id - Notification identifier.
+   * @returns {Promise<void>}
    */
   async dismiss(id: string) {
     tenantLogger(this.clientCode).info(
@@ -52,7 +65,9 @@ export class NotificationSDK {
   }
 
   /**
-   * Dismiss all unread notifications for the tenant.
+   * Mark all unread notifications as dismissed in a single operation.
+   *
+   * @returns {Promise<void>}
    */
   async dismissAll() {
     tenantLogger(this.clientCode).info("Dismissing all notifications");
@@ -60,10 +75,15 @@ export class NotificationSDK {
   }
 
   /**
-   * Retry an actionable notification.
-   */
-  /**
-   * Retry an actionable notification.
+   * Retries the original action associated with a notification.
+   *
+   * **WORKING PROCESS:**
+   * 1. Fetches the notification and verifies the `actionData`.
+   * 2. Re-submits the action to the relevant service (CRM or Automation).
+   * 3. On success, dismisses the notification automatically.
+   *
+   * @param {string} id - Notification identifier.
+   * @returns {Promise<any>}
    */
   async retry(id: string) {
     tenantLogger(this.clientCode).info(
@@ -74,8 +94,15 @@ export class NotificationSDK {
   }
 
   /**
-   * Create an actionable failure alert.
-   * Useful for automation failures where a human needs to intervene or retry.
+   * High-level helper for creating red-flag failure alerts with built-in retry context.
+   *
+   * **WORKING PROCESS:**
+   * 1. Aggregates error details and the original action configuration.
+   * 2. Captures a context snapshot for debugging.
+   * 3. Wraps the payload into an `action_required` notification.
+   *
+   * @param {object} input - Failure metadata and context.
+   * @returns {Promise<INotification>}
    */
   async createFailureAlert(input: {
     title: string;

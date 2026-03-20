@@ -3,6 +3,20 @@ import { crmQueue } from "@/jobs/saas/crmWorker";
 import { ActionExecutor } from "./actionExecutor.service.ts";
 import { ConditionEvaluator } from "./conditionEvaluator.service.ts";
 
+/**
+ * Enrolls a lead into an automated drip sequence.
+ *
+ * **WORKING PROCESS:**
+ * 1. Validates the existence and sequence-status of the `AutomationRule`.
+ * 2. Creates a `SequenceEnrollment` record to track the lead's progress (state: `active`).
+ * 3. Calculates the `nextStepAt` timestamp based on the first step's `delayMinutes`.
+ * 4. Increments the rule's `activeEnrollments` counter for analytics.
+ * 5. Enqueues the first execution via `crmQueue` (Redis/Bull) to allow non-blocking processing.
+ *
+ * **EDGE CASES:**
+ * - Invalid Rule: Throws "Invalid rule or not a sequence".
+ * - Missing Steps: Throws error to prevent dangling enrollments.
+ */
 export async function enrollInSequence(
   clientCode: string,
   ruleId: string,
@@ -47,8 +61,8 @@ export async function enrollInSequence(
 
   // Enqueue the first step via crmWorker queue
   await crmQueue.add(
+    clientCode,
     {
-      clientCode,
       type: "crm.sequence_step",
       payload: {
         enrollmentId: enrollment._id.toString(),
@@ -61,6 +75,21 @@ export async function enrollInSequence(
   return enrollment._id.toString();
 }
 
+/**
+ * Execution core for an individual step within an active sequence.
+ *
+ * **WORKING PROCESS:**
+ * 1. State Validation: Ensures enrollment is `active` and rule/step still exists.
+ * 2. Exit Logic: Evaluates `exitSequenceIf` conditions first. If true, terminates the sequence immediately.
+ * 3. Condition Guard: Evaluates `step.conditions`. If they fail, skips the step but advances to the next.
+ * 4. Action Execution: Hands off to `ActionExecutor` to run the actual task (WhatsApp, Email, etc.).
+ * 5. Outcome Recording: Logs success/failure/skip in `stepResults` for audit trails.
+ * 6. Chain Progression: Automatically calls `advanceToNextStep` to schedule the following beat.
+ *
+ * **EDGE CASES:**
+ * - Failure Stop: If `onFailure` is set to "stop", a single failed action will freeze the entire sequence for that lead.
+ * - Dynamic Variable Retention: If an action (like `generate_meet`) returns data, it's stored in `resolvedVariables` for use in subsequent steps.
+ */
 export async function executeStep(
   clientCode: string,
   enrollmentId: string,
@@ -199,11 +228,10 @@ async function advanceToNextStep(
     await enrollment.save();
 
     await crmQueue.add(
+      clientCode,
       {
-        clientCode,
         type: "crm.sequence_step",
         payload: {
-          clientCode,
           enrollmentId: enrollment._id.toString(),
           stepNumber: nextStepNum,
         },

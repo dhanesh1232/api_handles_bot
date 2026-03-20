@@ -1,5 +1,15 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
+/**
+ * @module Middleware/RateLimit
+ * @responsibility Prevents DOS attacks and API abuse by enforcing request frequency ceilings.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Key Extraction**: Injects `req.clientCode` as the unique identifier if it exists (authenticated); falls back to `req.ip` for anonymous traffic.
+ * 2. **Windowing**: Uses a sliding window (e.g., 15 minutes) to track request counts.
+ * 3. **Blocking**: Automatically returns `429 Too Many Requests` when a limit is breached.
+ */
+
 // General API: 200 requests per 15 minutes
 export const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,

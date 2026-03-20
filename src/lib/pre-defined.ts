@@ -1,13 +1,3 @@
-/**
- * Interface for predefined replies used in automation
- */
-export interface PredefinedReply {
-  keywords: string[];
-  reply: string;
-  quickReplies: string[];
-}
-
-// Predefined replies dictionary
 export const predefinedReplies: PredefinedReply[] = [
   {
     keywords: ["hello", "hi", "hey"],

@@ -1,10 +1,23 @@
 /**
- * automationDashboard.routes.ts
- * Observability routes for the automation engine.
- * Place at: src/routes/saas/crm/automationDashboard.routes.ts
+ * @module Routes/CRM/Automation/Dashboard
+ * @responsibility Observability and health monitoring for the automation engine.
+ *
+ * **GOAL:** Provide operational insight into event processing, rule matches, and failure rates to ensure system reliability.
  */
 
 import { getCrmModels } from "@lib/tenant/crm.models";
+/**
+ * @module Routes/CRM/Scoring
+ * @responsibility Lead prioritization and engagement scoring.
+ *
+ * **GOAL:** Manage the algorithm that determines lead "heat" based on activity patterns (emails opened, site visits, form fills).
+ */
+/**
+ * @module Routes/CRM/AutomationDashboard
+ * @responsibility Visual monitoring of automation health and throughput.
+ *
+ * **GOAL:** Provide high-level stats on rule execution, failure rates, and queued actions to help administrators optimize their workflows.
+ */
 import { type Request, type Response, Router } from "express";
 
 const router = Router();
@@ -88,8 +101,13 @@ router.get("/automation/logs", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/crm/automation/logs/:id/retry
- * Retry a failed event by re-emitting it.
+ * Event Retry Mechanism.
+ *
+ * **GOAL:** Recover from transient failures by re-emitting events that were logged but failed to process.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Idempotency Check**: Re-reads the log entry to ensure it exists for the current tenant.
+ * 2. **Event Re-Injection**: Uses `EventBus.emit()` with a new unique `idempotencyKey` to prevent duplicate processing if the previous run actually partially succeeded.
  */
 router.post(
   "/automation/logs/:id/retry",

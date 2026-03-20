@@ -4,7 +4,6 @@ import { Server } from "socket.io";
 import { validateClientKey } from "@/middleware/saasAuth";
 import { withSDK } from "@/middleware/withSDK";
 import { ClientSecrets } from "@/model/clients/secrets";
-
 import {
   checkTemplateUsageInAutomations,
   createTemplate,
@@ -17,8 +16,14 @@ import {
   saveVariableMapping,
   syncTemplatesFromMeta,
   updateTemplate,
-} from "../../../services/saas/whatsapp/template.service.ts";
+} from "@/services/saas/whatsapp/template.service";
 
+/**
+ * @module Routes/WhatsApp/Templates
+ * @responsibility Meta Template lifecycle and variable mapping management.
+ *
+ * **GOAL:** Synchronize WhatsApp templates from Meta, manage dynamic variable mappings to CRM fields, and provide preview capabilities.
+ */
 export interface SaasRequest extends Request {
   clientCode: string;
   user?: any;
@@ -82,7 +87,15 @@ export const createTemplateRouter = (io: Server) => {
     },
   );
 
-  // POST /sync - Sync templates from Meta
+  /**
+   * Meta Template Synchronization.
+   *
+   * **GOAL:** Fetch the latest approved templates from the Meta WhatsApp Business API and persist them to the tenant database.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Credential Resolution**: Decrypts the tenant's `whatsappToken` and `whatsappBusinessId` from the global secrets store.
+   * 2. **API Ingestion**: Invokes `syncTemplatesFromMeta()` which parses the Meta payload, handles language variants, and updates local records.
+   */
   router.post(
     "/sync",
     validateClientKey,
@@ -235,7 +248,15 @@ export const createTemplateRouter = (io: Server) => {
     },
   );
 
-  // POST /:templateName/preview - Preview resolved variables
+  /**
+   * Variable Resolution Preview.
+   *
+   * **GOAL:** Test how a template will look when variables are merged with real lead data before actually sending it.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **SDK Resolution Engine**: Calls `resolveUnifiedWhatsAppTemplate()` with the provided `lead` context.
+   * 2. **String Interpolation**: Performs recursive regex replacement on the `bodyText` to show precisely what the recipient will see.
+   */
   router.post(
     "/:templateName/preview",
     validateClientKey,

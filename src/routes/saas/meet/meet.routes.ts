@@ -8,8 +8,18 @@
 import { type Request, type Response, Router } from "express";
 import { Server } from "socket.io";
 import { withSDK } from "@/middleware/withSDK";
-import * as meetingService from "../../../services/saas/meet/meeting.service.ts";
+import * as meetingService from "@/services/saas/meet/meeting.service";
 
+/**
+ * @module Routes/Meet
+ * @responsibility Google Meet integration and appointment lifecycle management.
+ *
+ * **GOAL:** Provide an interface for creating, listing, and rescheduling meetings (free or paid) with automated calendar link generation.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Injection**: Uses `withSDK(io)` to provide handlers with tenant-aware scheduling capabilities.
+ * 2. **Meeting Lifecycle**: Manages states from `pending` to `scheduled` or `cancelled`, including payment status tracking for consultation fees.
+ */
 export function createMeetRouter(io: Server) {
   const router = Router();
 
@@ -19,6 +29,8 @@ export function createMeetRouter(io: Server) {
   /**
    * POST /api/saas/meet
    * Create a new meeting (free or paid) and generate Google Meet link.
+   *
+   * **GOAL:** Ingest meeting requests, coordinate with Google Calendar/Meet, and store as a billable or free event.
    */
   router.post("/", async (req: Request, res: Response) => {
     try {

@@ -1,14 +1,29 @@
 import crypto from "node:crypto";
 import express, { type Request, type Response } from "express";
-import { PLAN_QUOTA_BYTES } from "../../constants/storage.ts";
-import { dbConnect } from "../../lib/config.ts";
-import { verifyCoreToken } from "../../middleware/auth.ts";
-import { ClientStorage } from "../../model/clients/ClientStorage.ts";
-import { Client } from "../../model/clients/client.ts";
-import { ClientServiceConfig } from "../../model/clients/config.ts";
-import { ClientDataSource } from "../../model/clients/dataSource.ts";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
+import { PLAN_QUOTA_BYTES } from "@/constants/storage";
+import { dbConnect } from "@/lib/config";
+import { verifyCoreToken } from "@/middleware/auth";
+import { ClientStorage } from "@/model/clients/ClientStorage";
+import { Client } from "@/model/clients/client";
+import { ClientServiceConfig } from "@/model/clients/config";
+import { ClientDataSource } from "@/model/clients/dataSource";
+import { ClientSecrets } from "@/model/clients/secrets";
 
+/**
+ * @module Routes/Services/Clients
+ * @responsibility Global Client Lifecycle and Identity Management.
+ *
+ * **GOAL:** Manage the "Source of Truth" for every tenant in the ecosystem, including their unique `clientCode`, encrypted secrets, and database connection strings.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Identity Provisioning**: Atomic creation of Client record + ServiceConfig + Secrets + StorageQuota during onboarding.
+ * 2. **Security Perimeter**: Methods to rotate API keys and manage R2 storage buckets per client.
+ * 3. **Cascading Updates**: Ensures that changing a `clientCode` (rare but possible) propagates across all service configuration maps.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - API Key Rotation: Generates high-entropy keys using `crypto.randomBytes(32)` to prevent collision or brute-force.
+ * - Storage Initialization: Checks `PLAN_QUOTA_BYTES` to ensure tenants are provisioned with the correct capacity immediately.
+ */
 const router = express.Router();
 
 // 1. GET ALL CLIENTS (Admin / Discovery)
@@ -195,8 +210,7 @@ router.post(
       try {
         const { ErixJobs } = await import("@/lib/erixJobs/index");
         const storageQueue = ErixJobs.getQueue("crm");
-        await storageQueue.add({
-          clientCode: client.clientCode,
+        await storageQueue.add(client.clientCode, {
           type: "storage.provision",
           payload: { clientId: client._id },
         });

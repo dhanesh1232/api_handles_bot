@@ -8,6 +8,16 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
+/**
+ * @module Routes/Images
+ * @responsibility Client-specific asset management (profile pictures, chat media).
+ *
+ * **GOAL:** Provide endpoints for uploading, listing, and deleting images within a tenant's isolated storage bucket.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Tenant Spacing**: Uses `withSDK()` to anchor all storage operations to the `clientCode` derived from `validateClientKey`.
+ * 2. **R2 Integration**: Directly interfaces with the `storage` module of the SDK for high-performance S3-compatible asset management.
+ */
 export const createImagesRouter = (_io: any) => {
   const router = express.Router();
 

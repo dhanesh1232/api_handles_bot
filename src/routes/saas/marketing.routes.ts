@@ -8,10 +8,16 @@ import { createEmailService } from "@/services/saas/mail/email.service";
 import { normalizePhone } from "@/utils/phone";
 
 /**
- * createMarketingRouter
- * Factory to create marketing routes with injected io and SDK.
- * Handles specialized marketing actions like email campaigns.
- * Core CRM and Meet actions are handled by their respective dedicated routers.
+ * Factory that initializes the Marketing API ecosystem.
+ *
+ * **GOAL:** Provide endpoints for high-throughput outbound communications (Email/WhatsApp campaigns) that are not part of the core CRM lead management cycle.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Middleware Binding**: Enforces `validateClientKey` and `withSDK(io)` for ALL routes within this router.
+ * 2. **Dependency Wiring**: Injects the `Socket.io` instance to allow real-time progress reporting for bulk campaign dispatches.
+ *
+ * @param io - The global Socket.io server.
+ * @returns {Router} An Express router pre-configured with marketing endpoints.
  */
 export const createMarketingRouter = (io: Server) => {
   const router = express.Router();
@@ -136,17 +142,16 @@ export const createMarketingRouter = (io: Server) => {
   });
 
   /**
-   * 3. WhatsApp - Direct Template Send
+   * Dispatches a WhatsApp template message directly to a specific phone number. Bypassess the automation queue.
    *
-   * Sends a WhatsApp template message directly to a phone number.
-   * Resolves template variable mapping from the tenant's db, then sends.
-   * No automation queue — fires immediately.
+   * **DETAILED EXECUTION:**
+   * 1. **Normalization**: Invokes `normalizePhone` to ensure the recipient number is in E.164 format.
+   * 2. **Resolution Engine**: Use `resolveUnifiedWhatsAppTemplate` to map local variables (e.g., name, link) to the template's placeholders (`{{1}}`, `{{2}}`).
+   * 3. **Conversation Management**: Atomically finds or creates the `Conversation` record to ensure the message is trackable in the inbox.
+   * 4. **Delivery**: Dials the Meta API via `svc.sendOutboundMessage`.
    *
-   * Body:
-   *   phone        string — E.164 format (e.g. 919876543210)
-   *   templateName string — exact template name in tenant db
-   *   variables    Record<string, string> — flat KV of event/context data
-   *                used to resolve the mapped variables (e.g. { pdfUrl, name })
+   * **EDGE CASE MANAGEMENT:**
+   * - Unresolved Variables: Returns `422 Unprocessable Entity` if the template uses variables that weren't supplied in the payload.
    */
   router.post(
     "/whatsapp/send-template",
@@ -185,7 +190,7 @@ export const createMarketingRouter = (io: Server) => {
         // Only resolve if not already provided
         if (!finalResolvedVariables) {
           const { resolveUnifiedWhatsAppTemplate } = await import(
-            "../../services/saas/whatsapp/template.service"
+            "@/services/saas/whatsapp/template.service"
           );
           const resolution = await resolveUnifiedWhatsAppTemplate(
             tenantConn,
@@ -219,7 +224,7 @@ export const createMarketingRouter = (io: Server) => {
 
         // Send directly
         const { createWhatsappService } = await import(
-          "../../services/saas/whatsapp/whatsapp.service"
+          "@/services/saas/whatsapp/whatsapp.service"
         );
         const svc = createWhatsappService(io);
         const message = await svc.sendOutboundMessage(

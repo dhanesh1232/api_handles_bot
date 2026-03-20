@@ -4,6 +4,16 @@ import { dbConnect } from "@/lib/config";
 import { ClientSecrets } from "@/model/clients/secrets";
 import { createSDK } from "@/sdk/index";
 
+/**
+ * @module Routes/WhatsApp/Webhook
+ * @responsibility Real-time ingestion of Meta WhatsApp events.
+ *
+ * **GOAL:** Verify webhook endpoints and process incoming messages, status updates (delivered/read), and media events from Meta Cloud API.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Verification (GET)**: Performs a secure handshake with Meta using the tenant-specific `whatsappWebhookToken`.
+ * 2. **Ingestion (POST)**: Receives encrypted batches of events, identifies the target tenant by `phoneNumberId`, and routes to the individual `whatsapp.handleIncoming()` logic.
+ */
 export const createWebhookRouter = async (io: Server) => {
   await dbConnect("services");
   const router = express.Router();

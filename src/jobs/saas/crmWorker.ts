@@ -1,24 +1,25 @@
 /**
- * crmWorker.ts
- * Unified async job processor for all CRM actions.
+ * @module Jobs/SaaS/CrmWorker
+ * @responsibility Industrial-grade asynchronous task processor for the CRM engine.
  *
- * Queue name: "crm"
- * Started in server.ts alongside the whatsapp-workflow worker.
+ * **WHY THIS EXISTS:**
+ * Some CRM operations (like bulk scoring or template syncing) are too heavy for the main request-response cycle.
+ * The `crmWorker` offloads these to a background process using BullMQ/Redis (via ErixJobs abstractions).
  *
- * Job types handled:
- *   crm.automation_action  — delayed automation step (send_whatsapp, send_email, move_stage, assign_to, add_tag, webhook_notify)
- *   crm.automation_event   — delayed external trigger (fires runAutomations after a delay)
- *   crm.email              — transactional or bulk email send
- *   crm.meeting            — async Google Meet creation → fires onMeetingCreated hook
- *   crm.reminder           — appointment/follow-up WhatsApp reminder
- *   crm.score_refresh      — background lead score recalculation
- *   crm.webhook_notify     — fire an HTTP callback to client's server
+ * **WORKING PROCESS:**
+ * 1. Listening: Polls the `crm` Redis queue for pending jobs.
+ * 2. Dispatching: Uses `JobRegistry` to find the correct `JobHandler` for the given `type`.
+ * 3. Execution: Passes `clientCode` and `payload` to the handler's `handle()` method.
+ * 4. IO Integration: Provides a global `Socket.io` reference for handlers to emit real-time UI updates.
+ *
+ * **EDGE CASES:**
+ * - Handler Failure: If a handler throws, the job is marked as failed and retried automatically with exponential backoff.
+ * - Missing Handler: Logs a warning and fails the job to prevent silent data loss.
  */
 
 import { ErixJobs } from "@lib/erixJobs/index";
 import { ErixWorkers } from "@lib/erixJobs/worker";
 import { logger } from "@lib/logger";
-import type { IJob } from "@models/queue/job.model";
 import { JobRegistry } from "./jobRegistry";
 
 // ─── Exported queue singleton ─────────────────────────────────────────────────

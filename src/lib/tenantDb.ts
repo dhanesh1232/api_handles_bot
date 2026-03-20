@@ -3,11 +3,19 @@ import mongoose, { type Connection } from "mongoose";
 const connectionCache = new Map<string, Connection>();
 
 /**
- * Creates or retrieves a Mongoose connection for a specific tenant.
+ * Creates or retrieves a Mongoose connection for a specific tenant, typically used for external or secondary database clusters.
  *
- * @param clientCode - Unique client identifier
- * @param dbUri - The connection string for the tenant's database
- * @returns A promise resolving to the Mongoose connection
+ * @param clientCode - Unique client identifier.
+ * @param dbUri - The connection string for the tenant's database.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Cache Interrogation**: Checks `connectionCache` to reuse existing open sockets.
+ * 2. **Liveness Heartbeat**: Verifies `readyState === 1`. Re-initializes if the connection is dead/stale.
+ * 3. **Async Handshake**: Spawns a new `mongoose.createConnection` with strict pool limits (`maxPoolSize: 2`) to prevent exhausting the target cluster.
+ * 4. **Lifecycle Binding**: Uses `once("open")` and `once("error")` events to wrap the raw connection in a predictable Promise.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Connection Failure: Catches timeout or auth errors and reraises them after logging to the system console.
  */
 export async function getTenantConnection(
   clientCode: string,

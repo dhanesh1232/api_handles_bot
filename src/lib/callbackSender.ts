@@ -13,7 +13,20 @@ export interface CallbackPayload {
 
 class CallbackClient {
   /**
-   * Sends a callback with automatic HMAC signing and retries.
+   * Transmits asynchronous payloads to partner webhooks with cryptographic signing and exponential backoff retry logic.
+   *
+   * @param options - Transmission context including `callbackUrl`, `payload`, and `maxRetries`.
+   * @returns Successful transmission status and number of attempts made.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Secret Resolution**: Connects to the control-plane to resolve the tenant's `automationWebhookSecret`.
+   * 2. **Message Signing**: Generates a `sha256` HMAC signature of the JSON body for destination-side verification.
+   * 3. **Retry Loop**: Executes the `fetch` request. If it fails or returns a non-200 status, waits for an increasing duration before retrying.
+   * 4. **Timeline Persistence**: Logs Every attempt (success or fail) to the tenant's `CallbackLog` for auditability.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Timeout: Aborts the request after 8 seconds to prevent worker thread blocking.
+   * - Missing Secret: Skips signing if the secret is not configured, but vẫn proceeds with the delivery.
    */
   async send(
     options: CallbackPayload,

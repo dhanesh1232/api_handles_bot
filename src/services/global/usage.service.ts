@@ -2,13 +2,27 @@ import { dbConnect } from "@lib/config";
 import { ClientUsage } from "@models/clients/usage.model";
 
 /**
- * Usage Service
- * Manages the "Wealth" engine: credit allocation, consumption tracking, and exhaustion guards.
+ * @file usage.service.ts
+ * @module UsageService
+ * @responsibility Manages the "Wealth" engine: credit allocation, consumption tracking, and exhaustion guards.
+ * @dependencies dbConnect, ClientUsage Model
  */
 export const UsageService = {
   /**
    * Deduct credits from a client's balance for a specific action.
    * Returns true if credits were sufficient and deducted, false if exhausted.
+   *
+   * **WORKING PROCESS:**
+   * 1. Connects to the "services" core database.
+   * 2. Resolves the current month (YYYY-MM) for usage grouping.
+   * 3. Atomically increments `usedCredits` using `findOneAndUpdate`.
+   * 4. Evaluates `usedCredits` against `totalCredits`.
+   * 5. Updates status to "exhausted" if limit exceeded.
+   * 6. Updates status to "warning" if >80% consumed.
+   *
+   * **EDGE CASES:**
+   * - Mongo Failures: Fail-open logic (returns true) to prevent production blockers.
+   * - Upsert: Automatically creates usage record with 1000 default credits if missing.
    */
   consume: async (
     clientCode: string,
@@ -64,7 +78,11 @@ export const UsageService = {
   },
 
   /**
-   * Top up credits for a client
+   * Manually adds or refills credits for a specific usage category.
+   *
+   * **WORKING PROCESS:**
+   * 1. Identification: Targets the client's record for the current month.
+   * 2. Increment: Uses `$inc` to add to `totalCredits` and resets status to `active`.
    */
   addCredits: async (clientCode: string, type: string, amount: number) => {
     await dbConnect("services");
@@ -77,7 +95,10 @@ export const UsageService = {
   },
 
   /**
-   * Get current usage stats for dashboarding
+   * Retrieves aggregated usage statistics for the current billing cycle.
+   *
+   * **WORKING PROCESS:**
+   * 1. Query: Fetches all `ClientUsage` records for the specific `clientCode` and `month`.
    */
   getUsage: async (clientCode: string) => {
     await dbConnect("services");

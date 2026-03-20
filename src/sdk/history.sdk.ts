@@ -15,7 +15,22 @@ export interface TimelineEvent {
 
 export class HistorySDK extends BaseSDK {
   /**
-   * Get unified timeline for a lead.
+   * Generates a unified, cross-collection timeline for a lead.
+   *
+   * **WORKING PROCESS:**
+   * 1. Fetches the lead's phone number (needed for WhatsApp mapping).
+   * 2. Concurrent Data Fetching (with offset buffers):
+   *    - **Activities**: General CRM events (status changes, tags).
+   *    - **Notes**: Manual annotations.
+   *    - **Messages**: WhatsApp conversation history via conversation lookup.
+   * 3. Normalizes all records into a standard `TimelineEvent` format.
+   * 4. Merges and sorts by `timestamp` descending.
+   * 5. Returns a paginated slice for frontend consumption.
+   *
+   * @param {string} leadId - Target lead identifier.
+   * @param {object} [options] - Pagination controls.
+   * @returns {Promise<TimelineEvent[]>}
+   * @edge_case Handles missing conversations by defaulting to an empty message array.
    */
   async getTimeline(
     leadId: string,

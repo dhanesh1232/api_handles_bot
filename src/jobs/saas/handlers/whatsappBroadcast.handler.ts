@@ -1,11 +1,26 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
-import type { IJob } from "@models/queue/job.model";
 import { createNotification } from "@services/saas/crm/notification.service";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
 import { normalizePhone } from "@utils/phone";
 import { JobHandler } from "../base.handler";
 
 export class WhatsAppBroadcastJobHandler extends JobHandler {
+  /**
+   * Orchestrates high-volume WhatsApp broadcast delivery to customer lists.
+   *
+   * @param clientCode - Tenant identifier.
+   * @param payload - Recipient context (`phone`) and message config (`templateName`, `variables`).
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Deduplication & Sync**: Ensures a `Conversation` hub exists for each recipient to avoid message loss.
+   * 2. **Meta Dispatch**: Sends the template via `whatsapp.service`.
+   * 3. **Batch Progress Tracking**: Atomically increments `sentCount` or `failedCount` in the parent `Broadcast` document.
+   * 4. **Dashboard Real-time**: Emits `broadcast_progress` events via Socket.io so users can see the "live" percentage complete.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Progress Completion: Detects when the final message is sent and marks the broadcast as `completed` or `partially_failed`.
+   * - Failure Alerts: Creates individual notifications only for critical delivery errors.
+   */
   async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { broadcastId, phone, templateName, templateLanguage, variables } =
       payload;

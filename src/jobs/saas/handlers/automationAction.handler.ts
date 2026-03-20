@@ -1,11 +1,28 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
-import type { IJob } from "@models/queue/job.model";
 import { ActionExecutor } from "@services/saas/automation/actionExecutor.service";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
 import { JobHandler } from "../base.handler";
 
 export class AutomationActionJobHandler extends JobHandler {
+  /**
+   * Dispatches and evaluates a single automation action (WhatsApp, Email, etc.) for a specific lead.
+   *
+   * @param clientCode - Tenant identifier for multi-tenant isolation.
+   * @param payload - Execution context including `actionType`, `actionConfig`, and `leadId`.
+   * @param _job - The raw Bull/Job queue object for retry tracking.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Lead Validation**: Fetches the lead; aborts if the lead was deleted between scheduling and execution.
+   * 2. **Action Dispatch**: Delegates to `ActionExecutor.execute` which routes to the specific provider (Meta, SES, etc.).
+   * 3. **Meeting Sync**: If this is a meeting reminder, updates the specific reminder status to 'sent' within the `Meeting` document.
+   * 4. **Interaction Logging**: Calls `logSuccessActivity` to ensure the lead's timeline reflects the automation.
+   * 5. **Notification Cleanup**: Resolves any "failed" notifications for this specific action type if it finally succeeds.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Execution Failure: Catches provider errors, logs them to the lead timeline, and creates an 'action_required' notification for the tenant admin.
+   * - Retries: Rethrows the error to trigger the queue's exponential backoff status.
+   */
   async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     const { actionType, actionConfig, leadId, ctxVariables } = payload;
     const { Lead, Meeting, Notification } = await getCrmModels(clientCode);
@@ -115,6 +132,13 @@ export class AutomationActionJobHandler extends JobHandler {
     }
   }
 
+  /**
+   * Internal helper to categorize and log the successful completion of an automation action to the lead's timeline.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Handshake**: Directs to `whatsapp_sent` or `email_sent` activity types based on the `type` parameter.
+   * 2. **Context Enrichment**: Attaches `meetingId` and `templateName` to metadata for historical traceability in the UI.
+   */
   private async logSuccessActivity(
     clientCode: string,
     leadId: string,

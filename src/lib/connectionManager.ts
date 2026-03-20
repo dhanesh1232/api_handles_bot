@@ -1,13 +1,8 @@
 /**
- * lib/connectionManager.ts
+ * @module Lib/ConnectionManager
+ * @responsibility High-performance singleton for orchestrating multi-tenant database connections.
  *
- * TenantConnectionManager — class-based singleton that maintains one
- * mongoose Connection per tenant (clientCode). Caches and reuses live
- * connections; evicts stale/closed entries automatically.
- *
- * Backward-compatible: getTenantConnection() and getTenantModel() are
- * exported free functions that delegate to the singleton, so all existing
- * callers work without changes.
+ * **GOAL:** Ensure strict data isolation in a multi-tenant environment by dynamically mapping subdomains/clientCodes to independent database clusters, while maintaining a lean memory footprint via connection pooling.
  */
 
 import { dbConnect } from "@lib/config";
@@ -17,14 +12,32 @@ import mongoose, { type Connection, type Model, type Schema } from "mongoose";
 
 // ─── Class ───────────────────────────────────────────────────────────────────
 
+/**
+ * TenantConnectionManager — class-based singleton that maintains one
+ * mongoose Connection per tenant (clientCode).
+ */
 class TenantConnectionManager {
   private readonly cache = new Map<string, Connection>();
   private readonly log = logger.child({ module: "TenantConnectionManager" });
 
   /**
-   * Return a live Connection for the given tenant.
-   * Creates (and caches) a new connection if none exists or the cached one
-   * has been closed/errored.
+   * Resolves a live, tenant-specific Mongoose Connection.
+   *
+   * @param clientCode - The unique identifier for the tenant (e.g., "APPLE", "EDX").
+   * @returns {Promise<Connection>} A fully established and ready-to-use Mongoose connection.
+   *
+   * @throws {Error} If the `clientCode` is not found in the control-plane (ClientDataSource table) or the DB URI is invalid.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Control-Plane Sync**: Ensures the "services" (control-plane) database is connected.
+   * 2. **Cache Lookup**: Checks the internal `cache` Map using the uppercase `clientCode`.
+   * 3. **Liveness Heartbeat**: If cached, verifies `readyState` is 1 (connected) or 2 (connecting). If dead (stale), it prunes the cache.
+   * 4. **Tenant Discovery**: Queries `ClientDataSource` to retrieve the encrypted or plain MongoDB URI for this specific tenant.
+   * 5. **Cluster Handshake**: Calls `mongoose.createConnection` with production-grade settings:
+   *    - `maxPoolSize: 10`: Limits connections to prevent DB resource exhaustion.
+   *    - `bufferCommands: false`: Fails fast if connection is not ready, preventing infinite hangs.
+   * 6. **Event Binding**: Attaches `error` and `disconnected` listeners to automatically cleanup the cache upon network failure.
+   * 7. **Ready State Wait**: Awaits `.asPromise()` to ensure the connection is strictly "Ready" before returning to the caller.
    */
   async get(clientCode: string): Promise<Connection> {
     await dbConnect("services");
@@ -85,7 +98,12 @@ class TenantConnectionManager {
 
   /**
    * Return (or compile) a Mongoose model on a tenant connection.
-   * Safe to call repeatedly — returns the cached model if already compiled.
+   *
+   * @param conn - The resolved tenant-specific connection.
+   * @param collectionName - The target MongoDB collection name (e.g., "leads").
+   * @param schema - (Optional) The Mongoose Schema definition. If omitted, uses a "strict: false" schema for dynamic discovery.
+   *
+   * @returns {Model<T>} A compiled Mongoose Model bound to the tenant's connection.
    */
   model<T>(
     conn: Connection,
@@ -106,7 +124,14 @@ class TenantConnectionManager {
     return this.cache.size;
   }
 
-  /** Gracefully close all cached connections (e.g. during shutdown). */
+  /**
+   * Gracefully close all cached connections (e.g. during shutdown).
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Snapshot**: Captures all current Map entries into a static array for stable iteration.
+   * 2. **Parallel Termination**: Executes `conn.close()` for every tenant in parallel using `Promise.allSettled` to prevent one hanging connection from blocking the entire shutdown.
+   * 3. **Cleanup**: Wipes the internal `cache` Map to free memory.
+   */
   async closeAll(): Promise<void> {
     const entries = [...this.cache.entries()];
     await Promise.allSettled(
@@ -131,15 +156,9 @@ class TenantConnectionManager {
 export const tenantManager = new TenantConnectionManager();
 
 // ─── Backward-compatible free functions ──────────────────────────────────────
-// All existing imports of getTenantConnection / getTenantModel / connectionCache
-// continue to work without changes.
-
-/** @deprecated Access tenantManager.cache directly or via tenantManager.size */
-export const connectionCache = (tenantManager as any).cache as Map<
-  string,
-  Connection
->;
-
+/**
+ * @param clientCode -
+ */
 export async function getTenantConnection(
   clientCode: string,
 ): Promise<Connection> {

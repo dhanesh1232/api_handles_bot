@@ -1,9 +1,16 @@
 /**
- * notification.routes.ts
+ * @module Routes/CRM/Notification
+ * @responsibility Real-time agent alerts and system notifications.
  *
- * Place at: src/routes/saas/crm/notification.routes.ts
+ * **GOAL:** Manage the delivery of operational alerts (lead assigned, meeting scheduled) to CRM users.
  */
 
+/**
+ * @module Routes/CRM/Notifications
+ * @responsibility Real-time alerts and internal messaging for agents.
+ *
+ * **GOAL:** Dispatch and manage notifications (browser, email, WhatsApp) triggered by CRM events to ensure agents react quickly to lead activity.
+ */
 import { type Request, type Response, Router } from "express";
 
 const router = Router();
@@ -47,7 +54,14 @@ router.delete(
   },
 );
 
-// ─── Retry Action Required Notification ────────────────────────────────────────
+/**
+ * Action-Required Retry.
+ *
+ * **GOAL:** Re-attempt a failed system action that triggered a notification (e.g., a failed WhatsApp template sync).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Retry Logic**: Calls `req.sdk.notification.retry()` which looks up the original failed task linked to the notification and re-enqueues it.
+ */
 router.post("/notifications/:id/retry", async (req: Request, res: Response) => {
   try {
     const _result = await req.sdk.notification.retry(req.params.id as string);

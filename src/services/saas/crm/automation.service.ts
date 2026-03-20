@@ -1,8 +1,8 @@
 /**
- * automationService.ts
- * Finds matching automation rules and executes their actions.
- *
- * All DB ops go to the client's own tenant DB via getCrmModels().
+ * @file src/services/saas/crm/automation.service.ts
+ * @module AutomationService
+ * @responsibility Orchestrates the discovery and execution of automation rules and sequences.
+ * @dependencies @lib/tenant/crm.models, @/sdk/index, ActionExecutor, ConditionEvaluator
  */
 
 import { getCrmModels } from "@lib/tenant/crm.models";
@@ -14,10 +14,37 @@ import { getAutomationRuleRepo } from "./automation.repository";
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 /**
- * Runs automations for a given client and context.
- * @param clientCode - The client code.
- * @param ctx - The automation context.
- * @returns A promise that resolves when the automations have been run.
+ * Core entry point for triggering automations.
+ *
+ * **WORKING PROCESS:**
+ * 1. Initializes a repository scoped to the tenant's database connection.
+ * 2. Builds a filter set based on the current context (stage, tags, score).
+ * 3. Handles source-based isolation (Manual vs Webhook vs Website).
+ * 4. Checks for available automation credits via `UsageService`.
+ * 5. Executes actions instantly or enrolls the lead into a sequence.
+ *
+ * @param {string} clientCode - The unique tenant identifier.
+ * @param {AutomationContext} ctx - Unified context containing event triggers and data.
+ * @returns {Promise<void>} Resolves when all relevant rules have been processed or scheduled.
+ * @throws {Error} If database connection or credit deduction fails.
+ * @edge_case Generic rules are isolated to manual/CRM activities by default to prevent unintended triggers.
+ */
+/**
+ * Core entry point for triggering automations based on real-time events.
+ *
+ * **WORKING PROCESS:**
+ * 1. Model Scope: Initializes the `AutomationRule` repository scoped to the tenant's connection.
+ * 2. Active Discovery: Searches for enabled rules matching the specific `trigger` (e.g., stage_change, incoming_message).
+ * 3. Industrial Filtering: Applies source-level isolation. Generic rules are restricted to "manual" or "crm" sources to prevent interference with specialized webhooks.
+ * 4. Resource Check: Consumes 1 automation credit via `UsageService`. If exhausted, the run is aborted to prevent overages.
+ * 5. Execution Branching: Instantly executes simple rules or enqueues sequences into the `SequenceEngine`.
+ *
+ * **EDGE CASES:**
+ * - Credit Exhaustion: Silently skips execution if the tenant has no automation units remaining.
+ * - Source Hijacking: Prevents generic automation from firing on technical webhooks (e.g., website leads) unless explicitly included.
+ *
+ * @param clientCode - The unique tenant identifier.
+ * @param ctx - Context containing the trigger event, lead data, and dynamic variables.
  */
 export const runAutomations = async (
   clientCode: string,
@@ -106,13 +133,46 @@ export const runAutomations = async (
   );
 };
 
+/**
+ * Orchestrates appointment reminders based on meeting schedules.
+ *
+ * **WORKING PROCESS:**
+ * 1. Fetches all active rules with the `appointment_reminder` trigger.
+ * 2. Prepares a variables context from the meeting data (date, time, meet links, etc.).
+ * 3. For each rule action:
+ *    - Calculates the exact `fireTime` based on `delayType` (before, at, or after the event).
+ *    - Validates the action and enqueues it into `crmQueue` with the calculated delay.
+ *    - Persists the scheduled reminder state in the `Meeting` document for tracking.
+ *
+ * @param {string} clientCode - Tenant's unique code.
+ * @param {IMeeting} meeting - The source meeting document.
+ * @returns {Promise<void>}
+ * @edge_case Skips reminders that are calculated to be in the past (more than 1 minute).
+ */
+/**
+ * Orchestrates appointment reminders for upcoming meetings.
+ *
+ * **WORKING PROCESS:**
+ * 1. Rule Lookup: Fetches all rules associated with the `appointment_reminder` trigger.
+ * 2. Context Mapping: Creates a rich variable set (meet_link, date, time, mode) from the meeting document.
+ * 3. Adaptive Timing: Calculates the `fireTime` based on the action's `delayType` (before, at, or after the meeting start).
+ * 4. Resilience: Validates each action/template and enqueues high-priority jobs into `crmQueue`.
+ * 5. State Persistence: Records the scheduled reminders in the `Meeting` document for UI visibility and tracking.
+ *
+ * **EDGE CASES:**
+ * - Past Scheduling: If a reminder is calculated to fire in the past (e.g., 30m before a meeting that starts in 10m), it is skipped.
+ * - Missing Meet Link: Variables are safely defaulted to prevent template resolution errors.
+ *
+ * @param clientCode - Tenant's unique code.
+ * @param meeting - The source meeting metadata.
+ */
 export const scheduleMeetingReminders = async (
   clientCode: string,
   meeting: IMeeting,
 ): Promise<void> => {
   const repo = await getAutomationRuleRepo(clientCode);
   const { Lead } = await getCrmModels(clientCode);
-  const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+  const { crmQueue } = await import("@/jobs/saas/crmWorker");
 
   const rules = await repo.findActiveRules("appointment_reminder");
 
@@ -201,8 +261,8 @@ export const scheduleMeetingReminders = async (
       }
 
       await crmQueue.add(
+        clientCode,
         {
-          clientCode,
           type: "crm.automation_action",
           payload: {
             actionType: action.type,
@@ -243,6 +303,35 @@ export const scheduleMeetingReminders = async (
 };
 
 // ─── Execute a single rule ────────────────────────────────────────────────────
+/**
+ * Evaluates and executes a single automation rule.
+ *
+ * **WORKING PROCESS:**
+ * 1. Merges lead data and event variables into a unified context.
+ * 2. Evaluates both legacy and new multi-condition logic.
+ * 3. If conditions pass, enqueues all rule actions as background jobs.
+ * 4. Increments the global execution counter for the rule and logs the activity.
+ *
+ * @private
+ * @param {string} clientCode - Tenant's unique code.
+ * @param {IAutomationRule} rule - The rule configuration.
+ * @param {AutomationContext} ctx - Event context.
+ */
+/**
+ * Evaluates and processes a single automation rule against a specific lead.
+ *
+ * **WORKING PROCESS:**
+ * 1. Context Merging: Combines lead attributes with event-specific variables.
+ * 2. Logical Evaluation: Runs both legacy (single) and modern (multi-condition) logic tests via `ConditionEvaluator`.
+ * 3. Action Dispatch: If conditions pass, enqueues all configured actions as individual jobs.
+ * 4. Analytics Update: Increments the execution counter and updates the `lastExecutedAt` timestamp on the rule.
+ * 5. Activity Log: Records the automation trigger in the Lead's activity timeline.
+ *
+ * **EDGE CASES:**
+ * - Partial Failure: If one action fails to enqueue, others will still proceed due to loop isolation (though typically atomic).
+ *
+ * @private
+ */
 const executeRule = async (
   clientCode: string,
   rule: IAutomationRule,
@@ -298,6 +387,36 @@ const executeRule = async (
 
 // ─── Enqueue delayed action ───────────────────────────────────────────────────
 
+/**
+ * Safely enqueues an action into the job queue with appropriate delays.
+ *
+ * **WORKING PROCESS:**
+ * 1. Merges lead contact info (phone/email) into the action config.
+ * 2. Runs pre-enqueue validation (resolves templates, checks for completeness).
+ * 3. Calculates `delayMs` based on absolute time (events) or relative time (after trigger).
+ * 4. Enqueues the full payload into `crmQueue`.
+ * 5. If linked to a meeting, updates the meeting's reminder tracking list.
+ *
+ * @param {string} clientCode - Tenant's unique code.
+ * @param {IAutomationAction} action - Action to be queued.
+ * @param {ILead} lead - Target lead.
+ * @param {string} ruleId - Source rule ID.
+ * @param {Record<string, string>} [variables] - Dynamic context.
+ * @param {string} [meetingId] - Optional linked meeting.
+ */
+/**
+ * Safely enqueues a delayed automation action into the persistent job system.
+ *
+ * **WORKING PROCESS:**
+ * 1. Configuration Mapping: Merges physical contact details (phone/email) from the lead into the action data.
+ * 2. Proactive Validation: Resolves templates and checks for mapping errors *before* the job hits the queue.
+ * 3. Relative Delay Logic: Translates minutes or event-relative times into absolute `delayMs` for the BullMQ scheduler.
+ * 4. Tracking Linkage: If the action is a meeting reminder, it's cross-referenced in the `Meeting` database for status tracking.
+ *
+ * **EDGE CASES:**
+ * - Stale Data: Validates `fireTime` to ensure actions aren't queued for the past.
+ * - Template Errors: Aborts enqueue if the template mapping is broken, preventing worker retries on "doomed" jobs.
+ */
 const enqueueDelayedAction = async (
   clientCode: string,
   action: IAutomationAction,
@@ -306,7 +425,7 @@ const enqueueDelayedAction = async (
   variables?: Record<string, string>,
   meetingId?: string,
 ): Promise<void> => {
-  const { crmQueue } = await import("../../../jobs/saas/crmWorker.ts");
+  const { crmQueue } = await import("@/jobs/saas/crmWorker");
 
   // Merge context into actionConfig
   const _actionConfig: Record<string, unknown> = {
@@ -437,8 +556,8 @@ const enqueueDelayedAction = async (
   }
 
   await crmQueue.add(
+    clientCode,
     {
-      clientCode,
       type: "crm.automation_action",
       payload,
     },
@@ -448,6 +567,25 @@ const enqueueDelayedAction = async (
 
 // ─── Validation before enqueue ────────────────────────────────────────────────
 
+/**
+ * Validates and pre-resolves action configurations before they hit the queue.
+ *
+ * **WORKING PROCESS:**
+ * 1. Checks if the action requires a template (WhatsApp/Email).
+ * 2. Resolves the template using `resolveUnifiedWhatsAppTemplate` or `resolveUnifiedEmailTemplate`.
+ * 3. Verifies "Readiness" (e.g., all variables mapped).
+ * 4. If validation fails, creates an in-app `Notification` for the user to resolve.
+ * 5. Returns a sanitised and pre-populated configuration to prevent worker-side failures.
+ *
+ * @async
+ * @param {string} clientCode - Tenant's unique code.
+ * @param {IAutomationAction} action - The raw action object.
+ * @param {ILead} lead - Target lead.
+ * @param {string} _ruleId - Source rule identifier.
+ * @param {Record<string, string>} [variables] - Event variables.
+ * @returns {Promise<{ isValid: boolean; resolvedConfig?: any }>} Validation status and fixed config.
+ * @edge_case Creates a `Notification` on failure to alert the tenant about broken automations.
+ */
 async function validateActionBeforeEnqueue(
   clientCode: string,
   action: IAutomationAction,

@@ -1,8 +1,22 @@
-import type { IJob } from "@models/queue/job.model";
 import { createEmailService } from "@services/saas/mail/email.service";
 import { JobHandler } from "../base.handler";
 
 export class EmailJobHandler extends JobHandler {
+  /**
+   * Processes outbound email delivery for transactional and bulk (one-off) requests.
+   *
+   * @param clientCode - Tenant identifier.
+   * @param payload - Message data (`to`, `subject`, `html`, `text`) and orchestration flags (`bulk`, `callbackUrl`).
+   * @param job - Job instance for traceability.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Mode Detection**: Switches between single `sendEmail` or batch `sendCampaign` based on the `bulk` flag.
+   * 2. **Provider Handshake**: Routes the request to the configured SMTP or SES provider.
+   * 3. **Success Callback**: If `callbackUrl` is provided, notifies the initiating microservice of successful delivery.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Failure Notification: If the provider rejects the email, creates a system notification for the tenant to investigate (e.g., bounced address).
+   */
   async handle(clientCode: string, payload: any, job: IJob): Promise<void> {
     const svc = createEmailService();
 

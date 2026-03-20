@@ -1,7 +1,18 @@
 import express, { type Request, type Response } from "express";
-import { dbConnect } from "../../lib/config.ts";
-import { Lead } from "../../model/services/leads.ts";
+import { dbConnect } from "@/lib/config";
+import { Lead } from "@/model/services/leads";
 
+/**
+ * @module Routes/Services/Leads
+ * @responsibility Corporate Lead Capture and Initial Qualification.
+ *
+ * **GOAL:** Ingest leads from the main marketing site, calculate a qualification "Score", and persist them for the corporate sales team.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **De-duplication**: Checks for existing leads by phone or business name before creating a new entry.
+ * 2. **Scoring Engine**: Runs `calculateScore` based on the requested service and project timeline.
+ * 3. **Activity Logging**: Initializes a timeline for the lead with a "Created" event.
+ */
 const router = express.Router();
 
 // Simple scoring logic

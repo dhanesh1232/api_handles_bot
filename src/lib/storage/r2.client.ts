@@ -18,28 +18,6 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@lib/logger";
 
-export interface StorageOptions {
-  accessKeyId: string;
-  secretAccessKey: string;
-  endpoint: string;
-  bucketName: string;
-  publicDomain?: string;
-}
-
-export interface UploadResult {
-  url: string;
-  key: string;
-  size: number;
-}
-
-export interface ListResult {
-  key: string;
-  url: string;
-  size: number;
-  lastModified?: Date;
-  mimeType?: string;
-}
-
 export class StorageClient {
   private readonly client: S3Client;
   private readonly bucket: string;
@@ -117,7 +95,9 @@ export class StorageClient {
       return {
         url: await this.getUrl(key),
         key,
+        bucket: this.bucket,
         size: body.length,
+        mimeType: contentType,
       };
     } catch (err) {
       this.log.error(

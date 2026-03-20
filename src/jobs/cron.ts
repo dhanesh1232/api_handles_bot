@@ -10,6 +10,19 @@ import {
   templateSyncJob,
 } from "./index.ts";
 
+/**
+ * @module Jobs/Cron
+ * @responsibility Bootstraps and orchestrates the entire system's scheduled tasks.
+ *
+ * **SCHEDULE HIERARCHY:**
+ * - **5-Minute Heartbeat**: Real-time sales hygiene (First Contact, Follow-up).
+ * - **Midnight Clean-up**: Portfolio hygiene (Auto-close, Reminders, Research Flags).
+ * - **2 AM Heavy-Lift**: Infrastructure maintenance (WhatsApp Template Sync, CRM Score Recalculation).
+ * - **8:30 PM Sync**: External resource tracking (R2 Storage Usage mapping).
+ *
+ * **EDGE CASES:**
+ * - Job Overlap: Node-cron handles schedules independently; long-running tasks like Score Recalculation are enqueued to a BullMQ worker (`crmQueue`) to prevent blocking the event loop.
+ */
 export function cronJobs() {
   // Every 5 mins — small tasks
   cron.schedule("*/5 * * * *", async () => {
@@ -54,8 +67,7 @@ export function cronJobs() {
       const clients = await Client.find({ status: "active" }).lean();
 
       for (const client of clients) {
-        await crmQueue.add({
-          clientCode: client.clientCode,
+        await crmQueue.add(client.clientCode, {
           type: "crm.score_refresh",
           payload: { batch: true },
         });

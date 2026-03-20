@@ -1,7 +1,12 @@
 /**
- * crm.router.ts
- * Central CRM router — mounts all sub-routers.
- * Place at: src/routes/saas/crm/crm.router.ts
+ * @module Routes/CRM
+ * @responsibility Orchestrator for all Customer Relationship Management (CRM) sub-routers.
+ *
+ * **GOAL:** Centralize the injection of the bound SDK and Socket.io for all lead, pipeline, and automation related endpoints.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Middleware Injection**: Mounts `withSDK(io)` globally for all sub-routers. This ensures that every handler within `leads`, `pipelines`, etc., has access to `req.sdk` without manual instantiation.
+ * 2. **Sub-Router Mounting**: Maps specific business domains (leads, sequences, scoring) to their respective route implementations.
  */
 
 import { Router } from "express";

@@ -1,3 +1,12 @@
+/**
+ * @module CRM/NotificationModel
+ * @responsibility Manages tenant alerts and required actions for CRM users.
+ *
+ * **WORKING PROCESS:**
+ * 1. Actionability: Notifications of type `action_required` store a `contextSnapshot`.
+ * 2. Resolution: Users can "resolve" (retry action) or "dismiss" (hide).
+ * 3. Context: Tracks the original lead and automation config that triggered the alert.
+ */
 import mongoose, { type Schema } from "mongoose";
 
 const notificationSchema: Schema<INotification> = new mongoose.Schema(

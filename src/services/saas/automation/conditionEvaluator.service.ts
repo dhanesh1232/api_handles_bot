@@ -2,7 +2,18 @@ import { logger } from "@/lib/logger";
 
 export class ConditionEvaluator {
   /**
-   * Evaluates a group of conditions with a specific logic (AND/OR).
+   * Primary entry point for evaluating complex logic groups (AND/OR).
+   *
+   * **WORKING PROCESS:**
+   * 1. Validation: Returns `true` if no conditions exist (default-pass).
+   * 2. Logic Branching:
+   *    - **OR**: Short-circuits and returns `true` as soon as one condition passes (`Array.some`).
+   *    - **AND**: Short-circuits and returns `false` if any condition fails (`Array.every`).
+   *
+   * @param {"AND" | "OR"} logic - The logical operator for the group.
+   * @param {any[]} conditions - List of individual condition objects.
+   * @param {any} context - The data source (lead, event, etc.) to evaluate against.
+   * @returns {boolean} Whether the logic group passes.
    */
   static evaluate(
     logic: "AND" | "OR",
@@ -23,8 +34,21 @@ export class ConditionEvaluator {
   }
 
   /**
-   * Evaluates a single condition against the context.
-   * Supports both short and descriptive operator names.
+   * Deep-evaluates a single condition against a specific field path in the context.
+   *
+   * **WORKING PROCESS:**
+   * 1. Field Resolution: Performs a deep-walk (`split(".")`) to resolve values like `lead.metadata.score`.
+   * 2. Normalization: Standardizes values for case-insensitive comparison (contains/starts_with).
+   * 3. Comparison: Executes the specific operator logic (regex, null-check, days-since, etc.).
+   *
+   * **EDGE CASES:**
+   * - Missing Field: If the path is invalid, resolves to `undefined` and comparison fails (or passes if `not_exists`).
+   * - Invalid Regex: Catches `RegExp` syntax errors and returns `false`.
+   * - Sparse Data: `exists`/`not_exists` handles `null`, `undefined`, and empty strings uniformly.
+   *
+   * @param {any} condition - Single condition object { field, operator, value }.
+   * @param {any} context - Data source.
+   * @returns {boolean} Result of the evaluation.
    */
   static evaluateSingle(condition: any, context: any): boolean {
     if (!condition || !condition.field) return true;

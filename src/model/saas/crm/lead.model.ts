@@ -1,16 +1,21 @@
 /**
- * lead.model.ts
+ * @module CRM/LeadModel
+ * @responsibility Defines the structure, validation, and indexing for the central Lead document.
  *
- * Central CRM lead document.
- * Place at: src/model/saas/crm/lead.model.ts
+ * **SCHEMA DESIGN:**
+ * - Multi-Tenant: Every document is strictly tied to a `clientCode`.
+ * - Identity: Tracks name, normalized E.164 phone, and unique email.
+ * - Pipeline State: Relational links to `Pipeline` and `PipelineStage` (ObjectIds).
+ * - Metadata Matrix:
+ *   - `refs`: Stores external ObjectIds (appointmentId, bookingId) for client-side resolution.
+ *   - `extra`: Flexible key-value store for unstructured lead data.
+ * - Scoring Engine: Embedded `score` object tracking engagement, recency, and source quality.
+ * - Intelligence: Persists AI-generated summaries and stage movement history.
  *
- * Key design decisions:
- * - pipelineId + stageId are ObjectId refs → populated on fetch
- * - metadata.refs stores client-side ObjectIds (appointmentId, bookingId, etc.)
- *   These are stored as ObjectId type so the client can use them directly
- *   to query their own collections. They are NOT populated here — the client
- *   resolves them in their own DB.
- * - Every query must include clientCode for tenant isolation.
+ * **INDEXING STRATEGY:**
+ * - Tenant Isolation: All indexes are prefixed with `clientCode`.
+ * - Performance: Specialized compound indexes for the Kanban board (pipeline+stage+archived) and list views (status+score).
+ * - Uniqueness: Enforces unique phone numbers per tenant (`clientCode` + `phone`).
  */
 
 import mongoose, { type Schema } from "mongoose";

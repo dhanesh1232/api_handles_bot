@@ -21,8 +21,19 @@ if (!cached) {
 }
 
 /**
- * Dynamically connects to the MongoDB cluster.
- * Note: Currently optimized as a singleton connection to avoid 'openUri' conflicts.
+ * Dynamically connects to the primary MongoDB cluster (Control Plane).
+ *
+ * @param db - The target database name within the cluster.
+ * @returns Fully established Mongoose connection singleton.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Singleton Check**: Returns the `cached.conn` immediately if a connection is already alive.
+ * 2. **Promise Lock**: If no connection exists, creates a `cached.promise` to ensure multiple concurrent `dbConnect` calls don't spawn redundant database handshakes.
+ * 3. **Cluster Handshake**: Invokes `mongoose.connect` with optimized pool settings (`maxPoolSize: 100`) for high-concurrency SaaS workloads.
+ * 4. **State Commit**: Once resolved, persists the connection to `cached.conn` and clears the promise.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Connection Error: If the handshake fails, resets `cached.promise` to `null` to allow subsequent retries to attempt a fresh connection.
  */
 async function dbConnect(db: string): Promise<typeof mongoose> {
   const MONGODB_URI = process.env.MONGODB_URI;

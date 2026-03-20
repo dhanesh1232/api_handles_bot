@@ -6,22 +6,29 @@ import {
 } from "@/services/saas/crm/automation.service";
 import { normalizePhone } from "@/utils/phone";
 
-export interface EventPayload {
-  phone?: string;
-  email?: string;
-  variables?: Record<string, string>;
-  data?: Record<string, any>;
-}
-
 export class EventBus {
   /**
    * Central entry point for all system and custom events.
-   * Decouples the trigger source from the automation logic.
+   * Decouples the trigger source from the automation logic and scheduling.
    *
-   * @param clientCode The tenant's client code
-   * @param trigger The event name (e.g. "lead.created", "payment.captured")
-   * @param payload Data associated with the event
-   * @param opts Extra options like idempotencyKey
+   * **WORKING PROCESS:**
+   * 1. Idempotency Check: Validates `idempotencyKey` to prevent double-processing of webhooks/API calls.
+   * 2. Scheduling: If `runAt` or `delayMinutes` is provided, schedules the event via Redis (Bull) instead of immediate execution.
+   * 3. Lead Resolution: Identifies the target lead by phone or email.
+   * 4. Auto-enrollment: If `createLeadIfMissing` is true, bootstraps a new lead in the configured pipeline/stage.
+   * 5. Trigger Mapping: Normalizes incoming triggers (e.g. `lead.created`) to internal enums (`lead_created`) for rule matching.
+   * 6. Execution: Dispatches to `runAutomations` to trigger sequences, WhatsApp templates, and notifications.
+   * 7. Observability: Persists an `EventLog` for audit trails and failure tracking.
+   *
+   * **EDGE CASES:**
+   * - No Lead Found: If lead resolution fails and auto-creation is disabled, the event is logged as "failed" and dropped.
+   * - Duplicate Keys: Returns the existing log immediately without re-triggering logic.
+   * - Worker Delay: Scheduled events are offloaded to background workers to preserve API response times.
+   *
+   * @param {string} clientCode - The tenant's client code.
+   * @param {string} trigger - The event name.
+   * @param {EventPayload} payload - Data associated with the event.
+   * @param {object} [opts] - Scheduling and lead creation flags.
    */
   static async emit(
     clientCode: string,
@@ -80,21 +87,23 @@ export class EventBus {
 
     if (scheduleDate && scheduleDate > new Date()) {
       const { crmQueue } = await import("@/jobs/saas/crmWorker");
-      await crmQueue.add({
+      await crmQueue.add(
         clientCode,
-        type: "crm.automation_event",
-        payload: {
-          trigger,
-          phone: payload.phone,
-          email: payload.email,
-          variables: payload.variables,
-          data: payload.data,
-          // Remove scheduling flags from recursive call to avoid infinite loops
-          _originalDelay: opts?.delayMinutes,
-          _originalRunAt: opts?.runAt,
+        {
+          type: "crm.automation_event",
+          payload: {
+            trigger,
+            phone: payload.phone,
+            email: payload.email,
+            variables: payload.variables,
+            data: payload.data,
+            // Remove scheduling flags from recursive call to avoid infinite loops
+            _originalDelay: opts?.delayMinutes,
+            _originalRunAt: opts?.runAt,
+          },
         },
-        runAt: scheduleDate,
-      });
+        { runAt: scheduleDate },
+      );
       logger.info(
         `[EventBus] Event ${trigger} scheduled for: ${scheduleDate.toISOString()}`,
       );

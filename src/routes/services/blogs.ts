@@ -1,7 +1,13 @@
 import express, { type Request, type Response } from "express";
-import { dbConnect } from "../../lib/config.ts";
-import { Blog } from "../../model/services/blog.ts";
+import { dbConnect } from "@/lib/config";
+import { Blog } from "@/model/services/blog";
 
+/**
+ * @module Routes/Services/Blogs
+ * @responsibility Public-facing content delivery for corporate marketing.
+ *
+ * **GOAL:** Provide an optimized, read-only interface to fetch articles, news, and updates from the corporate "Services" database.
+ */
 const router = express.Router();
 
 // Get All Blogs

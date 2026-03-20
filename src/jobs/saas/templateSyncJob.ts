@@ -4,6 +4,26 @@ import { getCrmModels } from "@lib/tenant/crm.models";
 import { ClientSecrets } from "@models/clients/secrets";
 import { syncTemplatesFromMeta } from "@services/saas/whatsapp/template.service";
 
+/**
+ * @module Jobs/SaaS/TemplateSync
+ * @responsibility Synchronizes Meta-approved WhatsApp templates with the local tenant database.
+ *
+ * **WHY THIS EXISTS:**
+ * WhatsApp templates can be updated or deleted on the Meta Business Manager. This job ensures
+ * the local cache is fresh, preventing "Template not found" errors during automation.
+ *
+ * **WORKING PROCESS:**
+ * 1. Discovery: Connects to core DB and fetches all active clients with WhatsApp credentials.
+ * 2. Decryption: Retrieves Meta Tokens and Business IDs from secure storage.
+ * 3. Synchronization:
+ *    - Fetches the current list of templates from Meta's API.
+ *    - Updates the local registry (add new, update existing).
+ *    - Flags "outdated" templates that require manual variable mapping.
+ *
+ * **EDGE CASES:**
+ * - Credential Failure: If a token is expired, the client is skipped and an error is logged.
+ * - Mapping Discrepancy: If Meta adds new variables, the job flags them for user intervention.
+ */
 export const templateSyncJob = async () => {
   const log = jobLogger("templateSync");
   log.info("Starting Daily Template Sync Job");

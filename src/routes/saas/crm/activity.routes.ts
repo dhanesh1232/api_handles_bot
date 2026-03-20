@@ -1,7 +1,20 @@
 /**
- * activity.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
+ * @module Routes/CRM/Activity
+ * @responsibility Lead history and engagement tracking.
+ *
+ * **GOAL:** Manage the chronological timeline of a lead, including system-generated events, manual notes, and call logs.
  */
 
+/**
+ * @module Routes/CRM/Activity
+ * @responsibility Timeline and audit trail for lead interactions.
+ *
+ * **GOAL:** Provide a chronological log of all communications, state changes, and manual notes associated with a lead.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Timeline Aggregation**: Fetches and sorts activity logs, notes, and system events into a single unified stream.
+ * 2. **Manual Intervention**: Allows agents to add "Notes" with specific categories (call, email, meeting) to the lead's profile.
+ */
 import { type Request, type Response, Router } from "express";
 import { withSDK } from "@/middleware/withSDK";
 
@@ -11,6 +24,14 @@ const router = Router();
 router.use(withSDK()); // stamps req.sdk once for every route below
 
 // ─── Unified timeline ─────────────────────────────────────────────────────────
+/**
+ * Unified Lead Timeline.
+ *
+ * **GOAL:** Provide a paginated, reverse-chronological view of ALL interactions involving a lead.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Timeline Query**: Invokes `req.sdk.activity.timeline()` which merges activities, notes, and event logs into a single unified feed.
+ */
 router.get("/leads/:leadId/timeline", async (req: Request, res: Response) => {
   try {
     const { page, limit } = req.query as Record<string, string>;

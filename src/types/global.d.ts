@@ -1,6 +1,11 @@
 import type mongoose from "mongoose";
-
+import type { Request } from "express";
 declare global {
+  interface SaasRequest extends Request {
+    clientCode: string;
+    user?: any;
+  }
+
   interface IConversation extends mongoose.Document {
     leadId?: mongoose.Types.ObjectId;
     channel: "whatsapp";
@@ -782,10 +787,12 @@ declare global {
 
   interface StorageOptions {
     region?: string;
-    endpoint?: string;
+    endpoint: string;
     accessKeyId: string;
     secretAccessKey: string;
-    bucket: string;
+    bucket?: string;
+    bucketName: string;
+    publicDomain?: string;
   }
 
   interface UploadResult {
@@ -798,14 +805,16 @@ declare global {
 
   interface ListResult {
     key: string;
-    size: number;
-    lastModified: Date;
     url: string;
+    size: number;
+    lastModified?: Date;
+    mimeType?: string;
   }
 
   interface WhatsAppResponse {
     success: boolean;
     messageId?: string;
+    data?: any;
     error?: any;
   }
 
@@ -1068,20 +1077,6 @@ declare global {
   }
 
   // --- Miscellaneous ---
-  interface IJob extends mongoose.Document {
-    type: string;
-    data: Record<string, any>;
-    status: "pending" | "processing" | "completed" | "failed";
-    priority: number;
-    runAt?: Date;
-    attempts: number;
-    lastAttemptAt?: Date;
-    error?: string;
-    result?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  }
-
   interface ICallbackLog extends mongoose.Document {
     clientCode: string;
     callbackUrl: string;
@@ -1183,18 +1178,101 @@ declare global {
   }
 
   interface SDK {
-    lead: any;
-    pipeline: any;
-    activity: any;
-    whatsapp: any;
-    media: any;
-    storage: any;
-    mail: any;
-    meet: any;
-    automation: any;
-    notification: any;
-    jobs: any;
-    cache: any;
+    /**
+     * **Lead Management SDK**
+     *
+     * Primary facade for CRM lead operations: CRUD, stage transitions, tagging, and scoring.
+     *
+     * **WORKING PROCESS:**
+     * 1. Validates tenant access via `clientCode`.
+     * 2. Delegates to `lead.service.ts`.
+     * 3. Triggers `automation:trigger` if stage/status changes.
+     *
+     * **PRIMARY METHODS:**
+     * - `sdk.lead.create(...)`: Register new prospects.
+     * - `sdk.lead.updateStage(...)`: Move leads through sales funnel.
+     */
+    lead: import("../sdk/lead.sdk").LeadSDK;
+
+    /**
+     * **Pipeline & Analytics SDK**
+     *
+     * Manage Kanban pipelines, sales stages, and revenue forecasting.
+     */
+    pipeline: import("../sdk/pipeline.sdk").PipelineSDK;
+
+    /**
+     * **Activity & Timeline SDK**
+     *
+     * Log interactions (calls, notes) and retrieve lead history.
+     */
+    activity: import("../sdk/activity.sdk").ActivitySDK;
+
+    /**
+     * **WhatsApp Business SDK**
+     *
+     * Send templates, free-text, and media messages via Meta Cloud API.
+     *
+     * **EVENTS EMITTED:**
+     * - `whatsapp:received`: New inbound message.
+     * - `whatsapp:status`: Message status updates.
+     */
+    whatsapp: import("../sdk/whatsapp.sdk").WhatsAppSDK;
+
+    /**
+     * **Media Storage SDK (Legacy Alias)**
+     * @deprecated Use `sdk.storage` instead.
+     */
+    media: import("../sdk/storage.sdk").StorageSDK;
+
+    /**
+     * **Cloudflare R2 Storage SDK**
+     *
+     * Handles file uploads, optimizing media, and generating presigned URLs.
+     */
+    storage: import("../sdk/storage.sdk").StorageSDK;
+
+    /**
+     * **EMail Services SDK**
+     *
+     * Dispatch bulk campaigns or single transactional emails.
+     */
+    mail: import("../sdk/mail.sdk").MailSDK;
+
+    /**
+     * **Google Meet SDK**
+     *
+     * Schedule online appointments and sync with Google Calendar.
+     */
+    meet: import("../sdk/meet.sdk").MeetSDK;
+
+    /**
+     * **Automation Orchestration SDK**
+     *
+     * Enroll leads in sequences and execute immediate background actions.
+     */
+    automation: import("../sdk/automation.sdk").AutomationSDK;
+
+    /**
+     * **Alerts & Notifications SDK**
+     *
+     * Create actionable staff notifications for critical CRM events.
+     */
+    notification: import("../sdk/notification.sdk").NotificationSDK;
+
+    /**
+     * **Background Job SDK**
+     *
+     * Enqueue standard CRM tasks (email dispatch, score refresh) to ErixWorkers.
+     */
+    jobs: import("../sdk/job.sdk").JobSDK;
+
+    /**
+     * **Isolated Tenant Cache SDK**
+     *
+     * High-speed storage for frequently accessed tenant metadata.
+     */
+    cache: import("../sdk/cache.sdk").CacheSDK;
   }
 
   // --- Service Types ---
@@ -1250,4 +1328,74 @@ declare global {
   }
 
   type AnalyticsRange = "24h" | "7d" | "30d" | "60d" | "90d" | "365d";
+
+  // Jobs
+  type JobStatus = "waiting" | "active" | "completed" | "failed";
+
+  interface AddJobOptions {
+    /** Delay in ms before the job becomes eligible to run. Default: 0 (run immediately). */
+    delayMs?: number;
+    /** Explicit execution time. Takes precedence over delayMs. */
+    runAt?: Date;
+    /** Lower number = higher priority. Default: 5. */
+    priority?: number;
+    /** Maximum number of attempts before the job is marked failed. Default: 3. */
+    maxAttempts?: number;
+  }
+
+  interface WorkerOptions {
+    /** How many jobs to process in parallel. Default: 1. */
+    concurrency?: number;
+    /** How often (ms) the worker polls the DB for new jobs. Default: 10_000. */
+    pollIntervalMs?: number;
+    /** Base delay (ms) for exponential backoff. Retry n uses: baseBackoffMs * 2^n. Default: 5_000. */
+    baseBackoffMs?: number;
+    /** Maximum number of jobs to process per second. Default: null (unlimited). */
+    maxJobsPerSecond?: number | null;
+  }
+
+  type ProcessorFn = (job: IJob) => Promise<void>;
+
+  interface IJob extends mongoose.Document {
+    clientCode: string;
+    queue: string;
+    status: JobStatus;
+    data: Record<string, unknown>;
+    priority: number;
+    runAt: Date;
+    attempts: number;
+    maxAttempts: number;
+    lastError?: string;
+    completedAt?: Date;
+    failedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface ListResult {
+    key: string;
+    url: string;
+    size: number;
+    lastModified?: Date;
+    mimeType?: string;
+  }
+
+  interface PredefinedReply {
+    keywords: string[];
+    reply: string;
+    quickReplies: string[];
+  }
+
+  interface EventPayload {
+    phone?: string;
+    email?: string;
+    variables?: Record<string, string>;
+    data?: Record<string, any>;
+  }
+
+  interface OptimizedMediaResult extends UploadResult {
+    mimeType: string;
+    fileName: string;
+    r2Key?: string;
+  }
 }

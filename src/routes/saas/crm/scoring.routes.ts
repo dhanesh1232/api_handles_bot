@@ -1,5 +1,17 @@
+/**
+ * @module Routes/CRM/Scoring
+ * @responsibility Lead prioritization and engagement scoring.
+ *
+ * **GOAL:** Manage the algorithm that determines lead "heat" based on activity patterns (emails opened, site visits, form fills).
+ */
+/**
+ * @module Routes/CRM/Scoring
+ * @responsibility Lead prioritization logic management.
+ *
+ * **GOAL:** Define the rules that increment or decrement a lead's "Score" based on their attributes and historical behavior.
+ */
 import { type Request, type Response, Router } from "express";
-import * as scoringService from "../../../services/saas/crm/scoring.service.ts";
+import * as scoringService from "@/services/saas/crm/scoring.service";
 
 const router = Router();
 
@@ -50,8 +62,12 @@ router.patch("/scoring", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/crm/scoring/:leadId/recalculate
- * Immediately recalculate score for one lead
+ * Manual Score Recalculation.
+ *
+ * **GOAL:** Force an immediate re-evaluation of a lead's score based on the latest activity logs and configuration.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Scoring Engine Trigger**: Invokes `scoringService.recalculateLeadScore()` which performs an aggregation of all weighted activities for the lead.
  */
 router.post(
   "/scoring/:leadId/recalculate",

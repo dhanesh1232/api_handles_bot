@@ -1,19 +1,24 @@
+/**
+ * @file src/lib/erixJobs/worker.ts
+ * @module ErixJobs
+ * @responsibility Distributed job worker with tenant-fairness, rate-limiting, and backoff logic.
+ * @dependencies @lib/config, @lib/logger, @models/queue/job.model
+ */
+
 import { dbConnect } from "@lib/config";
 import { logger } from "@lib/logger";
-import type { IJob } from "@models/queue/job.model";
 import Job from "@models/queue/job.model";
-import type { WorkerOptions } from "./types.ts";
 
 /**
- * ErixWorkers — polls the central jobs collection for the given queue name
- * and processes them with concurrency control and automatic retry/backoff.
+ * ErixWorkers — Resilient job processor.
  *
- * Usage:
- *   const worker = new ErixWorkers("whatsapp-workflow", myProcessorFn, {
- *     concurrency: 3,
- *     pollIntervalMs: 10_000,
- *   });
- *   worker.start();
+ * **ARCHITECTURE:**
+ * - Uses a "Polling with Fairness" strategy to prevent single-tenant starvation.
+ * - Implements distributed locking via Mongoose `findOneAndUpdate`.
+ * - Supports exponential backoff for failed jobs.
+ * - Enforces global and per-worker rate limits.
+ *
+ * @class ErixWorkers
  */
 export class ErixWorkers {
   private queueName: string;
@@ -68,10 +73,32 @@ export class ErixWorkers {
     }
   }
 
+  /** Cache for client service configs to reduce DB pressure. clientCode -> { limit: number, expires: number } */
+  private static configCache = new Map<
+    string,
+    { limit: number; expires: number }
+  >();
+  private static CACHE_TTL = 10_000; // 10 seconds
+
+  /**
+   * Core execution loop for the worker.
+   *
+   * **WORKING PROCESS:**
+   * 1. Connects to the primary services database.
+   * 2. Calculates available concurrency slots based on local running jobs and global rate limits.
+   * 3. Calculates "Fairness Points" (active jobs per client) to identify the lead-starving tenants.
+   * 4. Claims the next eligible job using an atomic sort-and-update query.
+   * 5. Spawns an asynchronous job execution block and recurses to fill available slots.
+   *
+   * @private
+   * @returns {Promise<void>}
+   * @edge_case Automatically skips tenants that have reached their service-specific concurrency limits.
+   */
   private async poll() {
     if (this.isStopping) return;
 
     await dbConnect("services");
+    const { ClientServiceConfig } = await import("@models/clients/config");
 
     const now = Date.now();
     if (now - this.lastSecondStart >= 1000) {
@@ -86,12 +113,45 @@ export class ErixWorkers {
       available = Math.min(available, remainingForRateLimit);
     }
 
-    if (available <= 0) return; // Already at capacity or rate limited
+    if (available <= 0) return;
 
     const nowDate = new Date();
 
-    // Claim up to `available` jobs atomically — one at a time to avoid races.
-    // findOneAndUpdate with status transition is the MongoDB equivalent of SKIP LOCKED.
+    // 1. Get current active counts per client for this queue
+    const activeStats = await Job.aggregate([
+      { $match: { queue: this.queueName, status: "active" } },
+      { $group: { _id: "$clientCode", count: { $sum: 1 } } },
+    ]);
+
+    const clientActiveCounts = new Map<string, number>();
+    for (const stat of activeStats) {
+      clientActiveCounts.set(stat._id, stat.count);
+    }
+
+    // 2. Identify saturated clients
+    const saturatedClients: string[] = [];
+
+    // We only need to check limits for clients that have active jobs or are in the cache
+    const clientsToCheck = Array.from(clientActiveCounts.keys());
+
+    for (const clientCode of clientsToCheck) {
+      let config = ErixWorkers.configCache.get(clientCode);
+      if (!config || config.expires < now) {
+        const dbConfig = await ClientServiceConfig.findOne({
+          clientCode,
+        }).lean();
+        const limit = dbConfig?.workers?.maxParallelTasks ?? 2;
+        config = { limit, expires: now + ErixWorkers.CACHE_TTL };
+        ErixWorkers.configCache.set(clientCode, config);
+      }
+
+      const active = clientActiveCounts.get(clientCode) || 0;
+      if (active >= config.limit) {
+        saturatedClients.push(clientCode);
+      }
+    }
+
+    // 3. Claim jobs, avoiding saturated clients
     const claimed: IJob[] = [];
 
     for (let i = 0; i < available; i++) {
@@ -100,16 +160,37 @@ export class ErixWorkers {
           queue: this.queueName,
           status: "waiting",
           runAt: { $lte: nowDate },
+          clientCode: { $nin: saturatedClients },
         },
         { $set: { status: "active" } },
         {
           returnDocument: "after",
-          sort: { priority: 1, runAt: 1 }, // highest priority (lowest number), oldest first
+          sort: { priority: 1, runAt: 1 },
         },
       ).lean<IJob>();
 
-      if (!job) break; // No more jobs ready
+      if (!job) break;
+
       claimed.push(job);
+
+      // Update local tracking for next iteration of this loop
+      const currentCount = (clientActiveCounts.get(job.clientCode) || 0) + 1;
+      clientActiveCounts.set(job.clientCode, currentCount);
+
+      // Check if this client just became saturated
+      let config = ErixWorkers.configCache.get(job.clientCode);
+      if (!config || config.expires < now) {
+        const dbConfig = await ClientServiceConfig.findOne({
+          clientCode: job.clientCode,
+        }).lean();
+        const limit = dbConfig?.workers?.maxParallelTasks ?? 2;
+        config = { limit, expires: now + ErixWorkers.CACHE_TTL };
+        ErixWorkers.configCache.set(job.clientCode, config);
+      }
+
+      if (currentCount >= config.limit) {
+        saturatedClients.push(job.clientCode);
+      }
     }
 
     for (const job of claimed) {
@@ -119,6 +200,22 @@ export class ErixWorkers {
     }
   }
 
+  /**
+   * Executes a single claimed job.
+   *
+   * **WORKING PROCESS:**
+   * 1. Invokes the provided processor function.
+   * 2. Success: Marks job as "completed" and timestamps it.
+   * 3. Failure:
+   *    - Increments attempt count.
+   *    - Calculates exponential backoff: `baseBackoffMs * 2 ^ attempts`.
+   *    - Re-queues as "waiting" with a future `runAt` time.
+   *    - If `maxAttempts` is reached, marks as "failed" permanently.
+   *
+   * @param {IJob} job - The job document to process.
+   * @returns {Promise<void>}
+   * @edge_case Implements resilient retries to handle transient failures (API timeouts, DB locks).
+   */
   private async execute(job: IJob) {
     try {
       await this.processor(job);

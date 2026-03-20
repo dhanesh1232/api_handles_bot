@@ -1,13 +1,33 @@
 /**
- * lead.routes.ts — uses withSDK middleware, no per-handler createSDK() calls
+ * @module Routes/CRM/Leads
+ * @responsibility Lifecycle management for CRM Lead records.
+ *
+ * **GOAL:** Provide a complete CRUD + Workflow API for managing prospective customers, from ingestion (Upsert) to conversion (Won/Lost).
  */
 
 import { type Request, type Response, Router } from "express";
 
 const router = Router();
+/**
+ * @module Routes/CRM
+ * @responsibility Orchestrator for all Customer Relationship Management (CRM) sub-routers.
+ *
+ * **GOAL:** Centralize the injection of the bound SDK and Socket.io for all lead, pipeline, and automation related endpoints.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Middleware Injection**: Mounts `withSDK(io)` globally for all sub-routers. This ensures that every handler within `leads`, `pipelines`, etc., has access to `req.sdk` without manual instantiation.
+ * 2. **Sub-Router Mounting**: Maps specific business domains (leads, sequences, scoring) to their respective route implementations.
+ */
 // router.use(withSDK()); // stamps req.sdk once for every route below — MOVED TO PARENT crm.router.ts
 
-// ─── Field Discovery ──────────────────────────────────────────────────────────
+/**
+ * Lead Discovery Endpoint.
+ *
+ * **GOAL:** Introspect the lead schema to allow frontends and external integrations to understand available custom fields.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **SDK Delegation**: Invokes `req.sdk.lead.fields()` which scans the Mongoose schema for the current tenant.
+ */
 router.get("/fields", async (req: Request, res: Response) => {
   try {
     const fields = await req.sdk.lead.fields();
@@ -40,7 +60,18 @@ router.post("/leads", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Upsert ───────────────────────────────────────────────────────────────────
+/**
+ * Lead Upsert (Smart Ingestion).
+ *
+ * **GOAL:** High-intelligence endpoint for webhooks and contact forms that automatically resolves pipeline placement based on event triggers.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Pipeline Resolution**: If a `trigger` (e.g., "demo_requested") is provided, it cross-references `CustomEventDef` to find the target `pipelineId`.
+ * 2. **Lead Matching**: Searches by `phone`.
+ * 3. **Smart Update**: If lead exists, it optionally moves them to a new stage, updates reference IDs (orderId, etc.), and appends activity notes.
+ * 4. **Lead Creation**: If new, it splits the `name`, initializes the record with provided source/metadata, and assigns to the resolved pipeline.
+ * 5. **Automation Triggering**: Dispatches `runAutomations` in a non-blocking background task to fire welcome emails/notifications.
+ */
 router.post("/leads/upsert", async (req: any, res: any) => {
   try {
     const {

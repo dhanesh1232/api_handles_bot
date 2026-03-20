@@ -1,21 +1,35 @@
 /**
- * middleware/errorHandler.ts
+ * Global application error interceptor and response normalizer.
  *
- * Global Express error handler.
- * Mount this LAST in server.ts after all routes.
+ * **GOAL:** Convert logical failures (TypeErrors, ValidationErrors, AppErrors) into predictable, standardized JSON responses.
  *
- * It understands AppError (typed domain errors) and falls back gracefully
- * for untyped native errors. In production, internal errors show no detail.
- *
- * Usage in server.ts:
- *   import { errorHandler } from "@middleware/errorHandler";
- *   app.use(errorHandler);
+ * **DETAILED EXECUTION:**
+ * 1. **Zod Trap**: Captures schema violations and flattens them into a `Record<fieldName, errorMessage[]>` structure for frontend display.
+ * 2. **AppError Resolution**: Maps custom domain errors (`NotFoundError`, `AppError`) to their specified HTTP status codes and machine-readable `code` identifiers.
+ * 3. **OpSec Production Masking**: In `production`, internal 5xx errors are stripped of their generic messages to prevent information leakage, returning "Internal Server Error" instead.
+ * 4. **Diagnostic Logging**: Every error is logged via `logger` with request metadata (`url`, `method`) for easier debugging.
  */
 
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { isAppError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+
+/**
+ * @module Middleware/ErrorHandler
+ * @responsibility Global application error interceptor and response normalizer.
+ *
+ * **GOAL:** Convert logical failures (TypeErrors, ValidationErrors, AppErrors) into predictable, standardized JSON responses.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Zod Trap**: Captures schema violations and flattens them into a `Record<fieldName, errorMessage[]>` structure for frontend display.
+ * 2. **AppError Resolution**: Maps custom domain errors (`NotFoundError`, `AppError`) to their specified HTTP status codes and machine-readable `code` identifiers.
+ * 3. **OpSec Production Masking**: In `production`, internal 5xx errors are stripped of their generic messages to prevent information leakage, returning "Internal Server Error" instead.
+ * 4. **Diagnostic Logging**: Every error is logged via `logger` with request metadata (`url`, `method`) for easier debugging.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - **Zod Errors**: Handled separately to provide structured field-level feedback.
+ */
 
 export function errorHandler(
   err: unknown,

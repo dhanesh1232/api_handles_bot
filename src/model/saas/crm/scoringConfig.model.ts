@@ -1,6 +1,13 @@
+/**
+ * @module CRM/ScoringConfigModel
+ * @responsibility Stores the ruleset for calculating dynamic lead scores.
+ *
+ * **WORKING PROCESS:**
+ * - Logic: Contains an array of rules evaluating lead fields against operators.
+ * - Thresholds: Defines what constitutes a "Hot" or "Cold" lead (triggers notifications).
+ * - Reactivity: Lists triggers that should initiate a full score recalculation.
+ */
 import { Schema } from "mongoose";
-
-// IScoringConfig is now defined globally
 
 export const ScoringConfigSchema = new Schema<IScoringConfig>(
   {

@@ -1,9 +1,20 @@
 /**
- * analytics.routes.ts
- * All CRM analytics endpoints.
- * Place at: src/routes/saas/crm/analytics.routes.ts
+ * @module Routes/CRM/Analytics
+ * @responsibility Business intelligence and KPI reporting for the CRM layer.
+ *
+ * **GOAL:** Provide aggregated insights into lead conversion, team performance, and communication volume across various time ranges.
  */
 
+/**
+ * @module Routes/CRM/Analytics
+ * @responsibility KPI reporting and funnel performance visualization.
+ *
+ * **GOAL:** Aggregate tenant data into actionable insights, including conversion rates, lead aging, and individual agent performance.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Aggregation Engine**: Utilizes complex MongoDB pipelines to compute stats across large lead sets.
+ * 2. **Performance Auditing**: Tracks time-in-stage to identify bottlenecks in the sales funnel.
+ */
 import { type Request, type Response, Router } from "express";
 import * as analyticsService from "@/services/saas/crm/analytics.service";
 
@@ -196,8 +207,12 @@ router.get("/analytics/stage-time", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/crm/analytics/tiered
- * Returns structured analytics based on tiers (basic, medium, advanced).
+ * Tiered Growth Report.
+ *
+ * **GOAL:** Retrieve structured analytics categorized by business sophistication (Basic, Medium, Advanced).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Multi-Dimension Analysis**: Aggregates revenue, conversion, and activity velocity into a single tiered response.
  */
 router.get("/analytics/tiered", async (req: Request, res: Response) => {
   try {

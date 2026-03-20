@@ -1,22 +1,10 @@
-import mongoose, { type Document, type Model } from "mongoose";
-
-export interface IJob extends Document {
-  queue: string;
-  status: "waiting" | "active" | "completed" | "failed";
-  data: Record<string, unknown>;
-  priority: number;
-  runAt: Date;
-  attempts: number;
-  maxAttempts: number;
-  lastError?: string;
-  completedAt?: Date;
-  failedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import mongoose, { type Model } from "mongoose";
 
 const jobSchema = new mongoose.Schema<IJob>(
   {
+    /** Tenant ownership */
+    clientCode: { type: String, required: true, index: true },
+
     /** Named queue this job belongs to, e.g. "whatsapp-workflow" */
     queue: { type: String, required: true, index: true },
 
@@ -55,7 +43,7 @@ const jobSchema = new mongoose.Schema<IJob>(
  * Compound index covering the worker's polling query.
  * Sorted by priority asc then runAt asc → highest-priority, oldest jobs first.
  */
-jobSchema.index({ queue: 1, status: 1, runAt: 1, priority: 1 });
+jobSchema.index({ queue: 1, status: 1, clientCode: 1, runAt: 1, priority: 1 });
 
 const Job: Model<IJob> =
   mongoose.models.Job ?? mongoose.model<IJob>("Job", jobSchema);

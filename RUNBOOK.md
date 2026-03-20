@@ -120,6 +120,7 @@ curl -X POST "$BASE/api/crm/automations" \
 ### Step 9 — SES Domain Onboarding (Client-Self-Service)
 
 While steps 1-8 are admin-led, the SES flow is designed to be client-self-service via the clinician dashboard:
+
 1. Client enters domain at `POST /api/settings/email/ses/domain`.
 2. Client adds 4 DNS records to their provider.
 3. Client verifies status at `GET /api/settings/email/ses/verify`.
@@ -237,27 +238,27 @@ If the server returns a non-200 or is unreachable:
 
 ## 8. Common Errors & Fixes
 
-| Error                        | Likely Cause                    | Fix                                           |
-| ---------------------------- | ------------------------------- | --------------------------------------------- |
-| `ClientCode not found`       | Client not onboarded            | Run onboarding steps 1–3                      |
-| `No tenant connection for X` | `EBUS_001`                    | EventBus matching error         | Check `EventLog` for matched rules count. Ensure rule `isActive: true`. |
-| `WA_401`                     | WhatsApp Unauthorized           | Token expired or business ID mismatch. Refresh in `ClientSecrets`. |
-| `WA_TEMPL_404`               | Template Not Found              | Run `POST /api/saas/chat/templates/sync` for the client. |
-| `WA_TEMPL_REJECT`            | Meta rejected template          | Template content violates Meta policy. Edit in Meta Manager and re-sync. |
-| `WA_LIMIT_24H`               | Out of 24h window               | Cannot send free-form message. Must use an approved Template. |
-| `MEET_OAUTH_ERR`             | Google OAuth Error              | Use `GET /api/auth/google/reauth` to refresh token. |
-| `AUTOMATION_FAIL`            | Action execution failed         | Check `crmWorker.ts` logs. Verify variables mapping in template. |
-| `AUTOMATION_CIRCULAR`        | Infinite loop detected          | A trigger fires an action that triggers itself. Disable the rule. |
+| Error                        | Likely Cause                    | Fix                                                                       |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `ClientCode not found`       | Client not onboarded            | Run onboarding steps 1–3                                                  |
+| `No tenant connection for X` | `EBUS_001`                      | EventBus matching error                                                   | Check `EventLog` for matched rules count. Ensure rule `isActive: true`. |
+| `WA_401`                     | WhatsApp Unauthorized           | Token expired or business ID mismatch. Refresh in `ClientSecrets`.        |
+| `WA_TEMPL_404`               | Template Not Found              | Run `POST /api/saas/chat/templates/sync` for the client.                  |
+| `WA_TEMPL_REJECT`            | Meta rejected template          | Template content violates Meta policy. Edit in Meta Manager and re-sync.  |
+| `WA_LIMIT_24H`               | Out of 24h window               | Cannot send free-form message. Must use an approved Template.             |
+| `MEET_OAUTH_ERR`             | Google OAuth Error              | Use `GET /api/auth/google/reauth` to refresh token.                       |
+| `AUTOMATION_FAIL`            | Action execution failed         | Check `crmWorker.ts` logs. Verify variables mapping in template.          |
+| `AUTOMATION_CIRCULAR`        | Infinite loop detected          | A trigger fires an action that triggers itself. Disable the rule.         |
 | `EMAIL_SPF_FAIL`             | SPF/DKIM verification fail      | Check DNS records in SES console or via `/api/settings/email/ses/verify`. |
-| `Invalid API key`            | Wrong key / rotated             | Re-share the correct key                      |
-| `MongoNetworkError`          | Atlas IP blocked                | Whitelist server IP in Atlas                  |
-| `HMAC mismatch` on callback  | Wrong `automationWebhookSecret` | Client must update their webhook verification |
-| Job stuck in `processing`    | Worker crashed mid-job          | Reset job status — see Section 2              |
-| `Email domain not verified`  | DNS record missing / pending    | Check propagation; re-run SES Step 2          |
-| `Domain mismatch`            | From email domain != sesDomain  | Use email ending in clinical domain           |
-| `DMARC missing`              | DNS Step 1 incomplete           | Run `POST /ses/fix-dmarc` to get the TXT record|
-| `Quota reached`              | `dailyLimit` exceeded          | Increase limit via Advanced Config or wait 24h|
-| `Campaign stuck`             | Marketing job in `processing`   | Reset job in MongoDB — see Section 2          |
+| `Invalid API key`            | Wrong key / rotated             | Re-share the correct key                                                  |
+| `MongoNetworkError`          | Atlas IP blocked                | Whitelist server IP in Atlas                                              |
+| `HMAC mismatch` on callback  | Wrong `automationWebhookSecret` | Client must update their webhook verification                             |
+| Job stuck in `processing`    | Worker crashed mid-job          | Reset job status — see Section 2                                          |
+| `Email domain not verified`  | DNS record missing / pending    | Check propagation; re-run SES Step 2                                      |
+| `Domain mismatch`            | From email domain != sesDomain  | Use email ending in clinical domain                                       |
+| `DMARC missing`              | DNS Step 1 incomplete           | Run `POST /ses/fix-dmarc` to get the TXT record                           |
+| `Quota reached`              | `dailyLimit` exceeded           | Increase limit via Advanced Config or wait 24h                            |
+| `Campaign stuck`             | Marketing job in `processing`   | Reset job in MongoDB — see Section 2                                      |
 
 ---
 

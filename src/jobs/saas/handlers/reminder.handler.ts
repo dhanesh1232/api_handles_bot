@@ -1,5 +1,4 @@
 import { getCrmModels } from "@lib/tenant/crm.models";
-import type { IJob } from "@models/queue/job.model";
 import { logActivity } from "@services/saas/crm/activity.service";
 import { createNotification } from "@services/saas/crm/notification.service";
 import { createWhatsappService } from "@services/saas/whatsapp/whatsapp.service";
@@ -7,6 +6,22 @@ import { normalizePhone } from "@utils/phone";
 import { JobHandler } from "../base.handler";
 
 export class ReminderJobHandler extends JobHandler {
+  /**
+   * Dispatches time-sensitive WhatsApp reminders for upcoming meetings or overdue tasks.
+   *
+   * @param clientCode - Tenant identifier.
+   * @param payload - Reminder context including `phone`, `leadId`, and `templateName`.
+   *
+   * **DETAILED EXECUTION:**
+   * 1. **Handshake**: Normalizes the recipient's phone number and ensures an active `Conversation` exists.
+   * 2. **Intelligence Component**: Invokes the `template.service` to dynamically resolve placeholders (e.g., `{{meeting_time}}`) based on the lead's latest data.
+   * 3. **Messaging Engine**: Transmits the resolved template via the `WhatsAppSDK` / Meta Cloud API.
+   * 4. **Interaction Capture**: Logs a `whatsapp_sent` activity to verify the reminder was dispatched.
+   *
+   * **EDGE CASE MANAGEMENT:**
+   * - Resolution Failure: If a template variable cannot be resolved, logs a warning and proceeds with raw/fallback values to ensure the message is still sent.
+   * - API Failure: Creates a high-priority "Reminder Failed" notification for the tenant admin.
+   */
   async handle(clientCode: string, payload: any, _job: IJob): Promise<void> {
     // Note: globalIo is typically injected via worker registration
     const io = (global as any).io;

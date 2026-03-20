@@ -1,19 +1,12 @@
 /**
- * SDK barrel — single import point for all service class facades.
+ * @file index.ts
+ * @module SDKFactory
+ * @responsibility Central entry point for initializing tenant-bound SDK instances.
+ * @dependencies All sub-SDK classes (Lead, WhatsApp, Pipeline, etc.)
  *
- * Usage:
- *   import { createSDK } from "../sdk/index.ts";
- *
+ * @example
  *   const sdk = createSDK(clientCode, io);
- *
- *   const lead     = await sdk.lead.create({ firstName: "Raj", phone: "919..." });
- *   const all      = await sdk.pipeline.list();
- *   await sdk.activity.createNote(lead._id, "Follow up next week");
- *   await sdk.whatsapp.sendTemplate(convId, "welcome_msg");
- *
- * Each call to createSDK() is lightweight — the classes hold no persistent
- * state other than clientCode (and io for WhatsAppSDK).
- * You can create a new SDK instance per request, or cache it per clientCode.
+ *   const lead = await sdk.lead.create({ firstName: "Raj", phone: "91..." });
  */
 
 import type { Server } from "socket.io";
@@ -44,20 +37,17 @@ export { WhatsAppSDK } from "./whatsapp.sdk.ts";
 // ─── Factory ───────────────────────────────────────────────────────────────────
 
 /**
- * Create a full SDK bound to a single clientCode.
+ * Factory function to create a unified SDK instance bound to a tenant.
  *
- * @param clientCode - Tenant identifier (e.g. "ACME_001")
- * @param io         - Socket.io Server instance, or null if not needed
+ * **WORKING PROCESS:**
+ * 1. Receives a `clientCode` (mandatory) and `io` (optional).
+ * 2. Instantiates all sub-SDK classes (Lead, WhatsApp, Automation, etc.).
+ * 3. Injects the `clientCode` into every sub-SDK to ensure tenant isolation.
+ * 4. Returns a frozen-like object containing all service facades.
  *
- * @example
- *   // In a route handler
- *   const sdk = createSDK(req.clientCode, io);
- *   const lead = await sdk.lead.create({ firstName: "Raj", phone: "91..." });
- *
- * @example
- *   // In a job / automation
- *   const sdk = createSDK(clientCode);  // io defaults to null
- *   await sdk.lead.move(leadId, wonStageId);
+ * @param {string} clientCode - Unique tenant identifier.
+ * @param {Server | null} [io=null] - Optional Socket.io instance for real-time features.
+ * @returns {SDK} A complete bound SDK instance.
  */
 export function createSDK(clientCode: string, io: Server | null = null): SDK {
   return {

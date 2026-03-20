@@ -1,3 +1,12 @@
+/**
+ * @module CRM/PipelineModel
+ * @responsibility Represents a sales process containing multiple stages.
+ *
+ * **WORKING PROCESS:**
+ * - Isolation: Each tenant (`clientCode`) can define multiple concurrent pipelines.
+ * - Hierarchy: A pipeline contains multiple `PipelineStages` linked via `pipelineId`.
+ * - Defaults: One pipeline per tenant can be marked as `isDefault`, serving as the landing spot for new leads.
+ */
 import mongoose, { type Schema } from "mongoose";
 
 const pipelineSchema: Schema<IPipeline> = new mongoose.Schema(

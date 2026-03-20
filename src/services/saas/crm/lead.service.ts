@@ -1,15 +1,18 @@
 /**
- * leadService.ts
+ * @file lead.service.ts
+ * @module LeadService
+ * @responsibility Comprehensive CRM lead lifecycle management: CRUD, stage transitions, tagging, scoring, and bulk operations.
+ * @dependencies mongoose, BaseRepository, getCrmModels, pipeline.service, scoring.service, eventBus.service
  *
- * All lead operations: create, fetch (with populate), move stage,
- * update metadata refs, score calculation, search, bulk ops.
+ * **WORKING PROCESS:**
+ * 1. Resolves tenant-specific MongoDB models/connections via `clientCode`.
+ * 2. Uses `BaseRepository` for standardized schema-agnostic DB access.
+ * 3. Integrates with `EventBus` for non-blocking trigger orchestration.
+ * 4. Maintains strict audit trails via `LeadActivity` for every state change.
  *
- * Population strategy:
- * - pipelineId → populated: returns { _id, name }
- * - stageId    → populated: returns { _id, name, color, probability, isWon, isLost }
- * - metadata.refs.* → returned as ObjectId strings (client queries their own DB)
- *
- * All DB ops go to the client's own tenant DB via getCrmModels().
+ * **POPULATION STRATEGY:**
+ * - `pipelineId`: Returns `{ _id, name }` for Kanban grouping.
+ * - `stageId`: Returns `{ _id, name, color, probability, isWon, isLost }` for UI rendering.
  */
 
 import mongoose from "mongoose";
@@ -97,6 +100,37 @@ const fireEvent = async (
 
 // ─── 1. Create lead ───────────────────────────────────────────────────────────
 
+/**
+ * The primary entry point for injecting new business opportunities (Leads) into the CRM.
+ *
+ * @param clientCode - The unique tenant identifier. Used to isolate database models and scope the request.
+ * @param input - Detailed payload containing lead identity, financial data, and source metadata.
+ * @param input.firstName - Required first name.
+ * @param input.lastName - (Optional) Last name.
+ * @param input.phone - Required E.164 phone number. Automatically normalized during execution.
+ * @param input.email - (Optional) Contact email.
+ * @param input.pipelineId - (Optional) Specific pipeline to place the lead in. Defaults to the tenant's "Sales" pipeline.
+ * @param input.stageId - (Optional) Specific stage within the pipeline. Defaults to the first stage of the resolved pipeline.
+ * @param input.dealValue - (Optional) Monetary value of the lead.
+ * @param input.currency - (Optional) Currency code (e.g., "INR", "USD").
+ * @param input.source - (Optional) Lead origin (e.g., "google_ads", "referral").
+ *
+ * @returns {Promise<ILead>} The fully hydrated Lead record, including populated `pipelineId` and `stageId` objects for immediate UI rendering.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Model & Repo Binding**: Resolves the tenant-specific `LeadActivity` model and `LeadRepository` instance.
+ * 2. **Pipeline/Stage Bootstrapping**:
+ *    - If `pipelineId` or `stageId` are missing, it triggers an auto-discovery process.
+ *    - If no pipelines exist for the tenant, it dynamically creates a "Default Pipeline" using the sales blueprint.
+ * 3. **Reference Mapping**: Normalizes metadata references (e.g., `appointmentId`) from strings to `Mongoose.ObjectId`.
+ * 4. **Persistence**: Creates the Lead record with `status: "open"` and initializes the `stageHistory` array.
+ * 5. **Audit Logging**: Asynchronously logs a "Lead created" system activity to the lead's timeline.
+ * 6. **Event Orchestration**: Emits `lead.created` via the global `EventBus`. This is a "Fire-and-Forget" action that triggers automation enrollment.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Data Integrity: If phone normalization fails, the transaction is aborted via the underlying Mongoose layer.
+ * - Circularity Safety: Blueprints are only auto-deployed if the tenant has zero existing pipelines.
+ */
 export const createLead = async (
   clientCode: string,
   input: CreateLeadInput,
@@ -359,6 +393,20 @@ export const getLeadsByStage = async (
 
 // ─── 7. Update lead fields ────────────────────────────────────────────────────
 
+/**
+ * Updates basic lead profile fields with strict phone normalization.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead to update.
+ * @param updates - Object containing fields to change (firstName, phone, dealValue, etc.).
+ *
+ * @returns {Promise<ILead | null>} The updated record with populated relationships, or `null` if the ID doesn't exist.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Normalization**: If `phone` is provided in the update, it is forced through the `normalizePhone` utility.
+ * 2. **Atomic Set**: Performs an `findOneAndUpdate` with `{ $set: cleanUpdates }`.
+ * 3. **Hydration**: Populates `pipelineId` and `stageId` before returning to ensure the frontend has updated labels/colors.
+ */
 export const updateLead = async (
   clientCode: string,
   leadId: string,
@@ -382,6 +430,24 @@ export const updateLead = async (
 
 // ─── 8. Update metadata refs ──────────────────────────────────────────────────
 
+/**
+ * Safely updates cross-system metadata references (external IDs) and extra payload fields.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead.
+ * @param refs - Map of reference keys (e.g., `appointmentId`) to their values. `null` values trigger a deletion (unset).
+ * @param extra - (Optional) Flat map of unstructured data to store in `metadata.extra`.
+ *
+ * @returns {Promise<ILead | null>} The updated lead.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **State Diffing**: Iterates through `refs`.
+ *    - If a value is `null`, it marks the path for `$unset`.
+ *    - Otherwise, it casts the string to a `Mongoose.ObjectId`.
+ * 2. **Multi-Op Update**: Executes a single Mongoose call combining `$set` (new data) and `$unset` (removal) to ensure consistency.
+ *
+ * **GOAL:** This is the primary glue for syncing the CRM with external apps (Booking, ERP, E-commerce).
+ */
 export const updateMetadataRefs = async (
   clientCode: string,
   leadId: string,
@@ -424,6 +490,34 @@ export const updateMetadataRefs = async (
 
 // ─── 9. Move lead to a different stage ───────────────────────────────────────
 
+/**
+ * Orchestrates the transition of a lead between pipeline stages, handling analytics, history, and status updates.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead being moved.
+ * @param newStageId - UUID of the destination stage.
+ * @param performedBy - (Optional) Actor ID. Defaults to "user".
+ *
+ * @returns {Promise<ILead | null>} The updated lead record with full population.
+ *
+ * @throws {Error} "Stage not found" if `newStageId` is invalid for the tenant.
+ * @throws {Error} "Lead not found" if `leadId` is invalid.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Validation**: Parallel lookup of target `Stage` and existing `Lead`.
+ * 2. **Win/Loss Prediction**: Detects if the target stage is flagged as `isWon` or `isLost`.
+ *    - If `isWon`: status -> "won", sets `convertedAt`.
+ *    - If `isLost`: status -> "lost", sets `convertedAt`.
+ * 3. **Velocity Calculation**: Calculates `durationMs` between `now` and the lead's `enteredStageAt` timestamp.
+ * 4. **Atomic Migration**:
+ *    - Updates `stageId`, `pipelineId`, `status`, and `enteredStageAt`.
+ *    - Pushes a new entry to `stageHistory` containing the previous stage metadata and duration.
+ * 5. **Timeline Audit**: Logs a `stage_change` activity with color-coded stage names.
+ * 6. **Side-Effect Orchestration (EventBus)**:
+ *    - Fires `lead.stage_exit` (previous stage).
+ *    - Fires `lead.stage_enter` (new stage).
+ *    - Fires `lead.deal_won` or `lead.deal_lost` if applicable.
+ */
 export const moveLead = async (
   clientCode: string,
   leadId: string,
@@ -523,6 +617,17 @@ export const moveLead = async (
 
 // ─── 10. Mark won / lost ─────────────────────────────────────────────────────
 
+/**
+ * Explicitly terminates the lead lifecycle as a win or loss.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead.
+ * @param outcome - Result: "won" or "lost".
+ * @param reason - (Optional) Context for the outcome (e.g., "Price too high").
+ * @param performedBy - (Optional) Actor ID.
+ *
+ * @returns {Promise<ILead | null>}
+ */
 export const convertLead = async (
   clientCode: string,
   leadId: string,
@@ -556,6 +661,20 @@ export const convertLead = async (
 
 // ─── 11. Add / remove tags ────────────────────────────────────────────────────
 
+/**
+ * Atomic multi-tag management with automation triggers.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leadId - UUID of the lead.
+ * @param add - Array of tag strings to append.
+ * @param remove - Array of tag strings to detach.
+ *
+ * @returns {Promise<ILead | null>}
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Set Manipulation**: Uses `$addToSet` (prevents duplicates) and `$pull` (bulk removal).
+ * 2. **Notification Loop**: Iterates through added/removed tags and fires granular `lead.tag_added`/`lead.tag_removed` events.
+ */
 export const updateTags = async (
   clientCode: string,
   leadId: string,
@@ -628,6 +747,23 @@ export const archiveLead = async (
 
 // ─── 14. Bulk upsert ─────────────────────────────────────────────────────────
 
+/**
+ * Industrial-scale lead ingestion/sync for bulk uploads or external integrations.
+ *
+ * @param clientCode - Tenant ID.
+ * @param leads - Array of lead data objects.
+ *
+ * @returns {Promise<Object>} Object containing counts of `created`, `updated`, and `failed` records.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Pipeline Pre-flight**: Resolves the tenant's default pipeline/stage to ensure new leads have a home.
+ * 2. **Parallel Processing**: Wraps each lead in `Promise.allSettled` to prevent one bad record (e.g., malformed email) from crashing the batch.
+ * 3. **Upsert Logic**:
+ *    - Finds by `phone` (the unique pivot).
+ *    - `$set`: Overwrites common fields (firstName, email, customFields).
+ *    - `$setOnInsert`: Only applies to new leads (initial status, pipeline, creation date).
+ * 4. **Diff Tracking**: Inspects the MongoDB version (`__v`) to determine if the record was newly created or just patched.
+ */
 export const bulkUpsertLeads = async (
   clientCode: string,
   leads: CreateLeadInput[],
@@ -728,6 +864,18 @@ export const bulkArchive = async (
 
 // ─── 16. Get available fields (discovery) ─────────────────────────────────────
 
+/**
+ * Dynamically discovers all fields available for a lead, including custom extra fields.
+ *
+ * **WORKING PROCESS:**
+ * 1. Defines a static list of "Core Fields" (First Name, Phone, etc.).
+ * 2. Samples the 100 most recent leads for this tenant.
+ * 3. Scans `metadata.extra` keys to identify active custom fields.
+ * 4. Merges and returns a unified schema-like field map for UI consumption.
+ *
+ * **EDGE CASES:**
+ * - Sparse Data: If a custom field hasn't been used in the last 100 leads, it won't be discovered here.
+ */
 export const getLeadFields = async (
   clientCode: string,
 ): Promise<{ key: string; label: string; type: string }[]> => {

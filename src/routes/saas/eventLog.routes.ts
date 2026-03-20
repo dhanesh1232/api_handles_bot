@@ -4,9 +4,17 @@ import { type Request, type Response, Router } from "express";
 const router = Router();
 
 /**
- * GET /api/saas/events/logs
- * Returns EventLog records for this client
- * Query: trigger, status, phone, startDate, endDate, page, limit
+ * Event Log Audit Trail.
+ *
+ * **GOAL:** Provide a searchable, paginated history of all automation triggers and execution outcomes for a specific tenant.
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Tenant Model Binding**: Dynamically resolves the `EventLog` model for the current `clientCode`.
+ * 2. **Multi-Faceted Filtering**: Builds a query object supporting `trigger` type, execution `status`, recipient `phone`, and a `createdAt` date range.
+ * 3. **Data Retrieval**: Executes parallel `find` and `countDocuments` operations to provide full pagination metadata.
+ *
+ * **EDGE CASE MANAGEMENT:**
+ * - Invalid Date Formats: Standard `new Date()` wrapping for `startDate`/`endDate`; relies on global error handler if parsing fails catastrophically.
  */
 router.get("/events/logs", async (req: Request, res: Response) => {
   try {
@@ -145,9 +153,13 @@ router.get("/events/stats", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/saas/callbacks/logs
- * Returns CallbackLog records for this client
- * Query: status, page, limit, startDate, endDate
+ * External Callback Audit Trail.
+ *
+ * **GOAL:** Track incoming webhook payloads and status updates from third-party providers (e.g., Meta/WhatsApp, SMTP providers).
+ *
+ * **DETAILED EXECUTION:**
+ * 1. **Inbound Resolution**: Queries the `CallbackLog` collection to show what the system received from external vendors.
+ * 2. **Chronological Sorting**: Enforces `{ createdAt: -1 }` to ensure recent deliveries are prioritized.
  */
 router.get("/callbacks/logs", async (req: Request, res: Response) => {
   try {

@@ -1,9 +1,16 @@
-import { PROVIDER_CONFIG } from "../../config/emailProviders.ts";
-import { ClientSecrets } from "../../model/clients/secrets.ts";
+import { PROVIDER_CONFIG } from "@/config/emailProviders";
+import { ClientSecrets } from "@/model/clients/secrets";
 
 class EmailHealthService {
   /**
-   * Call this after every successful send
+   * Updates delivery metrics and health status after a successful email dispatch.
+   *
+   * **WORKING PROCESS:**
+   * 1. Persistence: Recalculates the global `failureRate` using the updated `totalSent` counter.
+   * 2. Heuristic Check: Resets `consecutiveFailures` to zero.
+   * 3. State Transition: Re-evaluates health status (healthy/degraded/failing). If failure rate is <5%, remains `healthy`.
+   *
+   * @param {string} clientCode - Tenant identifier.
    */
   async recordSuccess(clientCode: string): Promise<void> {
     const secrets = await ClientSecrets.findOne({ clientCode });
@@ -35,7 +42,20 @@ class EmailHealthService {
   }
 
   /**
-   * Call this after every failed send
+   * Records a failed delivery attempt and potentially degrades/suspends the provider status.
+   *
+   * **WORKING PROCESS:**
+   * 1. Persistence: Logs the specific error reason and increments `consecutiveFailures`.
+   * 2. Risk Evaluation:
+   *    - **Degraded**: Triggered after 3 consecutive failures or >5% failure rate.
+   *    - **Failing**: Triggered after 5 consecutive failures or >20% failure rate.
+   * 3. Sync: Updates the `ClientSecrets` document to alert the UI and downstream consumers.
+   *
+   * **EDGE CASES:**
+   * - Cascading Failure: Successive failures will quickly move a tenant to "failing" to prevent further reputation damage.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @param {string} reason - Error message from the provider.
    */
   async recordFailure(clientCode: string, reason: string): Promise<void> {
     const secrets = await ClientSecrets.findOne({ clientCode });
@@ -70,7 +90,17 @@ class EmailHealthService {
   }
 
   /**
-   * Get health summary for UI
+   * Aggregates stats and health-check logic into human-readable recommendations.
+   *
+   * **WORKING PROCESS:**
+   * 1. Data Merging: Combines raw stats with provider-specific risk metadata (from `PROVIDER_CONFIG`).
+   * 2. Diagnostic Rules:
+   *    - High Failure Rate (>20%): Recommends switching to Amazon SES.
+   *    - SMTP usage: Flags potential port blocking issues.
+   *    - Unconfigured SES: Dynamic checklist for domain -> DNS -> from email onboarding steps.
+   *
+   * @param {string} clientCode - Tenant identifier.
+   * @returns {Promise<object>} Stats, status, and a prioritized list of `recommendations`.
    */
   async getHealthSummary(clientCode: string) {
     const secrets = await ClientSecrets.findOne({ clientCode });
