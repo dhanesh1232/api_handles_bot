@@ -89,17 +89,37 @@ export function createMeetRouter(io: Server) {
 
   /**
    * PATCH /api/saas/meet/:id
-   * Update meeting status or payment info.
+   * Update meeting status, payment info, or reschedule.
    */
   router.patch("/:id", async (req: Request, res: Response) => {
     try {
-      const { status, paymentStatus } = req.body;
-      const meeting = await meetingService.updateMeetingStatus(
-        req.clientCode!,
-        req.params.id as string,
-        status,
-        paymentStatus,
-      );
+      const { status, paymentStatus, startTime, endTime, duration } = req.body;
+
+      let meeting;
+
+      // Handle Rescheduling
+      if (startTime && endTime) {
+        meeting = await meetingService.rescheduleMeeting(
+          req.clientCode!,
+          req.params.id as string,
+          {
+            startTime: new Date(startTime),
+            endTime: new Date(endTime),
+            duration: duration || 30,
+          },
+        );
+      }
+
+      // Handle Status/Payment Updates
+      if (status || paymentStatus) {
+        meeting = await meetingService.updateMeetingStatus(
+          req.clientCode!,
+          req.params.id as string,
+          status,
+          paymentStatus,
+        );
+      }
+
       if (!meeting) {
         res.status(404).json({ success: false, message: "Meeting not found" });
         return;

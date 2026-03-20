@@ -42,6 +42,15 @@ export const CURATED_FIELDS: Record<string, Record<string, string>> = {
     experience: "Years of Experience",
     consultationFee: "Consultation Fee",
   },
+  appointments: {
+    appointmentDate: "Appointment Date",
+    timeSlot: "Time Slot",
+    patientName: "Patient Name",
+    patientPhone: "Patient Phone",
+    patientEmail: "Patient Email",
+    status: "Appointment Status",
+    consultationType: "Consultation Type",
+  },
 };
 
 /**

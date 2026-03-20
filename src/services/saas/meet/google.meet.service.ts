@@ -60,11 +60,83 @@ export const createGoogleMeetService = () => {
         { err: error },
         `Google Meet creation failed: ${error.message}`,
       );
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Delete a Google Meet event
+   * @param clientCode - The client code
+   * @param eventId - The event ID
+   * @returns \{ success: boolean; error?: string \}
+   */
+  const deleteMeeting = async (
+    clientCode: string,
+    eventId: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const log = tenantLogger(clientCode);
+    try {
+      const client = await getClient(clientCode);
+      await client.deleteMeeting(eventId);
+      return { success: true };
+    } catch (error: any) {
+      log.error(
+        { err: error, eventId },
+        `Google Meet deletion failed: ${error.message}`,
+      );
       return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Update a Google Meet event
+   * @param clientCode - The client code
+   * @param eventId - The event ID
+   * @param meetingDetails - The meeting details
+   * @returns GoogleMeetResponse
+   */
+  const updateMeeting = async (
+    clientCode: string,
+    eventId: string,
+    meetingDetails: Partial<MeetingInput>,
+  ): Promise<GoogleMeetResponse> => {
+    const log = tenantLogger(clientCode);
+    try {
+      const client = await getClient(clientCode);
+
+      const result = await client.updateMeeting(eventId, {
+        summary: meetingDetails.summary || "Meeting",
+        description: meetingDetails.description || "Updated meeting",
+        start: meetingDetails.start || new Date().toISOString(),
+        end:
+          meetingDetails.end || new Date(Date.now() + 30 * 60000).toISOString(),
+        attendees: meetingDetails.attendees,
+      });
+
+      return {
+        success: true,
+        hangoutLink: result.hangoutLink,
+        eventId: result.eventId,
+        summary: result.summary,
+      };
+    } catch (error: any) {
+      log.error(
+        { err: error, eventId },
+        `Google Meet update failed: ${error.message}`,
+      );
+      return {
+        success: false,
+        error: error.message,
+      };
     }
   };
 
   return {
     createMeeting,
+    deleteMeeting,
+    updateMeeting,
   };
 };

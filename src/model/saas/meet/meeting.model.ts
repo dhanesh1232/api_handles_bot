@@ -85,13 +85,15 @@ const meetingSchema: Schema<IMeeting> = new mongoose.Schema(
         fireTime: { type: Date, required: true },
         status: {
           type: String,
-          enum: ["pending", "sent", "failed"],
+          enum: ["pending", "sent", "failed", "cancelled"],
           default: "pending",
         },
         error: { type: String, default: null },
         sentAt: { type: Date, default: null },
+        rescheduled: { type: Boolean, default: false },
       },
     ],
+    rescheduledAt: { type: Date, default: null },
     metadata: {
       refs: {
         type: Map,

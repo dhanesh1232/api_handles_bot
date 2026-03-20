@@ -1421,16 +1421,30 @@ export const getCollectionFields = async (
         const fullKey = prefix ? `${prefix}.${key}` : key;
         const val = obj[key];
 
+        const isDate = val instanceof Date;
         const isArray = Array.isArray(val);
         const isObject =
-          val && typeof val === "object" && !isArray && !(val instanceof Date);
-        const dataType = isArray ? "array" : isObject ? "object" : typeof val;
+          val && typeof val === "object" && !isArray && !isDate;
+        const dataType = isArray
+          ? "array"
+          : isObject
+            ? "object"
+            : isDate
+              ? "date"
+              : typeof val;
 
-        // Check if this is a curated field
-        const collectionCurated = CURATED_FIELDS[collName] || {};
         const curatedLabel = collectionCurated[fullKey];
+        const existingField = fieldsSet.get(fullKey);
 
-        if (!fieldsSet.has(fullKey)) {
+        if (existingField) {
+          // Enrich core fields found via SchemaScanner with dynamic type info
+          if (!existingField.dataType) {
+            existingField.dataType = dataType;
+          }
+          if (existingField.type === "core" && curatedLabel) {
+            existingField.type = "curated";
+          }
+        } else {
           fieldsSet.set(fullKey, {
             key: fullKey,
             label:

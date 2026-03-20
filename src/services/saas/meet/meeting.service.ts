@@ -1,6 +1,8 @@
 import { getClientConfig, getCrmModels } from "@lib/tenant/crm.models";
 import mongoose from "mongoose";
 import { createGoogleMeetService } from "./google.meet.service.ts";
+import Job from "@models/queue/job.model";
+import { dbConnect } from "@lib/config";
 
 /**
  * Backend service for managing meetings and consultations.
@@ -127,6 +129,46 @@ export const createMeeting = async (
   return meeting.toObject() as unknown as IMeeting;
 };
 
+/**
+ * Cancel all pending reminder jobs for a meeting.
+ */
+export const cancelMeetingReminders = async (
+  clientCode: string,
+  meetingId: string,
+): Promise<void> => {
+  // 1. Mark in-document reminders as cancelled OR just tag as rescheduled
+  const { Meeting } = await getCrmModels(clientCode);
+
+  // Mark all existing reminders as 'rescheduled' so they are labeled in UI
+  await Meeting.updateOne(
+    { _id: meetingId, clientCode },
+    {
+      $set: {
+        "reminders.$[].rescheduled": true,
+        rescheduledAt: new Date(),
+      },
+    },
+  );
+
+  // Also mark 'pending' ones specifically as 'cancelled'
+  await Meeting.updateOne(
+    { _id: meetingId, clientCode },
+    { $set: { "reminders.$[r].status": "cancelled" } },
+    { arrayFilters: [{ "r.status": "pending" }] },
+  );
+
+  // 2. Delete pending background jobs
+  await dbConnect("services");
+  const result = await Job.deleteMany({
+    queue: "crm",
+    status: "waiting",
+    "data.payload.meetingId": meetingId,
+  });
+  console.log(
+    `[meetingService] Cancelled ${result.deletedCount} pending reminders for meeting ${meetingId}`,
+  );
+};
+
 export const getMeetingById = async (
   clientCode: string,
   meetingId: string,
@@ -182,7 +224,122 @@ export const updateMeetingStatus = async (
       metadata: { meetingId, status, paymentStatus },
       performedBy: "system",
     });
+
+    // Special handling for cancellation: remove reminders and calendar events
+    if (status === "cancelled") {
+      try {
+        await cancelMeetingReminders(clientCode, meetingId);
+
+        if (meeting.eventId) {
+          const googleMeetService = createGoogleMeetService();
+          await googleMeetService.deleteMeeting(clientCode, meeting.eventId);
+        }
+      } catch (err: any) {
+        console.error(
+          `[meetingService] Cleanup failed for cancelled meeting ${meetingId}:`,
+          err.message,
+        );
+      }
+    }
   }
 
   return meeting;
+};
+
+/**
+ * Reschedule an existing meeting.
+ */
+export const rescheduleMeeting = async (
+  clientCode: string,
+  meetingId: string,
+  input: { startTime: Date; endTime: Date; duration: number },
+): Promise<IMeeting | null> => {
+  const { Meeting, LeadActivity } = await getCrmModels(clientCode);
+
+  const meeting = await Meeting.findOne({ _id: meetingId, clientCode });
+  if (!meeting) return null;
+
+  // 1. Update Google Calendar event if exists
+  if (meeting.meetingMode === "online" && meeting.eventId) {
+    try {
+      const googleMeetService = createGoogleMeetService();
+      await googleMeetService.updateMeeting(clientCode, meeting.eventId, {
+        summary: `Meeting: ${meeting.participantName}`,
+        start: input.startTime.toISOString(),
+        end: input.endTime.toISOString(),
+      });
+    } catch (err: any) {
+      console.error(
+        `Google Meet update failed for meeting ${meetingId}:`,
+        err.message,
+      );
+    }
+  }
+
+  // 2. Update Meeting record
+  const updatedMeeting = (await Meeting.findOneAndUpdate(
+    { _id: meetingId, clientCode },
+    {
+      $set: {
+        startTime: input.startTime,
+        endTime: input.endTime,
+        duration: input.duration,
+        status: "scheduled",
+      },
+    },
+    { returnDocument: "after" },
+  ).lean()) as unknown as IMeeting | null;
+
+  if (updatedMeeting) {
+    // 3. Log activity
+    await LeadActivity.create({
+      clientCode,
+      leadId: updatedMeeting.leadId,
+      type: "system",
+      title: "Meeting Rescheduled",
+      metadata: {
+        meetingId,
+        startTime: input.startTime,
+        endTime: input.endTime,
+      },
+      performedBy: "system",
+    });
+
+    // 4. Reschedule reminders (cancel old, emit new event)
+    try {
+      await cancelMeetingReminders(clientCode, meetingId);
+
+      const { EventBus } = await import("../event/eventBus.service.ts");
+      const meetCode = updatedMeeting.meetLink?.split("/").pop() || "";
+
+      const variables = {
+        meet_link: updatedMeeting.meetLink || "",
+        meet_code: meetCode,
+        start_time: updatedMeeting.startTime.toISOString(),
+        date: updatedMeeting.startTime.toLocaleDateString("en-IN"),
+        time: updatedMeeting.startTime.toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        participant_name: updatedMeeting.participantName,
+        meeting_mode: updatedMeeting.meetingMode,
+        amount: updatedMeeting.amount?.toString() || "0",
+        meeting_id: (updatedMeeting as any)._id?.toString(),
+      };
+
+      // Emit "meeting.rescheduled" or reuse "meeting.created" if rules are common
+      void EventBus.emit(clientCode, "meeting.rescheduled", {
+        phone: updatedMeeting.participantPhone,
+        data: updatedMeeting,
+        variables,
+      });
+    } catch (err) {
+      console.error(
+        `[meetingService] Hook execution failed for reschedule ${clientCode}:`,
+        err,
+      );
+    }
+  }
+
+  return updatedMeeting;
 };

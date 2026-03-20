@@ -12,6 +12,7 @@ interface FieldDefinition {
   key: string;
   label: string;
   type: string;
+  dataType?: string;
 }
 
 /**
@@ -102,12 +103,18 @@ export class SchemaScanner {
           if (MONGOOSE_RESERVED.includes(key)) continue;
 
           if (!fields.some((f) => f.key === key)) {
+            const isProbablyDate =
+              key.toLowerCase().includes("date") ||
+              key.toLowerCase().includes("time") ||
+              key.endsWith("At");
+
             fields.push({
               key,
               label: key
                 .replace(/([A-Z])/g, " $1")
                 .replace(/^./, (str) => str.toUpperCase()),
               type: "core",
+              dataType: isProbablyDate ? "date" : undefined,
             });
           }
         }

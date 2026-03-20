@@ -252,7 +252,10 @@ export class EventBus {
       });
 
       // 7. Special Handlers (Observers)
-      if (trigger === "meeting.created" && payload.data) {
+      if (
+        (trigger === "meeting.created" || trigger === "meeting.rescheduled") &&
+        payload.data
+      ) {
         try {
           await scheduleMeetingReminders(clientCode, payload.data as any);
         } catch (err: any) {

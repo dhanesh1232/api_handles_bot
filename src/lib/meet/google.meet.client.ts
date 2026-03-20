@@ -100,4 +100,67 @@ export class GoogleMeetClient {
       throw err;
     }
   }
+
+  /**
+   * Delete a Google Meet event.
+   */
+  async deleteMeeting(eventId: string) {
+    try {
+      const calendar = google.calendar({ version: "v3", auth: this.auth });
+      await calendar.events.delete({
+        calendarId: "primary",
+        eventId: eventId,
+      });
+      this.log.debug(
+        { eventId, clientCode: this.clientCode },
+        "Meeting deleted",
+      );
+    } catch (err) {
+      this.log.error(
+        { err, eventId, clientCode: this.clientCode },
+        "Failed to delete meeting",
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Update a Google Meet event.
+   */
+  async updateMeeting(eventId: string, input: MeetingInput) {
+    try {
+      const calendar = google.calendar({ version: "v3", auth: this.auth });
+
+      const event = {
+        summary: input.summary,
+        description: input.description,
+        start: { dateTime: input.start, timeZone: "UTC" },
+        end: { dateTime: input.end, timeZone: "UTC" },
+        attendees: input.attendees?.map((email) => ({ email })),
+      };
+
+      const response = await calendar.events.patch({
+        calendarId: "primary",
+        eventId: eventId,
+        requestBody: event,
+      });
+
+      this.log.debug(
+        { eventId, clientCode: this.clientCode },
+        "Meeting updated",
+      );
+
+      return {
+        hangoutLink: response.data.hangoutLink as string | undefined,
+        eventId: response.data.id as string | undefined,
+        summary: response.data.summary as string | undefined,
+      };
+    } catch (err) {
+      this.log.error(
+        { err, eventId, clientCode: this.clientCode },
+        "Failed to update meeting",
+      );
+      throw err;
+    }
+  }
 }
