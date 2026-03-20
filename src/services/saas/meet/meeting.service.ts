@@ -1,8 +1,8 @@
+import { dbConnect } from "@lib/config";
 import { getClientConfig, getCrmModels } from "@lib/tenant/crm.models";
+import Job from "@models/queue/job.model";
 import mongoose from "mongoose";
 import { createGoogleMeetService } from "./google.meet.service.ts";
-import Job from "@models/queue/job.model";
-import { dbConnect } from "@lib/config";
 
 /**
  * Backend service for managing meetings and consultations.

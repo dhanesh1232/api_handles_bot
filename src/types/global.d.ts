@@ -569,10 +569,12 @@ declare global {
       actionId: string;
       type: "send_whatsapp" | "send_email";
       fireTime: Date;
-      status: "pending" | "sent" | "failed";
+      status: "pending" | "sent" | "failed" | "cancelled";
       error?: string;
       sentAt?: Date;
+      rescheduled?: boolean;
     }[];
+    rescheduledAt?: Date | null;
     metadata: {
       refs: Record<string, any>; // supports single IDs or arrays of IDs
       extra: Record<string, any>;

@@ -1423,8 +1423,7 @@ export const getCollectionFields = async (
 
         const isDate = val instanceof Date;
         const isArray = Array.isArray(val);
-        const isObject =
-          val && typeof val === "object" && !isArray && !isDate;
+        const isObject = val && typeof val === "object" && !isArray && !isDate;
         const dataType = isArray
           ? "array"
           : isObject
